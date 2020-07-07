@@ -1,5 +1,3 @@
-# MobilityDB-BerlinMOD
-
 BerlinMOD Benchmark for MobilityDB
 ==================================
 
