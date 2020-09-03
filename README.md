@@ -27,6 +27,34 @@ In addition, pregenerated versions of them are available.
 *  In PDF format: https://docs.mobilitydb.com/MobilityDB-BerlinMOD/master/mobilitydb-berlinmod.pdf
 * In EPUB format: https://docs.mobilitydb.com/MobilityDB-BerlinMOD/master/mobilitydb-berlinmod.epub
 
+Docker container
+-----------------
+
+The dependencies and scripts of the MobilityDB-BerlinMOD Project are available in a Docker container running PostgreSQL-12, PostGIS-2.5 and MobilityDB-develop.
+
+*  Pull the prebuilt image from the [Docker Hub Registry](https://hub.docker.com/r/mobilitydb/mobilitydb).
+
+        docker pull mobilitydb/mobilitydb:12-2.5-develop-berlinmod
+
+*  Create a Docker volume to preserve the PostgreSQL database files outside of the container.
+
+        docker volume create mobilitydb_data
+        
+ *  Run the Docker container.
+
+        docker run --name "mobilitydb" -d -p 5432 -v mobilitydb_data:/var/lib/postgresql mobilitydb/mobilitydb:12-2.5-develop-berlinmod 
+        
+ *  Enter into the Docker container.
+
+        docker exec -it mobilitydb bash
+        
+ *  Connect to the database  (username=docker,db=mobilitydb).
+
+        psql -U docker -d mobilitydb 
+
+ *  BerlinMOD scripts are available in the BerlinMOD directory inside the container.
+        
+        
 License
 -------
 
