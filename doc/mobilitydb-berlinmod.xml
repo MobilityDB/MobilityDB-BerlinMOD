@@ -13,7 +13,7 @@
 
 		<author>
 			<firstname>Esteban</firstname>
-			<surname>Zim&aacute;nyi</surname>
+			<surname>Zimányi</surname>
 			<affiliation>
 				<orgname>Université libre de Bruxelles, Belgium</orgname>
 			</affiliation>
@@ -24,7 +24,7 @@
 			<para>MobilityDB is an extension to the PostgreSQL object-relational database system and its spatial extension PostGIS. It allows temporal and spatio-temporal objects to be stored in the database, that is, objects whose attribute values and/or location evolves in time. This document shows an implementation of the BerlinMOD benchmark that is described in:
 				<blockquote>
 					<para>
-					Düntgen, C., Behr, T. and Güting, R.H. BerlinMOD: a benchmark for moving object databases. The VLDB Journal 18, 1335 (2009). <ulink  url="https://doi.org/10.1007/s00778-009-0142-5	">https://doi.org/10.1007/s00778-009-0142-5</ulink>
+					Düntgen, C., Behr, T. and Güting, R.H. BerlinMOD: a benchmark for moving object databases. The VLDB Journal 18, 1335 (2009). <ulink  url="https://doi.org/10.1007/s00778-009-0142-5">https://doi.org/10.1007/s00778-009-0142-5</ulink>
 					</para>
 				</blockquote>
 				It starts with a tutorial introducing MobilityDB based on BerlinMOD data, continues by explaining how to generate realistic trajectory datasets of arbritrary size, and concludes by explaining how to run the BerlinMOD benchmark on MobilityDB.</para>
