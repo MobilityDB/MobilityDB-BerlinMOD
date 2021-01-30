@@ -80,10 +80,10 @@
 					</para>
 				</listitem>
 				<listitem>
-					<para>pgRouting. The installation instructions can be found <ulink  url="https://pgrouting.org/">here</ulink>. The minimum version required is 3.1.0.</para>
+					<para>pgRouting. The installation instructions can be found <ulink url="https://pgrouting.org/">here</ulink>. The minimum version required is 3.1.0.</para>
 				</listitem>
 				<listitem>
-					<para>Download the quick start files <ulink  url="https://docs.mobilitydb.com/data/datagenerator.zip">here</ulink>. Extract the archive in any folder. In the following we refer to this folder as generatorHome.</para>
+					<para>Download the quick start files <ulink url="https://docs.mobilitydb.com/data/datagenerator.zip">here</ulink>. Extract the archive in any folder. In the following we refer to this folder as generatorHome.</para>
 				</listitem>
 			</itemizedlist>
 		</para>
@@ -95,12 +95,15 @@
 		Running the generator is done in three steps:
 		</para>
 		<para>
-		<emphasis>Firstly, load the street network</emphasis>. Create a new database <varname>brussels</varname>, then add both PostGIS, MobilityDB, and pgRouting to it.
+		<emphasis>Firstly, load the street network</emphasis>. Create a new database <varname>brussels</varname>, then add the extensions hstore, PostGIS, MobilityDB, and pgRouting to it.
 			<programlisting>
 -- in a console:
 createdb -h localhost -p 5432 -U dbowner brussels
 -- replace localhost with your database host, 5432 with your port, 
 -- and dbowner with your database user 
+
+psql -h localhost -p 5432 -U dbowner -d brussels -c 'CREATE EXTENSION hstore'
+-- adds the hstore extension needed by osm2pgsql
 
 psql -h localhost -p 5432 -U dbowner -d brussels -c 'CREATE EXTENSION MobilityDB CASCADE'
 -- adds the PostGIS and the MobilityDB extensions to the database
@@ -127,14 +130,14 @@ osm2pgsql -c -H localhost -P 5432 -U dbowner -d brussels brussels.osm
 
 psql -h localhost -p 5432 -U dbowner -d brussels -f brussels_preparedata.sql
 -- samples home and work nodes, transforms data to SRID 3857, does further data preparation
+
+psql -h localhost -p 5432 -U dbowner -d brussels -f berlinmod_datagenerator.sql
+-- adds the pgplsql functions of the simulation to the database
 			</programlisting>
 		</para>
 		<para>
 		<emphasis>Finally, run the generator.</emphasis>
 			<programlisting>
-psql -h localhost -p 5432 -U dbowner -d brussels -f berlinmod_datagenerator_batch.sql
--- adds the pgplsql functions of the simulation to the database
-
 psql -h localhost -p 5432 -U dbowner -d brussels \
 -c 'select berlinmod_generate(scaleFactor := 0.005)'
 -- calls the main pgplsql function to start the simulation
@@ -157,10 +160,10 @@ psql -h localhost -p 5432 -U dbowner -d brussels -c &#92;
 "select berlinmod_generate(scaleFactor := 0.005, messages := 'medium')" 2>&amp;1 | \
 tee trace.txt
 			</programlisting>
-			You can show more messages describing the generation process by setting the optional parameter <varname>messages</varname> with one of the values <varname>'minimal'</varname> (the default), <varname>'medium'</varname>, <varname>'verbose'</varname>, or <varname>'debug'</varname>.
+			You can show more messages describing the generation process by setting the optional parameter <varname>messages</varname> with one of the values <varname>'minimal'</varname> (the default), <varname>'medium'</varname>, <varname>'verbose'</varname>, or <varname>'debug'</varname>. In <xref linkend="datagen_customizing" /> are explained all the parameters that can be used to customize the simulation.
 		</para>
 		<para>
-			<xref linkend="berlinmod_visualization" /> shows a visualization of the trips generated.
+			<xref linkend="berlinmod_visualization" /> shows a visualization of the trips generated in QGIS.
 		</para>
 		<figure id="berlinmod_visualization" float="start"><title>Visualization of the trips generated. The edges of the network are shown in blue, the edges traversed by the trips are shown in black, the home nodes in black and the work nodes in red.</title>
 			<mediaobject>
@@ -864,7 +867,7 @@ noDays int = round((sqrt(P_SCALE_FACTOR) * 28)::numeric, 0)::int;
 			</listitem>
 			<listitem>
 				<para>
-					<varname>P_TRIP_GENERATION: text</varname>: Determine the language used to generate the trips. Possible values are <varname>'C'</varname> (default) and <varname>'SQL'</varname>. Corresponding optional argument: <varname>tripGeneration</varname>.
+					<varname>P_TRIP_GENERATION: text</varname>: Determine the language used to generate the trips. Possible values are <varname>'C'</varname> (default) and <varname>'SQL'</varname>. Corresponding optional argument: <varname>tripGeneration</varname>. This parameter determines whether the SQL function <varname>createTrip</varname> in the file <varname>berlinmod_datagenerator.sql</varname> or the C function <varname>create_trip</varname> in the distribution of MobilityDB will be used for generating trips. Although the C function is faster than the corresponding SQL function, the SQL function can be easily modified to further customize the data generation.
 				</para>
 			</listitem>
 		</itemizedlist>
@@ -980,8 +983,33 @@ Increasing/decreasing this parameter allows us to slow down or speed up the trip
 			In this workshop, we have used until now the BerlinMOD scenario, which models the trajectories of persons going from home to work in the morning and returning back from work to home in the evening during the week days, with one possible leisure trip during the weekday nights and two possible leisure trips in the morning and in the afternoon of the weekend days. In this section, we devise another scenario for the data generator. This scenario corresponds to a home appliance shop that has several warehouses located in various places of the city. From each warehouse, the deliveries of appliances to customers are done by vehicles belonging to the warehouse. Although this scenario is different than BerlinMOD, many things can be reused and adapted. For example, home nodes can be replaced by warehouse locations, leisure destinations can be replaced by customer locations, and in this way many functions of the BerlinMOD SQL code will work directly. This is a direct benefit of having the simulation code written in SQL, so it will be easy to adapt to other scenarios. We describe next the needed changes.
 		</para>
 		<para>
-			Each day of the week excepted Sundays, deliveries of appliances from the warehouses to the customers are organized as follows. Each warehouse has several vehicles that make the deliveries. To each vehicle is assigned a list of customers that must be delivered during a day. A trip for a vehicle starts and ends at the warehouse and make the deliveries to the customers in the order of the list. Notice that in a real-world situation, the scheduling of the deliveries to clients by the vehicles requires to take into account the availability of the customers in a time slot of a day and the time needed to make the delivery of the previous customers in the list.
+			Each day of the week excepted Sundays, deliveries of appliances from the warehouses to the customers are organized as follows. Each warehouse has several vehicles that make the deliveries. To each vehicle is assigned a list of customers that must be delivered during a day. A trip for a vehicle starts and ends at the warehouse and make the deliveries to the customers in the order of the list. Notice that in a real-world situation, the scheduling of the deliveries requires to take into account customers' availability in a time slot of a day and the time needed to make the delivery of the previous customers in the list. We do not take into account these aspects in this simple simulation scenario.
 		</para>
+
+		<para>
+			To be able to run the delivery generator you need to execute the first two steps specified in <xref linkend="datagen_quickstart" /> to load the street network and prepare the base data for simulation, if not done already. The delivery generator can then be run as follows.
+			<programlisting>
+psql -h localhost -p 5432 -U dbowner -d brussels -f deliveries_datagenerator.sql
+-- adds the pgplsql functions of the simulation to the database
+
+psql -h localhost -p 5432 -U dbowner -d brussels \
+-c 'select deliveries_generate(scaleFactor := 0.005)'
+-- calls the main pgplsql function to start the simulation
+			</programlisting>
+			If everything is correct, you should see an output like that starts with this:
+			<programlisting>
+INFO:  -----------------------------------------------------------------------
+INFO:  Starting deliveries generation with scale factor 0.005
+INFO:  -----------------------------------------------------------------------
+INFO:  Parameters:
+INFO:  ------------
+INFO:  No. of warehouses = 7, No. of vehicles = 141, No. of days = 4
+INFO:  Start day = 2020-06-01, Path mode = Fastest Path, Disturb data = f
+...
+			</programlisting>
+			The generator will take about one minute. It will generate deliveries, according to the default parameters, for 141 cars over 2 days starting from Monday, June 1<superscript>st</superscript> 2020. It is possible to generate more or less data by respectively passing a bigger or a smaller scale factor value. Please refer to the <xref linkend="datagen_customizing" /> to see all the parameters that can be used to customize the simulation, with the exception of the <varname>P_NEIGHBOURHOOD_RADIUS</varname> parameter, which is not used in this scenario.
+		</para>
+
 		<para>
 			We describe next the main steps in the generation of the deliveries scenario.
 		</para>
@@ -1001,33 +1029,24 @@ END LOOP;
 			We create a relation <varname>Vehicle</varname> with all vehicles and the associated warehouse. Warehouses are associated to vehicles in a round-robin way.
 			<programlisting>
 DROP TABLE IF EXISTS Vehicle;
-CREATE TABLE Vehicle(vehicleId int, warehouseId int, noNeighbours int);
+CREATE TABLE Vehicle(id int PRIMARY KEY, licence text, type text, brand text,
+  warehouse int);
 
-INSERT INTO Vehicle(vehicleId, warehouseId)
-SELECT id, 1 + ((id - 1) % noWarehouses)
-FROM generate_series(1, noVehicles) id;
-			</programlisting>
-			We then create a relation <varname>Neighbourhood</varname> containing for each vehicle the nodes with a distance less than the parameter <varname>P_NEIGHBOURHOOD_RADIUS</varname> to its warehouse node.
-			<programlisting>
-DROP TABLE IF EXISTS Neighbourhood;
-CREATE TABLE Neighbourhood AS
-SELECT ROW_NUMBER() OVER () AS id, V.vehicleId, N2.id AS Node
-FROM Vehicle V, Nodes N1, Nodes N2
-WHERE V.warehouseId = N1.id AND ST_DWithin(N1.Geom, N2.geom, P_NEIGHBOURHOOD_RADIUS);
-
-CREATE UNIQUE INDEX Neighbourhood_id_idx ON Neighbourhood USING BTREE(id);
-CREATE INDEX Neighbourhood_vehicleId_idx ON Neighbourhood USING BTREE(VehicleId);
-
-UPDATE Vehicle V SET
-	noNeighbours = (SELECT COUNT(*) FROM Neighbourhood N WHERE N.vehicleId = V.vehicleId);
+FOR i IN 1..noVehicles LOOP
+  licence = berlinmod_createLicence(i);
+  type = VEHICLETYPES[random_int(1, NOVEHICLETYPES)];
+  model = NOVEHICLEBRANDS[random_int(1, NOVEHICLEBRANDS)];
+  warehouse = 1 + ((i - 1) % noWarehouses);
+  INSERT INTO Vehicle VALUES (i, licence, type, brand, warehouse);
+END LOOP;
 			</programlisting>
 		</para>
 
 		<para>
-			We create next the <varname>DeliveryTrip</varname> and <varname>Destinations</varname> tables that contain, respectively,  the list of source and destination nodes composing the delivery trip of a vehicle for a day, and the list of source and destination nodes for all vehicles.
+			We create next the <varname>Segments</varname> and <varname>Destinations</varname> tables that contain, respectively, the list of source and destination nodes composing the delivery trip of a vehicle for a day, and the list of source and destination nodes for all vehicles.
 			<programlisting>
-DROP TABLE IF EXISTS DeliveryTrip;
-CREATE TABLE DeliveryTrip(vehicle int, day date, seq int, source bigint, target bigint,
+DROP TABLE IF EXISTS Segments;
+CREATE TABLE Segments(vehicle int, day date, seq int, source bigint, target bigint,
 PRIMARY KEY (vehicle, day, seq));
 DROP TABLE IF EXISTS Destinations;
 CREATE TABLE Destinations(id serial, source bigint, target bigint);
@@ -1044,9 +1063,11 @@ FOR j IN 1..noDays LOOP
 		-- Select a number of destinations between 3 and 7
 		SELECT random_int(3, 7) INTO noDest;
 		sourceNode = warehouseNode;
+		prevNodes = '{}';
 		FOR k IN 1..noDest + 1 LOOP
 			IF k &lt;= noDest THEN
-				targetNode = berlinmod_selectDestNode(i, noNeigh, noNodes);
+				targetNode = deliveries_selectDestNode(i, noNeigh, noNodes);
+				prevNodes = prevNodes || targetNode;
 			ELSE
 				targetNode = warehouseNode;
 			END IF;
@@ -1054,7 +1075,7 @@ FOR j IN 1..noDays LOOP
 				RAISE EXCEPTION '    Destination node cannot be NULL';
 			END IF;
 			-- Keep the start and end nodes of each subtrip
-			INSERT INTO DeliveryTrip VALUES (i, day, k, sourceNode, targetNode);
+			INSERT INTO Segments VALUES (i, day, k, sourceNode, targetNode);
 			INSERT INTO Destinations(source, target) VALUES (sourceNode, targetNode);
 			sourceNode = targetNode;
 		END LOOP;
@@ -1063,7 +1084,7 @@ FOR j IN 1..noDays LOOP
 END LOOP;
 END LOOP;
 			</programlisting>
-			For every vehicle and every day which is not Sunday we proceed as follows. We randomly chose a number between 3 and 7 destinations and call the function <varname>berlinmod_selectDestNode</varname> we have seen in previous sections for determining these destinations. This function choses either one node in the neighbourhood of the warehouse of the vehicle with 80% probability or a node from the complete graph with 20% probability. Then, the sequence of source and destination couples starting in the warehouse, visiting sequentially the clients to deliver and returning to the warehouse are added to the tables <varname>DeliveryTrip</varname> and <varname>Destinations</varname>.
+			For every vehicle and every day which is not Sunday we proceed as follows. We randomly chose a number between 3 and 7 destinations and call the function <varname>deliveries_selectDestNode</varname> for determining these destinations. This function choses a destination node which is different from the previous nodes of the delivery. Then, the sequence of source and destination couples starting in the warehouse, visiting sequentially the clients to deliver and returning to the warehouse are added to the tables <varname>Segments</varname> and <varname>Destinations</varname>.
 		</para>
 
 		<para>
@@ -1109,104 +1130,97 @@ CREATE INDEX Paths_start_vid_end_vid_idx ON Paths USING BTREE(start_vid, end_vid
 			After creating the <varname>Paths</varname> table, we set the query to be sent to pgRouting depending on whether we have want to compute the fastest or the shortest paths between two nodes. The generator uses the parameter <varname>P_PGROUTING_BATCH_SIZE</varname> to determine the maximum number of paths we compute in a single call to pgRouting. This parameter is set to 10,000 by default. Indeed, there is limit in the number of paths that pgRouting can compute in a single call and this depends in the available memory of the computer. Therefore, we need to determine the number of calls to pgRouting and compute the paths by calling the function <varname>pgr_dijkstra</varname>. Finally, we need to adjust the directionality of the geometry of the edges depending on which direction a trip traverses the edges, and set the speed and the category of the edges.
 		</para>
 		<para>
-			The following procedure generates the trips for a number of vehicles and a number of days starting at a given day. The last argument correspond to the Boolean parameter <varname>P_DISTURB_DATA</varname> that determines whether simulated GPS errors are added to the trips.
+			The following procedure generates the trips for a number of vehicles and a number of days starting at a given day. The last two arguments correspond to the Boolean parameter <varname>P_DISTURB_DATA</varname> that determines whether simulated GPS errors are added to the trips and the types of messages describing the generation process. Notice that the code for generating these messages is not shown next.
 			<programlisting>
-DROP FUNCTION IF EXISTS deliveries_createTrips;
-CREATE FUNCTION deliveries_createTrips(noVehicles int, noDays int, startDay Date,
-disturbData boolean)
+DROP FUNCTION IF EXISTS deliveries_createDeliveries;
+CREATE FUNCTION deliveries_createDeliveries(noVehicles int, noDays int, startDay Date, 
+  disturbData boolean, messages text)
 RETURNS void LANGUAGE plpgsql STRICT AS $$
 DECLARE
--- Loops over the days for which we generate the data
-day date;
--- 0 (Sunday) to 6 (Saturday)
-weekday int;
--- Loop variables
-i int; j int;
+  -- Loops over the days for which we generate the data
+  aDay date;
+  -- 0 (Sunday) to 6 (Saturday)
+  weekday int;
+  -- Current timestamp
+  t timestamptz;
+  -- Identifier of the deliveries
+  delivId int;
+  -- Number of segments in a delivery (number of destinations + 1)
+  noSegments int;
+  -- Source and target nodes of a delivery segment
+  sourceNode bigint; targetNode bigint;
+  -- Path betwen start and end nodes
+  path step[];
+  -- Trip obtained from a path
+  trip tgeompoint;
+  -- Start time of a segment
+  startTime timestamptz;
+  -- Time of the trip to a customer
+  tripTime interval;
+  -- Time servicing a customer
+  deliveryTime interval;
+  -- Loop variables
+  i int; j int; k int;
 BEGIN
-DROP TABLE IF EXISTS Trips;
-CREATE TABLE Trips(vehicle int, day date, seq int, source bigint,
-	target bigint, trip tgeompoint,
-	-- These columns are used for visualization purposes
-	trajectory geometry, sourceGeom geometry,
-	PRIMARY KEY (vehicle, day, seq));
-day = startDay;
-FOR i IN 1..noDays LOOP
-	SELECT date_part('dow', day) into weekday;
-	-- 6: saturday, 0: sunday
-	IF weekday &lt;&gt; 0 THEN
-		FOR j IN 1..noVehicles LOOP
-			PERFORM deliveries_createDay(j, day, disturbData);
-		END LOOP;
-	END IF;
-	day = day + 1 * interval '1 day';
-END LOOP;
--- Add geometry attributes for visualizing the results
-UPDATE Trips SET sourceGeom = (SELECT geom FROM Nodes WHERE id = source);
-RETURN;
-END; $$
+  RAISE INFO 'Creating the Deliveries table';
+  DROP TABLE IF EXISTS Deliveries;
+  CREATE TABLE Deliveries(deliveryId int, seq int, vehicle int,
+    day date, source bigint, target bigint, trip tgeompoint,
+    -- These columns are used for visualization purposes
+    trajectory geometry, sourceGeom geometry,
+    PRIMARY KEY (deliveryId, seq));
+  delivId = 1;
+  aDay = startDay;
+  FOR i IN 1..noDays LOOP
+    SELECT date_part('dow', aDay) into weekday;
+    -- 6: saturday, 0: sunday
+    IF weekday &lt;&gt; 0 THEN
+      FOR j IN 1..noVehicles LOOP
+        -- Start delivery
+        t = aDay + time '07:00:00' + createPauseN(120);
+        -- Get the number of segments (number of destinations + 1)
+        SELECT count(*) INTO noSegments
+        FROM Segments S
+        WHERE S.vehicle = j AND S.day = aDay;
+        FOR k IN 1..noSegments LOOP
+          -- Get the source and destination nodes of the segment
+          SELECT source, target INTO sourceNode, targetNode
+          FROM Segments S
+          WHERE S.vehicle = j AND S.day = aDay AND S.seq = k;
+          -- Get the path
+          SELECT array_agg((geom, speed, category) ORDER BY path_seq) INTO path
+          FROM Paths P
+          WHERE start_vid = sourceNode AND end_vid = targetNode AND edge > 0;
+          IF path IS NULL THEN
+            RAISE EXCEPTION 'The path of a trip cannot be NULL. '
+              'Source node: %, target node: %, k: %, noSegments: %', sourceNode, 
+              targetNode, k, noSegments;
+          END IF;
+          startTime = t;
+          trip = create_trip(path, t, disturbData, messages);
+          IF trip IS NULL THEN
+            RAISE EXCEPTION 'A trip cannot be NULL';
+          END IF;
+          INSERT INTO Deliveries(deliveryId, seq, vehicle, day, source, target, trip, 
+              trajectory)
+            VALUES (delivId, k, j, aDay, sourceNode, targetNode, trip, trajectory(trip));
+          t = endTimestamp(trip);
+          tripTime = t - startTime;
+          -- Add a delivery time in [10, 60] min using a bounded Gaussian distribution
+          deliveryTime = random_boundedgauss(10, 60) * interval '1 min';
+          t = t + deliveryTime;
+        END LOOP;
+        delivId = delivId + 1;
+      END LOOP;
+    END IF;
+    aDay = aDay + 1 * interval '1 day';
+  END LOOP;
+  -- Add geometry attributes for visualizing the results
+  UPDATE Deliveries SET sourceGeom = (SELECT geom FROM Nodes WHERE id = source);
+  RETURN;
+END; $$;
 			</programlisting>
-			As can be seen, this procedure simply loops for each day (excepted Sundays) and for each vehicle and calls the function <varname>deliveries_createDay</varname> which is given next.
-			<programlisting>
-DROP FUNCTION IF EXISTS deliveries_createDay;
-CREATE FUNCTION deliveries_createDay(vehicId int, aDay date, disturbData boolean)
-RETURNS void LANGUAGE plpgsql STRICT AS $$
-DECLARE
--- Current timestamp
-t timestamptz;
--- Start time of a trip to a destination
-startTime timestamptz;
--- Number of trips in a delivery (number of destinations + 1)
-noTrips int;
--- Loop variable
-i int;
--- Time delivering a customer
-deliveryTime interval;
--- Warehouse identifier
-warehouseNode bigint;
--- Source and target nodes of one subtrip of a delivery trip
-sourceNode bigint; targetNode bigint;
--- Path betwen start and end nodes
-path step[];
--- Trip obtained from a path
-trip tgeompoint;
-BEGIN
--- 0: sunday
-IF date_part('dow', aDay) &lt;&gt; 0 THEN
-	-- Start delivery
-	t = aDay + time '07:00:00' + createPauseN(120);
-	-- Get the number of trips (number of destinations + 1)
-	SELECT count(*) INTO noTrips
-	FROM DeliveryTrip D
-	WHERE D.vehicle = vehicId AND D.day = aDay;
-	FOR i IN 1..noTrips LOOP
-		-- Get the source and destination nodes of the trip
-		SELECT source, target INTO sourceNode, targetNode
-		FROM DeliveryTrip D
-		WHERE D.vehicle = vehicId AND D.day = aDay AND D.seq = i;
-		-- Get the path
-		SELECT array_agg((geom, speed, category) ORDER BY path_seq) INTO path
-		FROM Paths P
-		WHERE start_vid = sourceNode AND end_vid = targetNode AND edge > 0;
-		IF path IS NULL THEN
-			RAISE EXCEPTION 'The path of a trip cannot be NULL';
-		END IF;
-		startTime = t;
-		trip = create_trip(path, t, disturbData);
-		IF trip IS NULL THEN
-			RAISE EXCEPTION 'A trip cannot be NULL';
-		END IF;
-		INSERT INTO Trips VALUES (vehicId, aDay, i, sourceNode, targetNode,
-			trip, trajectory(trip));
-		t = endTimestamp(trip);
-		-- Add a delivery time in [10, 60] min using a bounded Gaussian distribution
-		deliveryTime = random_boundedgauss(10, 60) * interval '1 min';
-		t = t + deliveryTime;
-	END LOOP;
-END IF;
-END;
-$$ LANGUAGE plpgsql STRICT;
-			</programlisting>
-			We first set the start time of a delivery trip by adding to 7 am a random non-zero duration of 120 minutes using a uniform distribution. Then, for every couple of source and destination nodes to be visited in the trip, we call the function <varname>create_trip</varname> that we have seen previously to generate the trip, wich is then inserted into the <varname>Trips</varname> table. Finally, we add a delivery time between 10 and 60 minutes using a bounded Gaussian distribution before starting the trip to the next customer or the return trip to the warehouse.
+			As can be seen, this procedure simply loops for each day (excepted Sundays) and for each vehicle and generates the deliveries. For this, we first set the start time of a delivery trip by adding to 7 am a random non-zero duration of 120 minutes using a uniform distribution. Then, for every couple of source and destination nodes to be visited in the trip, we call the function <varname>create_trip</varname> that we have seen previously to generate the trip, wich is then inserted into the <varname>Trips</varname> table. Finally, we add a delivery time between 10 and 60 minutes using a bounded Gaussian distribution before starting the trip to the next customer or the return trip to the warehouse.
 		</para>
 		<para>
 			<xref linkend="deliveries1" /> and <xref linkend="deliveries2" /> show visualizations of the data generated for the deliveries scenario.
@@ -1216,13 +1230,13 @@ $$ LANGUAGE plpgsql STRICT;
 					<imageobject><imagedata scalefit="1" fileref='images/deliveries1.png' /></imageobject>
 				</mediaobject>
 				<mediaobject>
-					<imageobject><imagedata scalefit="1" fileref='images/deliveries3.png' /></imageobject>
+					<imageobject><imagedata scalefit="1" fileref='images/deliveries2.png' /></imageobject>
 				</mediaobject>
 			</figure>
 
 			<figure id="deliveries2" float="start"><title>Visualization of the deliveries of one vehicle during one day. A delivery trip starts and ends at a warehouse and make the deliveries to several customers, four in this case.</title>
 				<mediaobject>
-					<imageobject><imagedata scalefit="1" fileref='images/deliveries4.png' /></imageobject>
+					<imageobject><imagedata scalefit="1" fileref='images/deliveries3.png' /></imageobject>
 				</mediaobject>
 			</figure>
 	</sect1>
