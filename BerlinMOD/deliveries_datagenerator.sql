@@ -34,18 +34,20 @@ The database must contain the following input relations:
 The generated data is saved into the database in which the
 functions are executed using the following tables
 
-*  Warehouse(id int primary key, node bigint, geom geometry(Point))
-*  Licences(vehicle int primary key, licence text, type text, brand text)
-*  Vehicle(id int primary key, warehouse int)
-*  Segments(vehicle int, day date, seq int, source bigint, target bigint);
+*  Warehouses(warehouseId int primary key, node bigint, geom geometry(Point))
+*  Vehicles(vehicleId int primary key, licence text, type text, brand text,
+    warehouse int)
+*  Trips(vehicle int, day date, seq int, source bigint, target bigint)
     primary key (vehicle, day, seq)
 *  Destinations(id serial, source bigint, target bigint)
 *  Paths(seq int, path_seq int, start_vid bigint, end_vid bigint,
     node bigint, edge bigint, cost float, agg_cost float,
     geom geometry, speed float, category int);
-*  Deliveries(deliveryId int, seq int, vehicle int, day date, 
-    source bigint, target bigint, trip tgeompoint, trajectory geometry)
+*  Segments(deliveryId int, seq int, source bigint, target bigint, 
+    trip tgeompoint, trajectory geometry, sourceGeom geometry)
     primary key (deliveryId, seq)
+*  Deliveries(DeliveryId int primary key, VehicleId int, Day date, 
+    noCustomers int, Trip tgeompoint, Trajectory geometry)
 *  QueryPoints(id int primary key, geom geometry)
 *  QueryRegions(id int primary key, geom geometry)
 *  QueryInstants(id int primary key, instant timestamptz)
@@ -81,8 +83,12 @@ DECLARE
   sourceNode bigint; targetNode bigint;
   -- Path betwen start and end nodes
   path step[];
-  -- Trip obtained from a path
+  -- Segment trip obtained from a path
   trip tgeompoint;
+  -- All segment trips of a delivery
+  alltrips tgeompoint[] = '{}';
+  -- Geometry of the source noDeliveries
+  sourceGeom geometry;
   -- Start time of a segment
   startTime timestamptz;
   -- Time of the trip to a customer
@@ -90,12 +96,15 @@ DECLARE
   -- Time servicing a customer
   deliveryTime interval;
   -- Loop variables
-  i int; j int;
+  i int; j int; k int;
 BEGIN
-  RAISE INFO 'Creating the Deliveries table';
+  RAISE INFO 'Creating the Deliveries and Segments tables';
   DROP TABLE IF EXISTS Deliveries;
-  CREATE TABLE Deliveries(deliveryId int, seq int, vehicle int,
-    day date, source bigint, target bigint, trip tgeompoint,
+  CREATE TABLE Deliveries(deliveryId int PRIMARY KEY, vehicle int, day date,
+    noCustomers int, trip tgeompoint, trajectory geometry);
+  DROP TABLE IF EXISTS Segments;
+  CREATE TABLE Segments(deliveryId int, seq int, source bigint,
+    target bigint, trip tgeompoint,
     -- These columns are used for visualization purposes
     trajectory geometry, sourceGeom geometry,
     PRIMARY KEY (deliveryId, seq));
@@ -119,13 +128,13 @@ BEGIN
         END IF;
         -- Get the number of segments (number of destinations + 1)
         SELECT count(*) INTO noSegments
-        FROM Segments S
-        WHERE S.vehicle = j AND S.day = aDay;
+        FROM Trips
+        WHERE vehicle = j AND day = aDay;
         FOR k IN 1..noSegments LOOP
           -- Get the source and destination nodes of the segment
           SELECT source, target INTO sourceNode, targetNode
-          FROM Segments S
-          WHERE S.vehicle = j AND S.day = aDay AND S.seq = k;
+          FROM Trips
+          WHERE vehicle = j AND day = aDay AND seq = k;
           -- Get the path
           SELECT array_agg((geom, speed, category) ORDER BY path_seq) INTO path
           FROM Paths P
@@ -139,35 +148,45 @@ BEGIN
           IF trip IS NULL THEN
             RAISE EXCEPTION 'A trip cannot be NULL';
           END IF;
-          INSERT INTO Deliveries(deliveryId, seq, vehicle, day, source, target, trip, trajectory)
-            VALUES (delivId, k, j, aDay, sourceNode, targetNode, trip, trajectory(trip));
           t = endTimestamp(trip);
           tripTime = t - startTime;
           IF messages = 'medium' OR messages = 'verbose' THEN
             RAISE INFO '      Trip to destination % started at % and lasted %',
               k, startTime, tripTime;
           END IF;
-          -- Add a delivery time in [10, 60] min using a bounded Gaussian distribution
-          deliveryTime = random_boundedgauss(10, 60) * interval '1 min';
-          IF messages = 'medium' OR messages = 'verbose' THEN
-            RAISE INFO '      Delivery lasted %', deliveryTime;
+          IF k < noSegments THEN
+            -- Add a delivery time in [10, 60] min using a bounded Gaussian distribution
+            deliveryTime = random_boundedgauss(10, 60) * interval '1 min';
+            IF messages = 'medium' OR messages = 'verbose' THEN
+              RAISE INFO '      Delivery lasted %', deliveryTime;
+            END IF;
+            t = t + deliveryTime;
+            trip = appendInstant(trip, tgeompointinst(endValue(trip), t));
           END IF;
-          t = t + deliveryTime;
+          alltrips = alltrips || trip;
+          SELECT geom INTO sourceGeom FROM Nodes WHERE id = sourceNode;
+          INSERT INTO Segments(deliveryId, seq, source, target, trip, trajectory, sourceGeom)
+            VALUES (delivId, k, sourceNode, targetNode, trip, trajectory(trip), sourceGeom);
         END LOOP;
+        trip = merge(alltrips);
+        INSERT INTO Deliveries(deliveryId, vehicle, day, noCustomers, trip, trajectory)
+          VALUES (delivId, j, aDay, noSegments - 1, trip, trajectory(trip));
         IF messages = 'medium' OR messages = 'verbose' THEN
           RAISE INFO '    Delivery ended at %', t;
         END IF;
         delivId = delivId + 1;
+        alltrips = '{}';
       END LOOP;
     ELSE
       IF messages = 'medium' OR messages = 'verbose' THEN
         RAISE INFO '  No deliveries on Sunday';
       END IF;
     END IF;
-    aDay = aDay + 1 * interval '1 day';
+    aDay = aDay + interval '1 day';
   END LOOP;
-  -- Add geometry attributes for visualizing the results
-  UPDATE Deliveries SET sourceGeom = (SELECT geom FROM Nodes WHERE id = source);
+  -- Build indexes to speed up processing
+  CREATE INDEX Segments_spgist_idx ON Segments USING spgist(trip);
+  CREATE INDEX Deliveries_spgist_idx ON Deliveries USING spgist(trip);
   RETURN;
 END; $$;
 
@@ -272,7 +291,7 @@ DECLARE
   -- Possible values are 'verbose', 'medium' and 'minimal'
   P_MESSAGES text = 'minimal';
 
-  -- Constants defining the values of the Licences table
+  -- Constants defining the values of the Vehicles table
   VEHICLETYPES text[] = '{"van", "truck", "pickup"}';
   NOVEHICLETYPES int = array_length(VEHICLETYPES, 1);
   VEHICLEBRANDS text[] = '{"RAM", "GMC", "Ford", "Chevrolet",  
@@ -376,14 +395,14 @@ BEGIN
   -- inserting duplicates in the table, the query sent to the pgr_dijkstra
   -- function MUST use 'SELECT DISTINCT ...'
 
-  RAISE INFO 'Creating the Warehouse table';
-  DROP TABLE IF EXISTS Warehouse;
-  CREATE TABLE Warehouse(id int PRIMARY KEY, node bigint,
+  RAISE INFO 'Creating the Warehouses table';
+  DROP TABLE IF EXISTS Warehouses;
+  CREATE TABLE Warehouses(warehouseId int PRIMARY KEY, node bigint,
     geom geometry(Point));
 
   FOR i IN 1..noWarehouses LOOP
     -- Create a warehouse located at that a random node
-    INSERT INTO Warehouse(id, node, geom)
+    INSERT INTO Warehouses(warehouseId, node, geom)
     SELECT i, id, geom
     FROM Nodes N
     ORDER BY id LIMIT 1 OFFSET random_int(1, noNodes) - 1;
@@ -394,20 +413,20 @@ BEGIN
 
   RAISE INFO 'Creating the Vehicle table';
 
-  DROP TABLE IF EXISTS Vehicle;
-  CREATE TABLE Vehicle(id int PRIMARY KEY, licence text, type text, brand text,
-    warehouse int);
+  DROP TABLE IF EXISTS Vehicles;
+  CREATE TABLE Vehicles(vehicleId int PRIMARY KEY, licence text, type text, 
+    brand text, warehouse int);
 
   FOR i IN 1..noVehicles LOOP
     licence = berlinmod_createLicence(i);
     type = VEHICLETYPES[random_int(1, NOVEHICLETYPES)];
     brand = VEHICLEBRANDS[random_int(1, NOVEHICLEBRANDS)];
     warehouse = 1 + ((i - 1) % noWarehouses);
-    INSERT INTO Vehicle VALUES (i, licence, type, brand, warehouse);
+    INSERT INTO Vehicles VALUES (i, licence, type, brand, warehouse);
   END LOOP;
 
   -- Build indexes to speed up processing
-  CREATE UNIQUE INDEX Vehicle_id_idx ON Vehicle USING BTREE(id);
+  CREATE UNIQUE INDEX Vehicles_id_idx ON Vehicles USING BTREE(vehicleId);
 
   -------------------------------------------------------------------------
   -- Create auxiliary benchmarking data
@@ -467,14 +486,14 @@ BEGIN
   -- Generate the deliveries
   -------------------------------------------------------------------------
 
-  RAISE INFO 'Creating the Segments and Destinations tables';
+  RAISE INFO 'Creating the Trips and Destinations tables';
 
-  DROP TABLE IF EXISTS Segments;
-  CREATE TABLE Segments(vehicle int, day date, seq int,
+  DROP TABLE IF EXISTS Trips;
+  CREATE TABLE Trips(vehicle int, day date, seq int,
     source bigint, target bigint,
     PRIMARY KEY (vehicle, day, seq));
   DROP TABLE IF EXISTS Destinations;
-  CREATE TABLE Destinations(id serial, source bigint, target bigint);
+  CREATE TABLE Destinations(id serial PRIMARY KEY, source bigint, target bigint);
   -- Loop for every vehicle
   FOR i IN 1..noVehicles LOOP
     IF messages = 'verbose' THEN
@@ -482,7 +501,8 @@ BEGIN
     END IF;
     -- Get the warehouse node 
     SELECT W.node INTO warehouseNode
-    FROM Vehicle V, Warehouse W WHERE V.id = i AND V.warehouse = W.id;
+    FROM Vehicles V, Warehouses W
+    WHERE V.vehicleId = i AND V.warehouse = W.warehouseId;
     day = startDay;
     -- Loop for every generation day
     FOR j IN 1..noDays LOOP
@@ -515,7 +535,7 @@ BEGIN
             RAISE INFO '    Delivery segment from % to %', sourceNode, targetNode;
           END IF;
           -- Keep the start and end nodes of each segment
-          INSERT INTO Segments VALUES (i, day, k, sourceNode, targetNode);
+          INSERT INTO Trips VALUES (i, day, k, sourceNode, targetNode);
           INSERT INTO Destinations(source, target) VALUES (sourceNode, targetNode);
           sourceNode = targetNode;
         END LOOP;
@@ -524,7 +544,7 @@ BEGIN
           RAISE INFO 'No delivery on Sunday';
         END IF;
       END IF;
-      day = day + 1 * interval '1 day';
+      day = day + interval '1 day';
     END LOOP;
   END LOOP;
 
@@ -586,17 +606,19 @@ BEGIN
     FROM Edges E WHERE E.id = edge;
 
   -- Build index to speed up processing
-  CREATE INDEX Paths_start_vid_end_vid_idx ON Paths USING BTREE(start_vid, end_vid);
+  CREATE INDEX Paths_start_vid_end_vid_idx ON Paths 
+    USING BTREE(start_vid, end_vid);
 
   -------------------------------------------------------------------------
-  -- Generate the deliverys
+  -- Generate the deliveries
   -------------------------------------------------------------------------
 
   PERFORM deliveries_createDeliveries(noVehicles, noDays, startDay,
     disturbData, messages);
 
   -- Get the number of deliveries generated
-  SELECT COUNT(*), MAX(deliveryId) INTO noSegments, noDeliveries FROM Deliveries;
+  SELECT COUNT(*) INTO noSegments FROM Segments;
+  SELECT COUNT(*) INTO noDeliveries FROM Deliveries;
 
   SELECT clock_timestamp() INTO endTime;
   IF messages = 'medium' OR messages = 'verbose' THEN
