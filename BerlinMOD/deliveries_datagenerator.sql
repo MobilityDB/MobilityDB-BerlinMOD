@@ -161,7 +161,7 @@ BEGIN
               RAISE INFO '      Delivery lasted %', deliveryTime;
             END IF;
             t = t + deliveryTime;
-            trip = appendInstant(trip, tgeompointinst(endValue(trip), t));
+            trip = appendInstant(trip, tgeompoint_inst(endValue(trip), t));
           END IF;
           alltrips = alltrips || trip;
           SELECT geom INTO sourceGeom FROM Nodes WHERE id = sourceNode;

@@ -76,14 +76,17 @@
 		<para>
 			<itemizedlist>
 				<listitem>
-					<para>MobilityDB, hence PostgreSQL and PostGIS. The installation instructions can be found <ulink  url="https://github.com/ULB-CoDE-WIT/MobilityDB">here</ulink>.
+					<para>MobilityDB, hence PostgreSQL and PostGIS. The installation instructions can be found <ulink  url="https://github.com/MobilityDB/MobilityDB">here</ulink>.
 					</para>
+				<listitem>
+					<para>MobilityDB-BerlinMod. Get the generator from Github <ulink url="https://github.com/MobilityDB/MobilityDB-BerlinMOD">here</ulink>.</para>
+				</listitem>
 				</listitem>
 				<listitem>
 					<para>pgRouting. The installation instructions can be found <ulink url="https://pgrouting.org/">here</ulink>. The minimum version required is 3.1.0.</para>
 				</listitem>
 				<listitem>
-					<para>Download the quick start files <ulink url="https://docs.mobilitydb.com/data/datagenerator.zip">here</ulink>. Extract the archive in any folder. In the following we refer to this folder as generatorHome.</para>
+					<para>Download the OSM files for Brussels <ulink url="https://docs.mobilitydb.com/data/brussels_osm.zip">here</ulink>. Extract the archive in any folder. In the following we refer to this folder as <varname>generatorHome</varname>.</para>
 				</listitem>
 			</itemizedlist>
 		</para>
@@ -114,7 +117,7 @@ psql -h localhost -p 5432 -U dbowner -d brussels -c 'CREATE EXTENSION pgRouting'
 			For the moment, we will use the OSM map of Brussels. It is given in the data section of this workshop in the two files: <varname>brussels.osm, mapconfig_brussels.xml</varname>. In the next sections, we will explain how to use other maps. It has been downloaded using the Overpass API, hence it is by default in Spherical Mercator (SRID 3857), which is good for calculating distances. Next load the map and convert it into a routable network topology format suitable for pgRouting.
 			<programlisting>
 -- in a console, go to the generatorHome then:
-osm2pgrouting -h localhost -p 5432 -U dbowner -f brussels.osm --dbname brussels \
+osm2pgrouting -h localhost -p 5432 -U dbowner -W passwd -f brussels.osm --dbname brussels \
 -c mapconfig_brussels.xml
 			</programlisting>
 			The configuration file <varname>mapconfig_brussels.xml</varname> tells osm2pgrouting which are the roads that will be selected to build the road network as well as the speed limits of the different road types. During the conversion, osm2pgrouting transforms the data into WGS84 (SRID 4326), so we will need later to convert it back to SRID 3857.
@@ -125,7 +128,7 @@ osm2pgrouting -h localhost -p 5432 -U dbowner -f brussels.osm --dbname brussels 
 		<para>
 			Load the administrative regions from the downloaded <varname>brussels.osm</varname> file, then run the <varname>brussels_generatedata.sql</varname> script using your PostgreSQL client, for example:
 			<programlisting>
-osm2pgsql -c -H localhost -P 5432 -U dbowner -d brussels brussels.osm
+osm2pgsql -c -H localhost -P 5432 -U dbowner -W -d brussels brussels.osm
 -- loads all layers in the osm file, including the adminstrative regions 
 
 psql -h localhost -p 5432 -U dbowner -d brussels -f brussels_preparedata.sql
