@@ -79,7 +79,7 @@
 					<para>MobilityDB, hence PostgreSQL and PostGIS. The installation instructions can be found <ulink  url="https://github.com/MobilityDB/MobilityDB">here</ulink>.
 					</para>
 				<listitem>
-					<para>MobilityDB-BerlinMod. Get the generator from Github <ulink url="https://github.com/MobilityDB/MobilityDB-BerlinMOD">here</ulink>.</para>
+					<para>MobilityDB-BerlinMOD. Get the generator from Github <ulink url="https://github.com/MobilityDB/MobilityDB-BerlinMOD">here</ulink>.</para>
 				</listitem>
 				</listitem>
 				<listitem>
