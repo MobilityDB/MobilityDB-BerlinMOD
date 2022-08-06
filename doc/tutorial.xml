@@ -234,7 +234,7 @@ GROUP BY RegionId;
 		<para>The following query is used to load table <varname>Trips</varname> from the data in table <varname>TripsInput</varname>.
 			<programlisting xml:space="preserve">
 INSERT INTO Trips
-SELECT CarId, TripId, tgeompointseq(array_agg(tgeompointinst(
+SELECT CarId, TripId, tgeompoint_seq(array_agg(tgeompoint_inst(
   ST_Transform(ST_SetSRID(ST_MakePoint(Lon,Lat), 4326), 5676), T) ORDER BY T))
 FROM TripsInput
 GROUP BY CarId, TripId;
@@ -380,7 +380,7 @@ WHERE i.inhparent = 'trips'::regclass;
 		<para>We modify the query that loads table <varname>Trips</varname> from the data in table <varname>TripsInput</varname> as follows.
 			<programlisting xml:space="preserve">
 INSERT INTO Trips
-SELECT CarId, TripId, TripDate, tgeompointseq(array_agg(tgeompointinst(
+SELECT CarId, TripId, TripDate, tgeompoint_seq(array_agg(tgeompoint_inst(
   ST_Transform(ST_SetSRID(ST_MakePoint(Lon,Lat), 4326), 5676), T) ORDER BY T))
 FROM TripsInput
 GROUP BY CarId, TripId, TripDate;

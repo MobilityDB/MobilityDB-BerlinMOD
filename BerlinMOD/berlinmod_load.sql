@@ -251,7 +251,7 @@ BEGIN
   ) b2 ON b1.moid = b2.moid AND b1.tripid = b2.tripid AND b1.tend = b2.MaxTend );
   ALTER TABLE berlinmod_input_instants ADD COLUMN inst tgeompoint;
   UPDATE berlinmod_input_instants
-  SET inst = tgeompointinst(geom, tstart);
+  SET inst = tgeompoint_inst(geom, tstart);
 
   DROP TABLE IF EXISTS Trips CASCADE;
   CREATE TABLE Trips
@@ -264,7 +264,7 @@ BEGIN
     FOREIGN KEY (CarId) REFERENCES Cars (CarId) 
   );
   INSERT INTO Trips
-    SELECT moid, tripid, tgeompointseq(array_agg(inst order by tstart), true, false)
+    SELECT moid, tripid, tgeompoint_seq(array_agg(inst order by tstart), true, false)
     FROM berlinmod_input_instants
     GROUP BY moid, tripid;
   UPDATE Trips
