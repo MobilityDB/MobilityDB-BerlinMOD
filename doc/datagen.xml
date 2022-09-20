@@ -99,24 +99,24 @@
 		</para>
 		<para>
 		<emphasis>Firstly, load the street network</emphasis>. Create a new database <varname>brussels</varname>, then add the extensions hstore, PostGIS, MobilityDB, and pgRouting to it.
-			<programlisting xml:space="preserve">
--- in a console:
+			<programlisting language="bash" xml:space="preserve">
+# in a console:
 createdb -h localhost -p 5432 -U dbowner brussels
--- replace localhost with your database host, 5432 with your port, 
--- and dbowner with your database user 
+# replace localhost with your database host, 5432 with your port, 
+# and dbowner with your database user 
 
 psql -h localhost -p 5432 -U dbowner -d brussels -c 'CREATE EXTENSION hstore'
--- adds the hstore extension needed by osm2pgsql
+# adds the hstore extension needed by osm2pgsql
 
 psql -h localhost -p 5432 -U dbowner -d brussels -c 'CREATE EXTENSION MobilityDB CASCADE'
--- adds the PostGIS and the MobilityDB extensions to the database
+# adds the PostGIS and the MobilityDB extensions to the database
 
 psql -h localhost -p 5432 -U dbowner -d brussels -c 'CREATE EXTENSION pgRouting'
--- adds the pgRouting extension
+# adds the pgRouting extension
 </programlisting>
 			For the moment, we will use the OSM map of Brussels. It is given in the data section of this workshop in the two files: <varname>brussels.osm, mapconfig_brussels.xml</varname>. In the next sections, we will explain how to use other maps. It has been downloaded using the Overpass API, hence it is by default in Spherical Mercator (SRID 3857), which is good for calculating distances. Next load the map and convert it into a routable network topology format suitable for pgRouting.
-			<programlisting xml:space="preserve">
--- in a console, go to the generatorHome then:
+			<programlisting language="bash" xml:space="preserve">
+# in a console, go to the generatorHome then:
 osm2pgrouting -h localhost -p 5432 -U dbowner -W passwd -f brussels.osm --dbname brussels \
 -c mapconfig_brussels.xml
 </programlisting>
@@ -127,26 +127,26 @@ osm2pgrouting -h localhost -p 5432 -U dbowner -W passwd -f brussels.osm --dbname
 		</para>
 		<para>
 			Load the administrative regions from the downloaded <varname>brussels.osm</varname> file, then run the <varname>brussels_generatedata.sql</varname> script using your PostgreSQL client, for example:
-			<programlisting xml:space="preserve">
+			<programlisting language="bash" xml:space="preserve">
 osm2pgsql -c -H localhost -P 5432 -U dbowner -W -d brussels brussels.osm
--- loads all layers in the osm file, including the adminstrative regions 
+# loads all layers in the osm file, including the adminstrative regions 
 
 psql -h localhost -p 5432 -U dbowner -d brussels -f brussels_preparedata.sql
--- samples home and work nodes, transforms data to SRID 3857, does further data preparation
+# samples home and work nodes, transforms data to SRID 3857, does further data preparation
 
 psql -h localhost -p 5432 -U dbowner -d brussels -f berlinmod_datagenerator.sql
--- adds the pgplsql functions of the simulation to the database
+# adds the pgplsql functions of the simulation to the database
 </programlisting>
 		</para>
 		<para>
 		<emphasis>Finally, run the generator.</emphasis>
-			<programlisting xml:space="preserve">
+			<programlisting language="bash" xml:space="preserve">
 psql -h localhost -p 5432 -U dbowner -d brussels \
 -c 'select berlinmod_generate(scaleFactor := 0.005)'
--- calls the main pgplsql function to start the simulation
+# calls the main pgplsql function to start the simulation
 </programlisting>
 			If everything is correct, you should see an output like that starts with this:
-			<programlisting xml:space="preserve">
+			<programlisting language="bash" xml:space="preserve">
 INFO:  ------------------------------------------------------------------
 INFO:  Starting the BerlinMOD data generator with scale factor 0.005
 INFO:  ------------------------------------------------------------------
@@ -158,12 +158,12 @@ INFO:  Verbosity = minimal, Trip generation = C
 ...
 </programlisting>
 			The generator will take about one minute. It will generate trajectories, according to the default parameters, for 141 cars over 4 days starting from Monday, June 1<superscript>st</superscript> 2020. As you may have guessed, it is possible to generate more or less data by respectively passing a bigger or a smaller scale factor value. If you want to save the messages produced by the generator in a file you can use a command such as the following one.
-			<programlisting xml:space="preserve">
+			<programlisting language="bash" xml:space="preserve">
 psql -h localhost -p 5432 -U dbowner -d brussels -c &#92;
 "select berlinmod_generate(scaleFactor := 0.005, messages := 'medium')" 2>&amp;1 | \
 tee trace.txt
 </programlisting>
-			You can show more messages describing the generation process by setting the optional parameter <varname>messages</varname> with one of the values <varname>'minimal'</varname> (the default), <varname>'medium'</varname>, <varname>'verbose'</varname>, or <varname>'debug'</varname>. In <xref linkend="datagen_customizing" /> are explained all the parameters that can be used to customize the simulation.
+			You can show more messages describing the generation process by setting the optional parameter <varname>messages</varname> with one of the values <varname>minimal</varname> (the default), <varname>medium</varname>, <varname>verbose</varname>, or <varname>debug</varname>. In <xref linkend="datagen_customizing" /> are explained all the parameters that can be used to customize the simulation.
 		</para>
 		<para>
 			<xref linkend="berlinmod_visualization" /> shows a visualization of the trips generated in QGIS.
@@ -182,23 +182,21 @@ tee trace.txt
 		<title>Exploring the Generated Data</title>
 		<para>
 		Now use a PostgreSQL client such as psql or pgAdmin to explore the properties of the generated trajectories. We start by obtaining some statistics about the number, the total duration, and the total length in Km of the trips.
-			<programlisting xml:space="preserve">
+			<programlisting language="sql" xml:space="preserve">
 SELECT COUNT(*), SUM(timespan(Trip)), SUM(length(Trip)) / 1e3
 FROM Trips;
-
-1686  "618:34:23.478239"  20546.31859281626
+-- 1686  "618:34:23.478239"  20546.31859281626
 </programlisting>
 		</para>
 		<para>
 		We continue by further analyzing the duration of all the trips
-			<programlisting xml:space="preserve">
+			<programlisting language="sql" xml:space="preserve">
 SELECT MIN(timespan(Trip)), MAX(timespan(Trip)), AVG(timespan(Trip))
 FROM Trips;
-
-"00:00:29.091033"  "01:13:21.225514"  "00:22:02.365486"
+-- "00:00:29.091033"  "01:13:21.225514"  "00:22:02.365486"
 </programlisting>
 			or the duration of the trips by trip type.
-			<programlisting xml:space="preserve">
+			<programlisting language="sql" xml:space="preserve">
 SELECT
   CASE
     WHEN T.source = V.home AND date_part('dow', T.day) BETWEEN 1 AND 5 AND
@@ -211,29 +209,26 @@ SELECT
 FROM Trips T, Vehicle V
 WHERE T.vehicle = V.id
 GROUP BY TripType;
-
-"leisure_weekday"    558    "00:00:29.091033"  "00:57:30.195709"  "00:10:59.118318"
-"work_home"          564    "00:02:04.159342"  "01:13:21.225514"  "00:27:33.424924"
-"home_work"          564    "00:01:57.456419"  "01:11:44.551344"  "00:27:25.145454"
+-- "leisure_weekday"    558    "00:00:29.091033"  "00:57:30.195709"  "00:10:59.118318"
+-- "work_home"          564    "00:02:04.159342"  "01:13:21.225514"  "00:27:33.424924"
+-- "home_work"          564    "00:01:57.456419"  "01:11:44.551344"  "00:27:25.145454"
 </programlisting>
 			As can be seen, no weekend leisure trips have been generated, which is normal since the data generated covers four days starting on Monday, June 1<superscript>st</superscript> 2020.
 		</para>
 		<para>
 			We can analyze further the length in Km of the trips as follows.
-			<programlisting xml:space="preserve">
+			<programlisting language="sql" xml:space="preserve">
 SELECT MIN(length(Trip)) / 1e3, MAX(length(Trip)) / 1e3, AVG(length(Trip)) / 1e3
 FROM Trips;
-
-0.2731400585134866  53.76566616928331  12.200901777206806
+-- 0.2731400585134866  53.76566616928331  12.200901777206806
 </programlisting>
 			As can be seen the longest trip is more than 56 Km long. Let's visualize one of these long trips.
-			<programlisting xml:space="preserve">
+			<programlisting language="sql" xml:space="preserve">
 SELECT vehicle, seq, source, target, round(length(Trip)::numeric / 1e3, 3),
   startTimestamp(Trip), timespan(Trip)
 FROM Trips
 WHERE length(Trip) > 50000 LIMIT 1;
-
-90  1  23078  11985  53.766  "2020-06-01 08:46:55.487+02"  "01:10:10.549413"
+-- 90  1  23078  11985  53.766  "2020-06-01 08:46:55.487+02"  "01:10:10.549413"
 </programlisting>
 			We can then visualize this trip in PostGIS. As can be seen, in <xref linkend="longest" />, the home and the work nodes of the vehicle are located at two extremities in Brussels.
 		</para>
@@ -245,17 +240,16 @@ WHERE length(Trip) > 50000 LIMIT 1;
 
 		<para>
 			We can obtain some statistics about the average speed in Km/h of all the trips as follows.
-			<programlisting xml:space="preserve">
+			<programlisting language="sql" xml:space="preserve">
 SELECT MIN(twavg(speed(Trip))) * 3.6, MAX(twavg(speed(Trip))) * 3.6,
   AVG(twavg(speed(Trip))) * 3.6
 FROM Trips;
-
-14.211962789552468  53.31779380411017  31.32438581663778
+-- 14.211962789552468  53.31779380411017  31.32438581663778
 </programlisting>
 		</para>
 		<para>
 			A possible visualization that we could envision is to use gradients to show how the edges of the network are used by the trips. We start by determining how many trips traversed each of the edges of the network as follows.
-			<programlisting xml:space="preserve">
+			<programlisting language="sql" xml:space="preserve">
 CREATE TABLE HeatMap AS
 SELECT E.id, E.geom, count(*)
 FROM Edges E, Trips T
@@ -263,13 +257,13 @@ WHERE st_intersects(E.geom, T.trajectory)
 GROUP BY E.id, E.geom;
 </programlisting>
 			This is an expensive query since it took 42 min in my laptop. In order to display unused edges in our visualization we need to add them to the table with a count of 0.
-			<programlisting xml:space="preserve">
+			<programlisting language="sql" xml:space="preserve">
 INSERT INTO HeatMap
 SELECT E.id, E.geom, 0 FROM Edges E WHERE E.id NOT IN (
   SELECT id FROM HeatMap );
 </programlisting>
 			We need some basic statistics about the attribute <varname>count</varname> in order to define the gradients.
-			<programlisting xml:space="preserve">
+			<programlisting language="sql" xml:space="preserve">
 SELECT min(count), max(count), round(avg(count),3), round(stddev(count),3) FROM HeatMap;
 -- 0 204 4.856 12.994
 </programlisting>
@@ -277,7 +271,7 @@ SELECT min(count), max(count), round(avg(count),3), round(stddev(count),3) FROM 
 		</para>
 		<para>
 			In order to display in QGIS the edges of the network with a gradient according to the attribute <varname>count</varname>, we use the following expression.
-			<programlisting xml:space="preserve">
+			<programlisting language="bash" xml:space="preserve">
 ramp_color('RdGy', scale_linear(count, 0, 10, 0, 1))
 </programlisting>
 			The <varname>scale_linear</varname> function transforms the value of the attribute <varname>count</varname> into a value in [0,1], as stated by the last two parameters. As stated by the two other parameters 0 and 10, which define the range of values to transform, we decided to assign a full red color to an edge as soon as there are at least 10 trips that traverse the edge. The <varname>ramp_color</varname> function states the gradient to be used for the display, in our case from blue to red. The usage of this expression in QGIS is shown in <xref linkend="heatmap1_def" /> and the resulting visualization is shown in <xref linkend="heatmap1" />.
@@ -295,7 +289,7 @@ ramp_color('RdGy', scale_linear(count, 0, 10, 0, 1))
 
 		<para>
 			Another possible visualization is to use gradients to show the speed used by the trips to traverse the edges of the network. As the maximum speed of edges varies from 20 to 120 Km/h, what would be interesting to compare is the speed of the trips at an edge with respect to the maximum speed of the edge. For this we issue the following query.
-			<programlisting xml:space="preserve">
+			<programlisting language="sql" xml:space="preserve">
 DROP TABLE IF EXISTS EdgeSpeed;
 CREATE TABLE EdgeSpeed AS
 SELECT P.edge, twavg(speed(atGeometry(T.trip, ST_Buffer(P.geom, 0.1)))) * 3.6 AS twavg
@@ -304,7 +298,7 @@ WHERE T.source = P.start_vid AND T.target = P.end_vid AND P.edge > 0
 ORDER BY P.edge;
 </programlisting>
 			This is an even more expensive query than the previous one since it took more than 2 hours in my laptop. Given a trip and an edge, the query restricts the trip to the geometry of the edge and computes the time-weighted average of the speed. Notice that the <varname>ST_Buffer</varname> is used to cope with the floating-point precision. After that we can compute the speed map as follows.
-			<programlisting xml:space="preserve">
+			<programlisting language="sql" xml:space="preserve">
 CREATE TABLE SpeedMap AS
 WITH Temp AS (
   SELECT edge, avg(twavg) FROM EdgeSpeed GROUP BY edge )
@@ -333,7 +327,7 @@ WHERE E.id = T.edge;
 
 		<para>
 			We start by creating a first set of tables for containing the generated data as follows.
-			<programlisting xml:space="preserve">
+			<programlisting language="sql" xml:space="preserve">
 CREATE TABLE Vehicle(id int PRIMARY KEY, home bigint NOT NULL, work bigint NOT NULL,
   noNeighbours int);
 CREATE TABLE Destinations(vehicle int, source bigint, target bigint,
@@ -391,7 +385,7 @@ SET noNeighbours = (SELECT COUNT(*) FROM Neighbourhood N WHERE N.vehicle = V.id)
 
 		<para>
 			We create now auxiliary tables containing benchmarking data. The number of rows these tables is determined by the parameter <varname>P_SAMPLE_SIZE</varname>, which is set by default to 100. These tables are used by the BerlinMOD benchmark to assess the performance of various types of queries.
-			<programlisting xml:space="preserve">
+			<programlisting language="sql" xml:space="preserve">
 CREATE TABLE QueryPoints(id int PRIMARY KEY, geom geometry(Point));
 INSERT INTO QueryPoints
 WITH Temp AS (
@@ -427,7 +421,7 @@ FROM Instants;
 		</para>
 		<para>
 			We generate now the leisure trips. There is at most one leisure trip in the evening of a week day and at most two leisure trips each day of the weekend, one in the morning and another one in the afternoon. Each leisure trip is composed of 1 to 3 destinations. The leisure trip starts and ends at the home node and visits successively these destinations. In our implementation, the various subtrips from a source to a destination node of a leisure trip are encoded independently, contrary to what is done in Secondo where a leisure trip is encoded as a single trip and stops are added between successive destinations.
-			<programlisting xml:space="preserve">
+			<programlisting language="sql" xml:space="preserve">
 CREATE TABLE LeisureTrip(vehicle int, day date, tripNo int, seq int, source bigint,
   target bigint, PRIMARY KEY (vehicle, day, tripNo, seq));
 -- Loop for every vehicle
@@ -487,7 +481,7 @@ CREATE INDEX Destinations_vehicle_idx ON Destinations USING BTREE(vehicle);
 
 		<para>
 		We then call pgRouting to generate the path for each source and destination nodes in the <varname>Destinations</varname> table.
-			<programlisting xml:space="preserve">
+			<programlisting language="sql" xml:space="preserve">
 CREATE TABLE Paths(
   -- This attribute is needed for partitioning the table for big scale factors
   vehicle int,
@@ -537,7 +531,7 @@ BTREE(vehicle, start_vid, end_vid);
 
 		<para>
 			We are now ready to generate the trips.
-			<programlisting xml:space="preserve">
+			<programlisting language="sql" xml:space="preserve">
 DROP TYPE IF EXISTS step CASCADE;
 CREATE TYPE step as (linestring geometry, maxspeed float, category int);
 
@@ -630,7 +624,7 @@ END; $$
 
 		<para>
 			Finally, we explain the procedure that create a trip.
-			<programlisting xml:space="preserve">
+			<programlisting language="sql" xml:space="preserve">
 CREATE OR REPLACE FUNCTION createTrip(edges step[], startTime timestamptz,
   disturbData boolean)
 RETURNS tgeompoint LANGUAGE plpgsql STRICT AS $$
@@ -772,7 +766,7 @@ BEGIN
 END; $$
 </programlisting>
 			The procedure receives as first argument a path from a source to a destination node, which is an array of triples composed of the geometry, the maximum speed, and the category of an edge of the path. The other arguments are the timestamp at which the trip starts and a Boolean value determining whether the points composed the trip are disturbed to simulate GPS errors. The output of the function is a temporal geometry point following this path. The procedure loops for each edge of the path and determines the number of segments of the edge, where a segment is a straight line defined by two consecutive points. For each segment, we determine the angle between the current segment and the next one (if any) to compute the maximum speed at the turn. This is determined by multiplying the maximum speed of the segment by a factor proportional to the angle so that the factor is 1.00 at both 0° and 360° and is 0.0 at 180°. Examples of values of degrees and the associated factor are given next.
-			<programlisting xml:space="preserve">
+			<programlisting language="sql" xml:space="preserve">
 0: 1.00, 5: 0.97, 45: 0.75, 90: 0.50, 135: 0.25, 175: 0.03
 180: 0.00, 185: 0.03, 225: 0.25, 270: 0.50, 315: 0.75, 355: 0.97, 360: 0.00
 </programlisting>
@@ -794,12 +788,12 @@ END; $$
 		<para>
 			After obtaining the bounding box, we can proceed as we stated in <xref linkend="datagen_quickstart" />.
 			We create a new database <varname>barcelona</varname>, then add both PostGIS, MobilityDB, and pgRouting to it.
-			<programlisting xml:space="preserve">
+			<programlisting language="sql" xml:space="preserve">
 CREATE EXTENSION mobilitydb CASCADE;
 CREATE EXTENSION pgRouting;
 </programlisting>
 			Then, we download the OSM data from Barcelona using the Overpass API by writing the following in a terminal:
-			<programlisting xml:space="preserve">
+			<programlisting language="bash" xml:space="preserve">
 CITY="barcelona"
 BBOX="2.042084,41.267743,2.258720,41.445043"
 wget --progress=dot:mega -O "$CITY.osm" 
@@ -807,12 +801,12 @@ wget --progress=dot:mega -O "$CITY.osm"
 </programlisting>
 
 			We can optionally reduce the size of the OSM file as follows
-			<programlisting xml:space="preserve">
+			<programlisting language="bash" xml:space="preserve">
 sed -r "s/version=\"[0-9]+\" timestamp=\"[^\"]+\" changeset=\"[0-9]+\" uid=\"[0-9]+\" 
 user=\"[^\"]+\"//g" barcelona.osm -i.org
 </programlisting>
 			Finally, we load the map and convert it into a routable format suitable for pgRouting as follows.
-			<programlisting xml:space="preserve">
+			<programlisting language="bash" xml:space="preserve">
 osm2pgrouting -f barcelona.osm --dbname barcelona -c mapconfig_brussels.xml
 </programlisting>
 		</para>
@@ -830,7 +824,7 @@ osm2pgrouting -f barcelona.osm --dbname barcelona -c mapconfig_brussels.xml
 			<listitem>
 				<para>
 					<varname>P_SCALE_FACTOR: float</varname>: Main parameter that determines the size of the data generated. Default value: 0.005. Corresponding optional argument: <varname>scaleFactor</varname>. By default, the scale factor determine the number of vehicles and the number of days they are observed as follows:
-					<programlisting xml:space="preserve">
+					<programlisting language="sql" xml:space="preserve">
 noVehicles int = round((2000 * sqrt(P_SCALE_FACTOR))::numeric, 0)::int;
 noDays int = round((sqrt(P_SCALE_FACTOR) * 28)::numeric, 0)::int;
 </programlisting>
@@ -870,7 +864,7 @@ noDays int = round((sqrt(P_SCALE_FACTOR) * 28)::numeric, 0)::int;
 		</itemizedlist>
 		<para>
 			For example, possible calls of the <varname>berlinmod_generate</varname> function setting values for the parameters are as follows.
-			<programlisting xml:space="preserve">
+			<programlisting language="sql" xml:space="preserve">
 -- Use all default values
 SELECT berlinmod_generate();
 -- Set the scale factor and use all other default values
@@ -906,7 +900,7 @@ SELECT berlinmod_generate(noVehicles := 10, noDays := 10);
 			<listitem>
 				<para>
 					<varname>P_VEHICLE_MODELS: text[]</varname>: Set of vehicle models. Default value:
-					<programlisting xml:space="preserve">
+					<programlisting language="sql" xml:space="preserve">
 {"Mercedes-Benz", "Volkswagen", "Maybach", "Porsche", "Opel", "BMW", "Audi", "Acabion",
 "Borgward", "Wartburg", "Sachsenring", "Multicar"}
 </programlisting>
@@ -955,7 +949,7 @@ SELECT berlinmod_generate(noVehicles := 10, noDays := 10);
 			<listitem>
 				<para>
 					<varname>P_DEST_STOPPROB: float</varname>: Probabilities for forced stops at crossings depending on the road type. It is defined by a transition matrix where lines and columns are ordered by side road (S), main road (M), freeway (F). The OSM highway types must be mapped to one of these categories in the function <varname>berlinmod_roadCategory</varname>. Default value:
-					<programlisting xml:space="preserve">
+					<programlisting language="sql" xml:space="preserve">
 {{0.33, 0.66, 1.00}, {0.33, 0.50, 0.66}, {0.10, 0.33, 0.05}}
 </programlisting>
 				</para>
@@ -985,16 +979,16 @@ Increasing/decreasing this parameter allows us to slow down or speed up the trip
 
 		<para>
 			To be able to run the delivery generator you need to execute the first two steps specified in <xref linkend="datagen_quickstart" /> to load the street network and prepare the base data for simulation, if not done already. The delivery generator can then be run as follows.
-			<programlisting xml:space="preserve">
+			<programlisting language="bash" xml:space="preserve">
 psql -h localhost -p 5432 -U dbowner -d brussels -f deliveries_datagenerator.sql
--- adds the pgplsql functions of the simulation to the database
+# adds the pgplsql functions of the simulation to the database
 
 psql -h localhost -p 5432 -U dbowner -d brussels \
 -c 'select deliveries_generate(scaleFactor := 0.005)'
--- calls the main pgplsql function to start the simulation
+# calls the main pgplsql function to start the simulation
 </programlisting>
 			If everything is correct, you should see an output like that starts with this:
-			<programlisting xml:space="preserve">
+			<programlisting language="bash" xml:space="preserve">
 INFO:  -----------------------------------------------------------------------
 INFO:  Starting deliveries generation with scale factor 0.005
 INFO:  -----------------------------------------------------------------------
@@ -1012,7 +1006,7 @@ INFO:  Start day = 2020-06-01, Path mode = Fastest Path, Disturb data = f
 		</para>
 		<para>
 			We start by generating the <varname>Warehouses</varname> table. Each warehouse is located at a random node of the network.
-			<programlisting xml:space="preserve">
+			<programlisting language="sql" xml:space="preserve">
 DROP TABLE IF EXISTS Warehouses;
 CREATE TABLE Warehouses(warehouseId int, nodeId bigint, geom geometry(Point));
 FOR i IN 1..noWarehouses LOOP
@@ -1023,7 +1017,7 @@ FOR i IN 1..noWarehouses LOOP
 END LOOP;
 </programlisting>
 			We create a table <varname>Vehicles</varname> with all vehicles and the associated warehouse. Warehouses are associated to vehicles in a round-robin way.
-			<programlisting xml:space="preserve">
+			<programlisting language="sql" xml:space="preserve">
 DROP TABLE IF EXISTS Vehicles;
 CREATE TABLE Vehicles(vehicleId int PRIMARY KEY, licence text, type text, brand text,
   warehouse int);
@@ -1039,7 +1033,7 @@ END LOOP;
 
 		<para>
 			We create next the <varname>Trips</varname> and <varname>Destinations</varname> tables that contain, respectively, the list of source and destination nodes composing the delivery trip of a vehicle for a day, and the list of source and destination nodes for all vehicles.
-			<programlisting xml:space="preserve">
+			<programlisting language="sql" xml:space="preserve">
 DROP TABLE IF EXISTS Trips;
 CREATE TABLE Trips(vehicle int, day date, seq int, source bigint, target bigint,
   PRIMARY KEY (vehicle, day, seq));
@@ -1088,7 +1082,7 @@ END LOOP;
 
 		<para>
 			Next, we compute the paths between all source and target nodes that are in the  <varname>Destinations</varname> table. Such paths are generated by pgRouting and stored in the <varname>Paths</varname> table.
-			<programlisting xml:space="preserve">
+			<programlisting language="sql" xml:space="preserve">
 DROP TABLE IF EXISTS Paths;
 CREATE TABLE Paths(seq int, path_seq int, start_vid bigint, end_vid bigint,
   node bigint, edge bigint, cost float, agg_cost float,
@@ -1123,7 +1117,7 @@ FROM Edges E WHERE E.id = edge;
 		</para>
 		<para>
 			We explain how to generate the trips for a number of vehicles and a number of days starting at a given day. 
-			<programlisting xml:space="preserve">
+			<programlisting language="sql" xml:space="preserve">
 DROP TABLE IF EXISTS Deliveries;
 CREATE TABLE Deliveries(deliveryId int PRIMARY KEY, Vehicle int, Day date, noCustomers int,
   Trip tgeompoint, Trajectory geometry);
@@ -1217,11 +1211,11 @@ END LOOP;
 			<title>Creating the Graph</title>
 			<para>
 				As we did at the beginning of this chapter, we load the OSM data from Brussels into PostgreSQL with the following command.
-				<programlisting xml:space="preserve">
+				<programlisting language="bash" xml:space="preserve">
 osm2pgsql --create --database brussels --host localhost brussels.osm
 </programlisting>
 				The table <varname>planet_osm_line</varname> contains all linear features imported from OSM, in particular road data, but also many other features which are not relevant for our use case such as pedestrian paths, cycling ways, train ways, electric lines, etc. Therefore, we use the attribute <varname>highway</varname> to extract the roads from this table. We first create a table containing the road types we are interested in and associate to them a priority, a maximum speed, and a category as follows.
-				<programlisting xml:space="preserve">
+				<programlisting language="sql" xml:space="preserve">
 DROP TABLE IF EXISTS RoadTypes;
 CREATE TABLE RoadTypes(id int PRIMARY KEY, type text, priority float, maxspeed float,
 category int);
@@ -1244,7 +1238,7 @@ INSERT INTO RoadTypes VALUES
 (116, 'services', 4.0, 20, 3);
 </programlisting>
 				Then, we create a table that contains the roads corresponding to one of the above types as follows.
-				<programlisting xml:space="preserve">
+				<programlisting language="sql" xml:space="preserve">
 DROP TABLE IF EXISTS Roads;
 CREATE TABLE Roads AS
 SELECT osm_id, admin_level, bridge, cutting, highway, junction, name, oneway, operator,
@@ -1257,7 +1251,7 @@ CREATE INDEX Roads_geom_idx ON Roads USING GiST(geom);
 			</para>
 			<para>
 				We then create a table that contains all intersections between two roads as follows:
-				<programlisting xml:space="preserve">
+				<programlisting language="sql" xml:space="preserve">
 DROP TABLE IF EXISTS Intersections;
 CREATE TABLE Intersections AS
 WITH Temp1 AS (
@@ -1281,7 +1275,7 @@ CREATE INDEX Intersections_geom_idx ON Intersections USING GIST(geom);
 			</para>
 			<para>
 				Our next task is to use the table <varname>Intersections</varname> we have just created to split the roads. This is done as follows.
-				<programlisting xml:space="preserve">
+				<programlisting language="sql" xml:space="preserve">
 DROP TABLE IF EXISTS Segments;
 CREATE TABLE Segments AS
 SELECT DISTINCT osm_id, (ST_Dump(ST_Split(R.geom, I.geom))).geom
@@ -1291,7 +1285,7 @@ WHERE ST_Intersects(R.Geom, I.geom);
 CREATE INDEX Segments_geom_idx ON Segments USING GIST(geom);
 </programlisting>
 				The function <varname>ST_Split</varname> breaks the geometry of a road using an intersection and the function <varname>ST_Dump</varname> obtains the individual segments resulting from the splitting. However, as shown in the following query, there are duplicate segments with distinct <varname>osm_id</varname>.
-				<programlisting xml:space="preserve">
+				<programlisting language="sql" xml:space="preserve">
 SELECT S1.osm_id, S2.osm_id
 FROM Segments S1, Segments S2
 WHERE S1.osm_id &lt; S2.osm_id AND st_intersects(S1.geom, S2.geom) AND 
@@ -1300,13 +1294,13 @@ WHERE S1.osm_id &lt; S2.osm_id AND st_intersects(S1.geom, S2.geom) AND
 -- 490493551  740404157
 </programlisting>
 				We can remove those duplicates segments with the following query, which keeps arbitrarily the smaller <varname>osm_id</varname>.
-				<programlisting xml:space="preserve">
+				<programlisting language="sql" xml:space="preserve">
 DELETE FROM Segments S1
 USING Segments S2
 WHERE S1.osm_id > S2.osm_id AND ST_Equals(S1.geom, S2.geom);
 </programlisting>
 				We can obtain some characteristics of the segments with the following queries.
-				<programlisting xml:space="preserve">
+				<programlisting language="sql" xml:space="preserve">
 SELECT DISTINCT geometrytype(geom) FROM Segments;
 -- "LINESTRING"
 
@@ -1316,7 +1310,7 @@ SELECT min(ST_NPoints(geom)), max(ST_NPoints(geom)) FROM Segments;
 			</para>
 			<para>
 				Now we are ready to obtain a first set of nodes for our graph.
-				<programlisting xml:space="preserve">
+				<programlisting language="sql" xml:space="preserve">
 DROP TABLE IF EXISTS TempNodes;
 CREATE TABLE TempNodes AS
 WITH Temp(geom) AS (
@@ -1328,7 +1322,7 @@ FROM Temp;
 CREATE INDEX TempNodes_geom_idx ON TempNodes USING GIST(geom);
 </programlisting>
 				The above query select as nodes the start and the end points of the segments and assigns to each of them a sequence identifier. We construct next the set of edges of our graph as follows.
-				<programlisting xml:space="preserve">
+				<programlisting language="sql" xml:space="preserve">
 DROP TABLE IF EXISTS Edges;
 CREATE TABLE Edges(id bigint, osm_id bigint, tag_id int, length_m float, source bigint,
   target bigint, cost_s float, reverse_cost_s float, one_way int, maxspeed float,
@@ -1344,21 +1338,21 @@ CREATE UNIQUE INDEX Edges_id_idx ON Edges USING BTREE(id);
 CREATE INDEX Edges_geom_index ON Edges USING GiST(geom);
 </programlisting>
 				The above query connects the segments obtained previously to the source and target nodes. We can verify that all edges were connected correctly to their source and target nodes using the following query.
-				<programlisting xml:space="preserve">
+				<programlisting language="sql" xml:space="preserve">
 SELECT count(*) FROM Edges WHERE source IS NULL OR target IS NULL;
 -- 0
 </programlisting>
 			</para>
 			<para>
 				Now we can fill the other attributes of the edges. We start first with the attributes <varname>tag_id</varname>, <varname>priority</varname>, and <varname>maxspeed</varname>, which are obtained from the table <varname>RoadTypes</varname> using the attribute <varname>highway</varname>.
-				<programlisting xml:space="preserve">
+				<programlisting language="sql" xml:space="preserve">
 UPDATE Edges E
 SET tag_id = T.id, priority = T.priority, maxspeed = T.maxSpeed
 FROM Roads R, RoadTypes T
 WHERE E.osm_id = R.osm_id AND R.highway = T.type;
 </programlisting>
 				We continue with the attribute <varname>one_way</varname> according to the <ulink url="https://wiki.openstreetmap.org/wiki/Key:oneway">semantics</ulink> stated in the OSM documentation.
-				<programlisting xml:space="preserve">
+				<programlisting language="sql" xml:space="preserve">
 UPDATE Edges E
 SET one_way = CASE
   WHEN R.oneway = 'yes' OR R.oneway = 'true' OR R.oneway = '1' THEN 1 -- Yes
@@ -1371,7 +1365,7 @@ FROM Roads R
 WHERE E.osm_id = R.osm_id;
 </programlisting>
 				We compute the implied one way restriction based on OSM documentation as follows.
-				<programlisting xml:space="preserve">
+				<programlisting language="sql" xml:space="preserve">
 UPDATE Edges E
 SET one_way = 1
 FROM Roads R
@@ -1379,7 +1373,7 @@ WHERE E.osm_id = R.osm_id AND R.oneway IS NULL AND
   (R.junction = 'roundabout' OR R.highway = 'motorway');
 </programlisting>
 				Finally, we compute the cost and reverse cost in seconds according to the length and the maximum speed of the edge.
-				<programlisting xml:space="preserve">
+				<programlisting language="sql" xml:space="preserve">
 UPDATE Edges E SET
 cost_s = CASE
   WHEN one_way = -1 THEN - length_m / (maxspeed / 3.6)
@@ -1393,7 +1387,7 @@ reverse_cost_s = CASE
 			</para>
 			<para>
 				Our last task is to compute the strongly connected components of the graph. This is necessary to ensure that there is a path between every couple of arbritrary nodes in the graph.
-				<programlisting xml:space="preserve">
+				<programlisting language="sql" xml:space="preserve">
 DROP TABLE IF EXISTS Nodes;
 CREATE TABLE Nodes AS
 WITH Components AS (
@@ -1417,7 +1411,7 @@ CREATE INDEX Nodes_geom_idx ON Nodes USING GiST(geom);
 			</para>
 			<para>
 				Now that we computed the nodes of the graph, we need to link the edges with the identifiers of these nodes. This is done as follows.
-				<programlisting xml:space="preserve">
+				<programlisting language="sql" xml:space="preserve">
 UPDATE Edges SET source = NULL, target = NULL;
 
 UPDATE Edges E SET
@@ -1429,7 +1423,7 @@ WHERE ST_Intersects(E.geom, N1.geom) AND ST_StartPoint(E.geom) = N1.geom AND
 				We first set the identifiers of the source and target nodes to NULL before connecting them to the identifiers of the node.
 
 				Finally, we delete the edges whose source or target node has been removed.
-				<programlisting xml:space="preserve">
+				<programlisting language="sql" xml:space="preserve">
 DELETE FROM Edges WHERE source IS NULL OR target IS NULL;
 -- DELETE 1080
 </programlisting>
@@ -1437,7 +1431,7 @@ DELETE FROM Edges WHERE source IS NULL OR target IS NULL;
 
 			<para>
 				In order to compare the graph we have just obtained with the one obtained by osm2pgrouting we can issue the following queries.
-				<programlisting xml:space="preserve">
+				<programlisting language="sql" xml:space="preserve">
 SELECT count(*) FROM Ways;
 -- 83017
 SELECT count(*) FROM Edges;
@@ -1459,7 +1453,7 @@ SELECT count(*) FROM Nodes;
 			<title>Linear Contraction of the Graph</title>
 			<para>
 				We show next a possible approach to contract the graph. This approach corresponds to <ulink url="https://docs.pgrouting.org/3.0/en/contraction-family.html">linear contraction</ulink> provided by pgRouting although we do it differently by taking into account the type, the direction, and the geometry of the roads. For this, we get the initial roads to merge as we did previously but now we put them in a table <varname>TempRoads</varname>.
-				<programlisting xml:space="preserve">
+				<programlisting language="sql" xml:space="preserve">
 DROP TABLE IF EXISTS TempRoads;
 CREATE TABLE TempRoads AS
 SELECT osm_id, admin_level, bridge, cutting, highway, junction, name, oneway, operator,
@@ -1470,7 +1464,7 @@ WHERE highway IN (SELECT type FROM RoadTypes);
 CREATE INDEX TempRoads_geom_idx ON TempRoads USING GiST(geom);
 </programlisting>
 				Then, we use the following procedure to merge the roads.
-				<programlisting xml:space="preserve">
+				<programlisting language="sql" xml:space="preserve">
 CREATE OR REPLACE FUNCTION mergeRoads()
 RETURNS void LANGUAGE PLPGSQL AS $$
 DECLARE
@@ -1536,7 +1530,7 @@ END; $$
 			</para>
 			<para>
 The above procedure iterates 20 times for the largest segment that can be assembled, which is located in the ring-road around Brussels between two exits. It takes 15 minutes to execute in my laptop.
-				<programlisting xml:space="preserve">
+				<programlisting language="bash" xml:space="preserve">
 INFO:  Iteration 1
 INFO:  Extended 3431 roads
 INFO:  Iteration 2
@@ -1559,7 +1553,7 @@ INFO:  Extended 0 roads
 
 			<para>
 				After we apply the above procedure to merge the roads, we are ready to create a new set of roads from which we can construct the graph.
-				<programlisting xml:space="preserve">
+				<programlisting language="sql" xml:space="preserve">
 CREATE TABLE Roads AS
 SELECT osm_id || path AS osm_id, admin_level, bridge, cutting, highway, junction, name,
   oneway, operator, ref, route, surface, toll, tracktype, tunnel, width, geom
@@ -1571,7 +1565,7 @@ CREATE INDEX Roads_geom_idx ON Roads USING GiST(geom);
 			</para>
 			<para>
 				We then proceed as we did in <xref linkend="create_graph" /> to compute the set of nodes and the set of edges, which we will store now for comparison purposes into tables <varname>Nodes1</varname> and <varname>Edges1</varname>. We can issue the following queries to compare the two graphs we have obtained and the one obtained by osm2pgrouting .
-				<programlisting xml:space="preserve">
+				<programlisting language="sql" xml:space="preserve">
 SELECT count(*) FROM Ways;
 -- 83017
 SELECT count(*) FROM Edges;
