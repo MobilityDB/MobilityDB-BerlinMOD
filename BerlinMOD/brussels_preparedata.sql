@@ -25,30 +25,38 @@ osm2pgrouting -U username -f brussels.osm --dbname brussels -c mapconfig_brussel
 -- We create two tables for that
 
 DROP TABLE IF EXISTS Edges;
-CREATE TABLE Edges AS
-SELECT gid as id, osm_id, tag_id, length_m, source, target, source_osm,
+CREATE TABLE Edges(id bigint, osm_id bigint, tag_id integer,
+ length_m float, sourceNode bigint, targetNode bigint, source_osm bigint,
+ target_osm bigint, cost_s float, reverse_cost_s float, one_way integer,
+ maxspeed_forward float, maxspeed_backward float, priority float,
+ geom geometry);
+INSERT INTO Edges(id, osm_id, tag_id, length_m, sourceNode, targetNode,
+  source_osm, target_osm, cost_s, reverse_cost_s, one_way,
+  maxspeed_forward, maxspeed_backward, priority, geom)
+SELECT gid, osm_id, tag_id, length_m, source, target, source_osm,
   target_osm, cost_s, reverse_cost_s, one_way, maxspeed_forward,
-  maxspeed_backward, priority, ST_Transform(the_geom, 3857) AS geom
+  maxspeed_backward, priority, ST_Transform(the_geom, 3857)
 FROM ways;
 
 -- The nodes table should contain ONLY the vertices that belong to the largest
 -- connected component in the underlying map. Like this, we guarantee that
 -- there will be a non-NULL shortest path between any two nodes.
 DROP TABLE IF EXISTS Nodes;
-CREATE TABLE Nodes AS
+CREATE TABLE Nodes(id bigint PRIMARY KEY, osm_id bigint, geom geometry);
+INSERT INTO Nodes(id, osm_id, geom)
 WITH Components AS (
   SELECT * FROM pgr_strongComponents(
-    'SELECT id, source, target, length_m AS cost, '
-    'length_m * sign(reverse_cost_s) AS reverse_cost FROM edges') ),
+    'SELECT id, sourceNode AS source, targetNode AS target, length_m AS cost, '
+    'length_m * sign(reverse_cost_s) AS reverse_cost FROM Edges') ),
 LargestComponent AS (
-  SELECT component, count(*) FROM Components
-  GROUP BY component ORDER BY count(*) DESC LIMIT 1),
+  SELECT component, COUNT(*) FROM Components
+  GROUP BY component ORDER BY COUNT(*) DESC LIMIT 1),
 Connected AS (
   SELECT id, osm_id, the_geom AS geom
   FROM ways_vertices_pgr W, LargestComponent L, Components C
   WHERE W.id = C.node AND C.component = L.component
 )
-SELECT ROW_NUMBER() OVER () AS id, osm_id, ST_Transform(geom, 3857) AS geom
+SELECT ROW_NUMBER() OVER (), osm_id, ST_Transform(geom, 3857) AS geom
 FROM Connected;
 
 CREATE UNIQUE INDEX Nodes_id_idx ON Nodes USING BTREE(id);
@@ -56,19 +64,18 @@ CREATE INDEX Nodes_osm_id_idx ON Nodes USING BTREE(osm_id);
 CREATE INDEX Nodes_geom_idx ON NODES USING GiST(geom);
 
 UPDATE Edges E SET
-source = (SELECT id FROM Nodes N WHERE N.osm_id = E.source_osm),
-target = (SELECT id FROM Nodes N WHERE N.osm_id = E.target_osm);
+sourceNode = (SELECT id FROM Nodes N WHERE N.osm_id = E.source_osm),
+targetNode = (SELECT id FROM Nodes N WHERE N.osm_id = E.target_osm);
 
 -- Delete the edges whose source or target node has been removed
-DELETE FROM Edges WHERE source IS NULL OR target IS NULL;
+DELETE FROM Edges WHERE sourceNode IS NULL OR targetNode IS NULL;
 
-CREATE UNIQUE INDEX Edges_id_idx ON Edges USING BTREE(id);
 CREATE INDEX Edges_geom_index ON Edges USING GiST(geom);
 
 /*
-SELECT count(*) FROM Edges;
+SELECT COUNT(*) FROM Edges;
 -- 80831
-SELECT count(*) FROM Nodes;
+SELECT COUNT(*) FROM Nodes;
 -- 65052
 */
 
@@ -81,7 +88,7 @@ SELECT count(*) FROM Nodes;
 -- http://ibsa.brussels/themes/economie
 
 DROP TABLE IF EXISTS Communes;
-CREATE TABLE Communes(Id,Name,Population,PercPop,PopDensityKm2,NoEnterp,PercEnterp) AS
+CREATE TABLE Communes(CommuneId,Name,Population,PercPop,PopDensityKm2,NoEnterp,PercEnterp) AS
 SELECT * FROM (Values
 (1,'Anderlecht',118241,0.10,6680,6460,0.08),
 (2,'Auderghem - Oudergem',33313,0.03,3701,2266,0.03),
@@ -175,17 +182,17 @@ DROP TABLE IF EXISTS CommunesGeom;
 
 DROP TABLE IF EXISTS HomeRegions;
 CREATE TABLE HomeRegions(id, priority, weight, prob, cumprob, geom) AS
-SELECT id, id, population, PercPop,
-  SUM(PercPop) OVER (ORDER BY id ASC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS CumProb,
-  geom
+SELECT communeId, communeId, population, PercPop,
+  SUM(PercPop) OVER (ORDER BY communeId ASC ROWS 
+    BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS CumProb,  geom
 FROM Communes;
 
 CREATE INDEX HomeRegions_geom_idx ON HomeRegions USING GiST(geom);
 
 DROP TABLE IF EXISTS WorkRegions;
 CREATE TABLE WorkRegions(id, priority, weight, prob, cumprob, geom) AS
-SELECT id, id, NoEnterp, PercEnterp,
-  SUM(PercEnterp) OVER (ORDER BY id ASC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS CumProb,
+SELECT communeId, communeId, NoEnterp, PercEnterp,
+  SUM(PercEnterp) OVER (ORDER BY communeId ASC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS CumProb,
   geom
 FROM Communes;
 

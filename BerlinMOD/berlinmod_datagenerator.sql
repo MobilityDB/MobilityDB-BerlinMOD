@@ -19,10 +19,10 @@ patterns or modify the sampling of positions.
 The database must contain the following input relations.
 
 *  Nodes(id bigint primary key, geom geometry(Point))
-*  Edges(id bigint primary key, tag_id int, source bigint, target bigint,
+*  Edges(id bigint primary key, tag_id int, sourceNode bigint, targetNode bigint,
     length_m float, cost_s float, reverse_cost_s float, maxspeed_forward float,
     maxspeed_backward float, priority float, geom geometry(Linestring))
-    source and target references Nodes(id)
+    sourceNode and targetNode references Nodes(id)
   The Nodes and Edges tables define the road network graph.
   These tables are typically obtained by osm2pgrouting from OSM data.
   The minimum number of attributes these tables should contain are
@@ -56,25 +56,25 @@ The database must contain the following input relations.
 The generated data is saved into the database in which the
 functions are executed using the following tables
 
-*  Licences(vehicle int primary key, licence text, type text, model text)
-*  Vehicle(id int primary key, home bigint, work bigint, noNeighbours int);
-*  Neighbourhood(vehicle int, seq int, node bigint)
-    primary key (vehicle, seq)
-*  Destinations(vehicle int, source bigint, target bigint)
-    primary key (vehicle, source, target)
-*  Paths(vehicle int, start_vid bigint, end_vid bigint, seq int,
+*  Vehicles(vehId int primary key, licence text, type text, model text)
+*  VehicleNodes(vehId int primary key, home bigint, work bigint, noNeighbours int);
+*  Neighbourhood(vehId int, seqNo int, node bigint)
+    primary key (vehId, seqNo)
+*  Destinations(vehId int, sourceNode bigint, targetNode bigint)
+    primary key (vehId, sourceNode, targetNode)
+*  Paths(vehId int, start_vid bigint, end_vid bigint, seqNo int,
     node bigint, edge bigint, geom geometry, speed float, category int);
-*  LeisureTrip(vehicle int, day date, tripNo int, seq int, source bigint,
-    target bigint)
-    primary key (vehicle, day, tripNo, seq)
+*  LeisureTrips(vehId int, day date, tripNo int, seqNo int, sourceNode bigint,
+    targetNode bigint)
+    primary key (vehId, day, tripNo, seqNo)
     tripNo is 1 for morning/evening trip and is 2 for afternoon trip
-    seq is the sequence of trips composing a leisure trip
-*  Trips(vehicle int, day date, seq int, source bigint,
-    target bigint, trip tgeompoint, trajectory geometry);
-*  QueryPoints(id int, geom geometry)
-*  QueryRegions(id int, geom geometry)
-*  QueryInstants(id int, instant timestamptz)
-*  QueryPeriods(id int, period)
+    seqNo is the sequence of trips composing a leisure trip
+*  Trips(tripId serial, vehId int, day date, seqNo int, sourceNode bigint,
+    targetNode bigint, trip tgeompoint, trajectory geometry);
+*  Points(id int, geom geometry)
+*  Regions(id int, geom geometry)
+*  Instants(id int, instant timestamptz)
+*  Periods(id int, period)
 
 -----------------------------------------------------------------------------*/
 
@@ -306,7 +306,6 @@ select min(t), max(t) from test
   'services' id='116' priority='4' maxspeed='20' category='3'
 */
 
-DROP FUNCTION IF EXISTS berlinmod_roadCategory;
 CREATE OR REPLACE FUNCTION berlinmod_roadCategory(tagId int)
 RETURNS int AS $$
 BEGIN
@@ -333,9 +332,7 @@ CREATE TYPE step as (linestring geometry, maxspeed float, category int);
 -- This function is currently not used in the generation but is useful
 -- for debugging purposes.
 
-DROP FUNCTION IF EXISTS createPath;
-CREATE OR REPLACE FUNCTION createPath(source bigint, target bigint,
-  pathMode text)
+CREATE OR REPLACE FUNCTION createPath(sourceN bigint, targetN bigint, pathMode text)
 RETURNS step[] AS $$
 DECLARE
   -- Query sent to pgrouting depending on the argument pathMode
@@ -344,26 +341,27 @@ DECLARE
   result step[];
 BEGIN
   IF pathMode = 'Fastest Path' THEN
-    query_pgr = 'SELECT id, source, target, cost_s AS cost, reverse_cost_s as reverse_cost FROM edges';
+    query_pgr = 'SELECT id, sourceNode, targetNode, cost_s AS cost, reverse_cost_s as reverse_cost FROM Edges';
   ELSE
-    query_pgr = 'SELECT id, source, target, length_m AS cost, length_m * sign(reverse_cost_s) as reverse_cost FROM edges';
+    query_pgr = 'SELECT id, sourceNode, targetNode, length_m AS cost, '
+      'length_m * sign(reverse_cost_s) as reverse_cost FROM Edges';
   END IF;
   WITH Temp1 AS (
-    SELECT P.seq, P.node, P.edge
-    FROM pgr_dijkstra(query_pgr, source, target, true) P
+    SELECT P.seqNo, P.node, P.edge
+    FROM pgr_dijkstra(query_pgr, sourceN, targetN, true) P
   ),
   Temp2 AS (
-    SELECT T.seq,
+    SELECT T.seqNo,
       -- adjusting directionality
       CASE
-        WHEN T.node = E.source THEN E.geom
+        WHEN T.node = E.sourceNode THEN E.geom
         ELSE ST_Reverse(geom)
       END AS geom,
       maxspeed_forward AS maxSpeed, berlinmod_roadCategory(tag_id) AS category
     FROM Temp1 T, Edges E
     WHERE edge IS NOT NULL AND E.id = T.edge
   )
-  SELECT array_agg((geom, maxSpeed, category)::step ORDER BY seq) INTO result
+  SELECT array_agg((geom, maxSpeed, category)::step ORDER BY seqNo) INTO result
   FROM Temp2;
   RETURN result;
 END;
@@ -377,7 +375,6 @@ select createPath(9598, 4010, 'Fastest Path')
 -- at a timestamp t. Implements Algorithm 1 in BerlinMOD Technical Report.
 -- The last argument corresponds to the parameter P_DISTURB_DATA.
 
-DROP FUNCTION IF EXISTS createTrip;
 CREATE OR REPLACE FUNCTION createTrip(edges step[], startTime timestamptz,
   disturbData boolean, messages text)
 RETURNS tgeompoint AS $$
@@ -432,7 +429,7 @@ DECLARE
   -- number of fractions of size P_EVENT_LENGTH in a segment
   noEdges int; noSegs int; noFracs int;
   -- Loop variables
-  i int; j int; k int;
+  edge int; seg int; frac int;
   -- Number of instants generated so far
   l int;
   -- Categories of the current and next road
@@ -496,29 +493,29 @@ BEGIN
   l = 2;
   noEdges = array_length(edges, 1);
   -- Loop for every edge
-  FOR i IN 1..noEdges LOOP
+  FOR edge IN 1..noEdges LOOP
     IF messages = 'debug' THEN
-      RAISE INFO '      Edge %', i;
+      RAISE INFO '      Edge %', edge;
     END IF;
     -- Get the information about the current edge
-    linestring = (edges[i]).linestring;
-    maxSpeedEdge = (edges[i]).maxSpeed;
-    category = (edges[i]).category;
+    linestring = (edges[edge]).linestring;
+    maxSpeedEdge = (edges[edge]).maxSpeed;
+    category = (edges[edge]).category;
     SELECT array_agg(geom ORDER BY path) INTO points
     FROM ST_DumpPoints(linestring);
     noSegs = array_length(points, 1) - 1;
     -- Loop for every segment of the current edge
-    FOR j IN 1..noSegs LOOP
+    FOR seg IN 1..noSegs LOOP
       IF messages = 'debug' AND noSegs > 1 THEN
-        RAISE INFO '        Segment %', j;
+        RAISE INFO '        Segment %', seg;
       END IF;
-      p2 = points[j + 1];
+      p2 = points[seg + 1];
       x2 = ST_X(p2);
       y2 = ST_Y(p2);
       -- If there is a segment ahead in the current edge
       -- compute the angle of the turn
-      IF j < noSegs THEN
-        p3 = points[j + 2];
+      IF seg < noSegs THEN
+        p3 = points[seg + 2];
         -- Compute the angle α between the current segment and the next one;
         alpha = degrees(ST_Angle(p1, p2, p3));
         -- Compute the maximum speed at the turn by multiplying the
@@ -534,20 +531,20 @@ BEGIN
       END IF;
       segLength = ST_Distance(p1, p2);
       IF segLength < P_EPSILON THEN
-        RAISE EXCEPTION 'Segment % of edge % has zero length', j, i;
+        RAISE EXCEPTION 'Segment % of edge % has zero length', seg, edge;
       END IF;
       fraction = P_EVENT_LENGTH / segLength;
       noFracs = ceiling(segLength / P_EVENT_LENGTH);
       -- Loop for every fraction of the current segment
-      k = 1;
-      WHILE k < noFracs LOOP
+      frac = 1;
+      WHILE frac < noFracs LOOP
         -- If the current speed is considered as a stop, apply an
         -- acceleration event where the new speed is bounded by the
         -- maximum speed of either the segment or the turn
         IF curSpeed <= P_EPSILON_SPEED THEN
           noAccel = noAccel + 1;
           -- If we are not approaching a turn
-          IF k < noFracs THEN
+          IF frac < noFracs THEN
             curSpeed = least(P_EVENT_ACC, maxSpeedEdge);
           ELSE
             curSpeed = least(P_EVENT_ACC, maxSpeedTurn);
@@ -579,7 +576,7 @@ BEGIN
             -- Apply an acceleration event. The speed is bound by
             -- (1) the maximum speed of the turn if we are within
             -- an edge, or (2) the maximum speed of the edge
-            IF k = noFracs AND j < noSegs THEN
+            IF frac = noFracs AND seg < noSegs THEN
               maxSpeed = maxSpeedTurn;
               IF messages = 'debug' THEN
                 RAISE INFO '           Turn -> Angle = %, Maximum speed at turn = %', round(alpha::numeric, 3), round(maxSpeedTurn::numeric, 3);
@@ -616,9 +613,9 @@ BEGIN
         ELSE
           -- Otherwise, move current position P_EVENT_LENGTH meters towards p2
           -- or to p2 if it is the last fraction
-          IF k < noFracs THEN
-            x = x1 + ((x2 - x1) * fraction * k);
-            y = y1 + ((y2 - y1) * fraction * k);
+          IF frac < noFracs THEN
+            x = x1 + ((x2 - x1) * fraction * frac);
+            y = y1 + ((y2 - y1) * fraction * frac);
             IF disturbData THEN
               dx = (2 * P_GPS_STEPMAXERR * rand()) - P_GPS_STEPMAXERR;
               dy = (2 * P_GPS_STEPMAXERR * rand()) - P_GPS_STEPMAXERR;
@@ -643,7 +640,7 @@ BEGIN
             curDist = P_EVENT_LENGTH;
           ELSE
             curPos = p2;
-            curDist = segLength - (segLength * fraction * (k - 1));
+            curDist = segLength - (segLength * fraction * (frac - 1));
           END IF;
           travelTime = (curDist / (curSpeed / 3.6));
           IF travelTime < P_EPSILON THEN
@@ -652,7 +649,7 @@ BEGIN
           t = t + travelTime * interval '1 sec';
           totalTravelTime = totalTravelTime + travelTime;
           twSumSpeed = twSumSpeed + (travelTime * curSpeed);
-          k = k + 1;
+          frac = frac + 1;
         END IF;
         instants[l] = tgeompoint_inst(curPos, t);
         l = l + 1;
@@ -664,8 +661,8 @@ BEGIN
     -- If we are not already in a stop, apply a stop event with a
     -- probability depending on the category of the current edge
     -- and the next one (if any)
-    IF curSpeed > P_EPSILON_SPEED AND i < noEdges THEN
-      nextCategory = (edges[i + 1]).category;
+    IF curSpeed > P_EPSILON_SPEED AND edge < noEdges THEN
+      nextCategory = (edges[edge + 1]).category;
       IF random() <= P_DEST_STOPPROB[category][nextCategory] THEN
         curSpeed = 0;
         waitTime = random_exp(P_DEST_EXPMU);
@@ -710,8 +707,7 @@ FROM Temp;
 -- Choose a random home, work, or destination node for the region-based
 -- approach
 
-DROP FUNCTION IF EXISTS berlinmod_selectHomeNode;
-CREATE FUNCTION berlinmod_selectHomeNode()
+CREATE OR REPLACE FUNCTION berlinmod_selectHomeNode()
 RETURNS bigint AS $$
 DECLARE
   -- Result of the function
@@ -784,20 +780,20 @@ group by region order by region;
 -- Selects a destination node for an additional trip. 80% of the
 -- destinations are from the neighbourhood, 20% are from the complete graph
 
-DROP FUNCTION IF EXISTS berlinmod_selectDestNode;
-CREATE FUNCTION berlinmod_selectDestNode(vehicId int, noNeigh int, noNodes int)
+CREATE OR REPLACE FUNCTION berlinmod_selectDestNode(veh int, noNeigh int,
+  noNodes int)
 RETURNS bigint AS $$
 DECLARE
   -- Random sequence number
-  seqNo int;
+  seq int;
   -- Result of the function
   result bigint;
 BEGIN
   IF noNeigh > 0 AND random() < 0.8 THEN
-    seqNo = random_int(1, noNeigh);
+    seq = random_int(1, noNeigh);
     SELECT node INTO result
     FROM Neighbourhood
-    WHERE vehicle = vehicId AND seq = seqNo;
+    WHERE vehId = veh AND seqNo = seq;
   ELSE
     result = random_int(1, noNodes);
   END IF;
@@ -814,8 +810,7 @@ ORDER BY 1;
 -- Return the unique licence string for a given vehicle identifier
 -- where the identifier is in [0,26999]
 
-DROP FUNCTION IF EXISTS berlinmod_createLicence;
-CREATE FUNCTION berlinmod_createLicence(vehicId int)
+CREATE OR REPLACE FUNCTION berlinmod_createLicence(vehicId int)
   RETURNS text AS $$
 BEGIN
   IF vehicId > 0 and vehicId < 1000 THEN
@@ -840,8 +835,7 @@ FROM generate_series(1, 10);
 -- Return a random vehicle type with the following values
 -- passenger (p=90%), bus (p=5%), truck (p=5%)
 
-DROP FUNCTION IF EXISTS berlinmod_vehicleType;
-CREATE FUNCTION berlinmod_vehicleType()
+CREATE OR REPLACE FUNCTION berlinmod_vehicleType()
   RETURNS text AS $$
 DECLARE
   -------------------------
@@ -868,8 +862,7 @@ $$ LANGUAGE plpgsql STRICT;
 
 -- Return a random vehicle model with a uniform distribution
 
-DROP FUNCTION IF EXISTS berlinmod_vehicleModel;
-CREATE FUNCTION berlinmod_vehicleModel()
+CREATE OR REPLACE FUNCTION berlinmod_vehicleModel()
   RETURNS text AS $$
 DECLARE
   -------------------------
@@ -898,8 +891,7 @@ $$ LANGUAGE plpgsql STRICT;
 -- Generate the trips for a given number vehicles and days starting at a day.
 -- The argument disturbData correspond to the parameter P_DISTURB_DATA
 
-DROP FUNCTION IF EXISTS berlinmod_createTrips;
-CREATE FUNCTION berlinmod_createTrips(noVehicles int, noDays int,
+CREATE OR REPLACE FUNCTION berlinmod_createTrips(noVehicles int, noDays int,
   startDay date, disturbData boolean, messages text, tripGeneration text)
 RETURNS void AS $$
 DECLARE
@@ -912,9 +904,9 @@ DECLARE
   -- Temporal point obtained from a path
   trip tgeompoint;
   -- Home and work nodes
-  homeNode bigint; workNode bigint;
+  homeN bigint; workN bigint;
   -- Source and target nodes of one subtrip of a leisure trip
-  sourceNode bigint; targetNode bigint;
+  sourceN bigint; targetN bigint;
   -- Paths betwen source and target nodes
   homework step[]; workhome step[]; path step[];
   -- Number of leisure trips and number of subtrips of a leisure trip
@@ -924,29 +916,29 @@ DECLARE
   -- Number of previous trips generated so far
   tripSeq int = 0;
   -- Loop variables
-  i int; j int; k int; m int;
+  veh int; j int; leis int; dest int;
 BEGIN
   RAISE INFO 'Creation of the Trips table started at %', clock_timestamp();
   DROP TABLE IF EXISTS Trips;
-  CREATE TABLE Trips(vehicle int, day date, seq int, source bigint,
-    target bigint, trip tgeompoint, trajectory geometry,
-    PRIMARY KEY (vehicle, day, seq));
+  CREATE TABLE Trips(tripId SERIAL PRIMARY KEY, vehId int, day date, seqNo int,
+    sourceNode bigint, targetNode bigint, trip tgeompoint, trajectory geometry,
+    UNIQUE (vehId, day, seqNo));
   -- Loop for each vehicle
-  FOR i IN 1..noVehicles LOOP
+  FOR veh IN 1..noVehicles LOOP
     IF messages = 'medium' OR messages = 'verbose' THEN
-      RAISE INFO '-- Vehicle %', i;
-    ELSEIF i % 100 = 1 THEN
-      RAISE INFO '  Vehicles % to %', i, least(i + 99, noVehicles);
+      RAISE INFO '-- Vehicle %', veh;
+    ELSEIF veh % 100 = 1 THEN
+      RAISE INFO '  Vehicles % to %', veh, least(veh + 99, noVehicles);
     END IF;
     -- Get home -> work and work -> home paths
-    SELECT home, work INTO homeNode, workNode
-    FROM Vehicle V WHERE V.id = i;
-    SELECT array_agg((geom, speed, category)::step ORDER BY seq) INTO homework
+    SELECT homeNode, workNode INTO homeN, workN
+    FROM VehicleNodes V WHERE V.vehId = veh;
+    SELECT array_agg((geom, speed, category)::step ORDER BY seqNo) INTO homework
     FROM Paths
-    WHERE vehicle = i AND start_vid = homeNode AND end_vid = workNode;
-    SELECT array_agg((geom, speed, category)::step ORDER BY seq) INTO workhome
+    WHERE vehId = veh AND start_vid = homeN AND end_vid = workN;
+    SELECT array_agg((geom, speed, category)::step ORDER BY seqNo) INTO workhome
     FROM Paths
-    WHERE vehicle = i AND start_vid = workNode AND end_vid = homeNode;
+    WHERE vehId = veh AND start_vid = workN AND end_vid = homeN;
     d = startDay;
     -- Loop for each generation day
     FOR j IN 1..noDays LOOP
@@ -970,8 +962,8 @@ BEGIN
           RAISE INFO '    Home to work trip started at % and lasted %',
             t, endTimestamp(trip) - startTimestamp(trip);
         END IF;
-        INSERT INTO Trips VALUES
-          (i, d, 1, homeNode, workNode, trip, trajectory(trip));
+        INSERT INTO Trips(vehId, day, seqNo, sourceNode, targetNode, trip, trajectory) VALUES
+          (veh, d, 1, homeN, workN, trip, trajectory(trip));
         -- Work -> Home
         t = d + time '16:00:00' + CreatePauseN(120);
         IF messages = 'verbose' OR messages = 'debug' THEN
@@ -986,19 +978,19 @@ BEGIN
           RAISE INFO '    Work to home trip started at % and lasted %',
             t, endTimestamp(trip) - startTimestamp(trip);
         END IF;
-        INSERT INTO Trips VALUES
-          (i, d, 2, workNode, homeNode, trip, trajectory(trip));
+        INSERT INTO Trips(vehId, day, seqNo, sourceNode, targetNode, trip, trajectory) VALUES
+          (veh, d, 2, workN, homeN, trip, trajectory(trip));
         tripSeq = 2;
       END IF;
       -- Get the number of leisure trips
       SELECT COUNT(DISTINCT tripNo) INTO noLeisTrip
-      FROM LeisureTrip L
-      WHERE L.vehicle = i AND L.day = d;
+      FROM LeisureTrips L
+      WHERE L.vehId = veh AND L.day = d;
       IF noLeisTrip = 0 AND messages = 'verbose' or messages = 'debug' THEN
         RAISE INFO '    No leisure trip';
       END IF;
       -- Loop for each leisure trip (0, 1, or 2)
-      FOR k IN 1..noLeisTrip LOOP
+      FOR leis IN 1..noLeisTrip LOOP
         IF weekday BETWEEN 1 AND 5 THEN
           t = d + time '20:00:00' + CreatePauseN(90);
           IF messages = 'medium' THEN
@@ -1008,11 +1000,11 @@ BEGIN
         ELSE
           -- Determine whether there is a morning/afternoon (1/2) trip
           IF noLeisTrip = 2 THEN
-            leisNo = k;
+            leisNo = leis;
           ELSE
             SELECT tripNo INTO leisNo
-            FROM LeisureTrip L
-            WHERE L.vehicle = i AND L.day = d
+            FROM LeisureTrips L
+            WHERE L.vehicle = vehId AND L.day = d
             LIMIT 1;
           END IF;
           -- Determine the start time
@@ -1029,20 +1021,20 @@ BEGIN
           END IF;
         END IF;
         -- Get the number of subtrips (number of destinations + 1)
-        SELECT count(*) INTO noSubtrips
-        FROM LeisureTrip L
-        WHERE L.vehicle = i AND L.tripNo = leisNo AND L.day = d;
-        FOR m IN 1..noSubtrips LOOP
+        SELECT COUNT(*) INTO noSubtrips
+        FROM LeisureTrips L
+        WHERE L.vehId = veh AND L.tripNo = leisNo AND L.day = d;
+        FOR dest IN 1..noSubtrips LOOP
           -- Get the source and destination nodes of the subtrip
-          SELECT source, target INTO sourceNode, targetNode
-          FROM LeisureTrip L
-          WHERE L.vehicle = i AND L.day = d AND L.tripNo = leisNo AND L.seq = m;
+          SELECT sourceNode, targetNode INTO sourceN, targetN
+          FROM LeisureTrips L
+          WHERE L.vehId = veh AND L.day = d AND L.tripNo = leisNo AND L.seqNo = dest;
           -- Get the path
-          SELECT array_agg((geom, speed, category)::step ORDER BY seq) INTO path
+          SELECT array_agg((geom, speed, category)::step ORDER BY seqNo) INTO path
           FROM Paths P
-          WHERE vehicle = i AND start_vid = sourceNode AND end_vid = targetNode;
+          WHERE vehId = veh AND start_vid = sourceN AND end_vid = targetN;
           IF messages = 'verbose' OR messages = 'debug' THEN
-            RAISE INFO '    Leisure trip from % to % started at %', sourceNode, targetNode, t;
+            RAISE INFO '    Leisure trip from % to % started at %', sourceN, targetN, t;
           END IF;
           IF tripGeneration = 'C' THEN
             trip = create_trip(path, t, disturbData, messages);
@@ -1054,8 +1046,8 @@ BEGIN
               t, endTimestamp(trip) - startTimestamp(trip);
           END IF;
           tripSeq = tripSeq + 1;
-          INSERT INTO Trips VALUES
-            (i, d, tripSeq, sourceNode, targetNode, trip, trajectory(trip));
+          INSERT INTO Trips(vehId, day, seqNo, sourceNode, targetNode, trip, trajectory) VALUES
+            (veh, d, tripSeq, sourceN, targetN, trip, trajectory(trip));
           -- Add a delay time in [0, 120] min using a bounded Gaussian distribution
           t = endTimestamp(trip) + createPause();
         END LOOP;
@@ -1075,8 +1067,7 @@ SELECT berlinmod_createTrips(2, 2, '2020-05-10', 'Fastest Path', false, 'C');
 -- Main Function
 -------------------------------------------------------------------------------
 
-DROP FUNCTION IF EXISTS berlinmod_generate;
-CREATE FUNCTION berlinmod_generate(scaleFactor float DEFAULT NULL,
+CREATE OR REPLACE FUNCTION berlinmod_generate(scaleFactor float DEFAULT NULL,
   noVehicles int DEFAULT NULL, noDays int DEFAULT NULL,
   startDay date DEFAULT NULL, pathMode text DEFAULT NULL,
   nodeChoice text DEFAULT NULL, disturbData boolean DEFAULT NULL,
@@ -1162,17 +1153,17 @@ DECLARE
   -- Number of trips generated
   noTrips int;
   -- Loop variables
-  i int; j int; k int;
+  veh int; dayNo int; c int; leis int;
   -- Home and work node identifiers
-  homeNode bigint; workNode bigint;
+  homeN bigint; workN bigint;
   -- Node identifiers of a trip within a chain of leisure trips
-  sourceNode bigint; targetNode bigint;
+  sourceN bigint; targetN bigint;
   -- Day for generating a leisure trip
-  day date;
+  d date;
   -- Week day 0 -> 6: Sunday -> Saturday
   weekDay int;
-  -- Attributes of table Licences
-  licence text; type text; model text;
+  -- Attributes of table Vehicles
+  lic text; type text; model text;
   -- Start and end time of the generation
   startTime timestamptz; endTime timestamptz;
   -- Start and end time of the batch call to pgRouting
@@ -1187,7 +1178,7 @@ DECLARE
 BEGIN
 
   -------------------------------------------------------------------------
-  --  Initialize parameters and variables
+  --  Initialize parameters and variables using default values if not provided
   -------------------------------------------------------------------------
 
   -- Setting the parameters of the generation
@@ -1247,111 +1238,109 @@ BEGIN
 
   RAISE INFO 'Creating the Destinations table';
   DROP TABLE IF EXISTS Destinations;
-  CREATE TABLE Destinations(vehicle int, source bigint, target bigint,
-    PRIMARY KEY (vehicle, source, target));
+  CREATE TABLE Destinations(vehId int, sourceNode bigint, targetNode bigint,
+    PRIMARY KEY (vehId, sourceNode, targetNode));
 
   -- Create a relation with all vehicles, their home and work node and the
   -- number of neighbourhood nodes
 
-  RAISE INFO 'Creating the Vehicle, Licences, and Neighbourhood tables';
-  DROP TABLE IF EXISTS Vehicle;
-  CREATE TABLE Vehicle(id int PRIMARY KEY, home bigint NOT NULL,
-    work bigint NOT NULL, noNeighbours int);
-  DROP TABLE IF EXISTS Licences;
-  CREATE TABLE Licences(vehicle int PRIMARY KEY, licence text, type text,
+  RAISE INFO 'Creating the VehicleNodes, Vehicles, and Neighbourhood tables';
+  DROP TABLE IF EXISTS VehicleNodes;
+  CREATE TABLE VehicleNodes(vehId int PRIMARY KEY, homeNode bigint NOT NULL,
+    workNode bigint NOT NULL, noNeighbours int);
+  DROP TABLE IF EXISTS Vehicles;
+  CREATE TABLE Vehicles(vehId int PRIMARY KEY, licence text, type text,
     model text);
   DROP TABLE IF EXISTS Neighbourhood;
-  CREATE TABLE Neighbourhood(vehicle int, seq int, node bigint  NOT NULL,
-    PRIMARY KEY (vehicle, seq));
+  CREATE TABLE Neighbourhood(vehId int, seqNo int, node bigint NOT NULL,
+    PRIMARY KEY (vehId, seqNo));
 
   -- Get the number of nodes
   SELECT COUNT(*) INTO noNodes FROM Nodes;
 
-  FOR i IN 1..noVehicles LOOP
+  FOR veh IN 1..noVehicles LOOP
     IF nodeChoice = 'Network Based' THEN
-      homeNode = random_int(1, noNodes);
-      workNode = random_int(1, noNodes);
+      homeN = random_int(1, noNodes);
+      workN = random_int(1, noNodes);
     ELSE
-      homeNode = berlinmod_selectHomeNode();
-      workNode = berlinmod_selectWorkNode();
+      homeN = berlinmod_selectHomeNode();
+      workN = berlinmod_selectWorkNode();
     END IF;
-    IF homeNode IS NULL OR workNode IS NULL THEN
+    IF homeN IS NULL OR workN IS NULL THEN
       RAISE EXCEPTION '    The home and the work nodes cannot be NULL';
     END IF;
-    INSERT INTO Vehicle VALUES (i, homeNode, workNode);
+    INSERT INTO VehicleNodes(vehId, homeNode, workNode) VALUES 
+      (veh, homeN, workN);
     -- Destinations
-    INSERT INTO Destinations(vehicle, source, target) VALUES
-      (i, homeNode, workNode), (i, workNode, homeNode);
-    -- Licences
-    licence = berlinmod_createLicence(i);
+    INSERT INTO Destinations(vehId, sourceNode, targetNode) VALUES
+      (veh, homeN, workN), (veh, workN, homeN);
+    -- Vehicles
+    lic = berlinmod_createLicence(veh);
     type = berlinmod_vehicleType();
     model = berlinmod_vehicleModel();
-    INSERT INTO Licences VALUES (i, licence, type, model);
+    INSERT INTO Vehicles(vehId, licence, type, model) VALUES 
+      (veh, lic, type, model);
 
-    INSERT INTO Neighbourhood
-    WITH Temp AS (
-      SELECT i AS vehicle, N2.id AS node
+    INSERT INTO Neighbourhood(vehId, seqNo, node)
+    WITH Temp(vehicle, n) AS (
+      SELECT veh, N2.id
       FROM Nodes N1, Nodes N2
-      WHERE N1.id = homeNode AND N1.id <> N2.id AND
+      WHERE N1.id = homeN AND N1.id <> N2.id AND
         ST_DWithin(N1.geom, N2.geom, P_NEIGHBOURHOOD_RADIUS)
     )
-    SELECT i, ROW_NUMBER() OVER () as seq, node
+    SELECT vehicle, ROW_NUMBER() OVER (), n
     FROM Temp;
   END LOOP;
 
-  -- Build indexes to speed up processing
-  CREATE UNIQUE INDEX Vehicle_id_idx ON Vehicle USING BTREE(id);
-  CREATE UNIQUE INDEX Neighbourhood_pkey_idx ON Neighbourhood USING BTREE(vehicle, seq);
-
-  UPDATE Vehicle V
-  SET noNeighbours = (SELECT COUNT(*) FROM Neighbourhood N WHERE N.vehicle = V.id);
+  UPDATE VehicleNodes V
+  SET noNeighbours = (SELECT COUNT(*) FROM Neighbourhood N WHERE N.vehId = V.vehId);
 
   -------------------------------------------------------------------------
   -- Create auxiliary benchmarking data
   -- The number of rows these tables is determined by P_SAMPLE_SIZE
   -------------------------------------------------------------------------
 
-  RAISE INFO 'Creating the QueryPoints and QueryRegions tables';
+  RAISE INFO 'Creating the Points and Regions tables';
 
-  DROP TABLE IF EXISTS QueryPoints;
-  CREATE TABLE QueryPoints(id int PRIMARY KEY, geom geometry(Point));
-  INSERT INTO QueryPoints
-  WITH Temp AS (
-    SELECT id, random_int(1, noNodes) AS node
-    FROM generate_series(1, P_SAMPLE_SIZE) id
+  DROP TABLE IF EXISTS Points;
+  CREATE TABLE Points(pointId int PRIMARY KEY, geom geometry(Point));
+  INSERT INTO Points(pointId, geom)
+  WITH Temp(pointId, nodeId) AS (
+    SELECT pointId, random_int(1, noNodes)
+    FROM generate_series(1, P_SAMPLE_SIZE) pointId
   )
-  SELECT T.id, N.geom
+  SELECT T.pointId, N.geom
   FROM Temp T, Nodes N
-  WHERE T.node = N.id;
+  WHERE T.nodeId = N.id;
 
   -- Random regions
 
-  DROP TABLE IF EXISTS QueryRegions;
-  CREATE TABLE QueryRegions(id int PRIMARY KEY, geom geometry(Polygon));
-  INSERT INTO QueryRegions
-  WITH Temp AS (
-    SELECT id, random_int(1, noNodes) AS node
-    FROM generate_series(1, P_SAMPLE_SIZE) id
+  DROP TABLE IF EXISTS Regions;
+  CREATE TABLE Regions(regionId int PRIMARY KEY, geom geometry(Polygon));
+  INSERT INTO Regions(regionId, geom)
+  WITH Temp(regionId, nodeId) AS (
+    SELECT regionId, random_int(1, noNodes)
+    FROM generate_series(1, P_SAMPLE_SIZE) regionId
   )
-  SELECT T.id, ST_Buffer(N.geom, random_int(1, 997) + 3.0, random_int(0, 25)) AS geom
+  SELECT T.regionId, ST_Buffer(N.geom, random_int(1, 997) + 3.0, random_int(0, 25)) AS geom
   FROM Temp T, Nodes N
-  WHERE T.node = N.id;
+  WHERE T.nodeId = N.id;
 
   -- Random instants
 
-  RAISE INFO 'Creating the QueryInstants and QueryPeriods tables';
+  RAISE INFO 'Creating the Instants and Periods tables';
 
-  DROP TABLE IF EXISTS QueryInstants;
-  CREATE TABLE QueryInstants(id int PRIMARY KEY, instant timestamptz);
-  INSERT INTO QueryInstants
+  DROP TABLE IF EXISTS Instants;
+  CREATE TABLE Instants(instantId int PRIMARY KEY, instant timestamptz);
+  INSERT INTO Instants(instantId, instant)
   SELECT id, startDay + (random() * noDays) * interval '1 day' AS instant
   FROM generate_series(1, P_SAMPLE_SIZE) id;
 
   -- Random periods
 
-  DROP TABLE IF EXISTS QueryPeriods;
-  CREATE TABLE QueryPeriods(id int PRIMARY KEY, period period);
-  INSERT INTO QueryPeriods
+  DROP TABLE IF EXISTS Periods;
+  CREATE TABLE Periods(periodId int PRIMARY KEY, period period);
+  INSERT INTO Periods(periodId, period)
   WITH Instants AS (
     SELECT id, startDay + (random() * noDays) * interval '1 day' AS instant
     FROM generate_series(1, P_SAMPLE_SIZE) id
@@ -1368,26 +1357,26 @@ BEGIN
   -- and is 2 for afternoon trips.
   -------------------------------------------------------------------------
 
-  RAISE INFO 'Creating the LeisureTrip table';
-  DROP TABLE IF EXISTS LeisureTrip;
-  CREATE TABLE LeisureTrip(vehicle int, day date, tripNo int,
-    seq int, source bigint, target bigint,
-    PRIMARY KEY (vehicle, day, tripNo, seq));
+  RAISE INFO 'Creating the LeisureTrips table';
+  DROP TABLE IF EXISTS LeisureTrips;
+  CREATE TABLE LeisureTrips(vehId int, day date, tripNo int, seqNo int,
+    sourceNode bigint, targetNode bigint,
+    PRIMARY KEY (vehId, day, tripNo, seqNo));
   -- Loop for every vehicle
-  FOR i IN 1..noVehicles LOOP
+  FOR veh IN 1..noVehicles LOOP
     IF messages = 'verbose' THEN
-      RAISE INFO '-- Vehicle %', i;
+      RAISE INFO '-- Vehicle %', veh;
     END IF;
     -- Get home node and number of neighbour nodes
-    SELECT home, noNeighbours INTO homeNode, noNeigh
-    FROM Vehicle V WHERE V.id = i;
-    day = startDay;
+    SELECT homeNode, noNeighbours INTO homeN, noNeigh
+    FROM VehicleNodes V WHERE V.vehId = veh;
+    d = startDay;
     -- Loop for every generation day
-    FOR j IN 1..noDays LOOP
+    FOR dayNo IN 1..noDays LOOP
       IF messages = 'verbose' THEN
-        RAISE INFO '  -- Day %', day;
+        RAISE INFO '  -- Day %', d;
       END IF;
-      weekday = date_part('dow', day);
+      weekday = date_part('dow', d);
       -- Generate leisure trips (if any)
       -- 1: Monday, 5: Friday
       IF weekday BETWEEN 1 AND 5 THEN
@@ -1396,7 +1385,7 @@ BEGIN
         noLeisTrips = 2;
       END IF;
       -- Loop for every leisure trip in a day (1 or 2)
-      FOR k IN 1..noLeisTrips LOOP
+      FOR leis IN 1..noLeisTrips LOOP
         -- Generate a set of leisure trips with a probability 0.4
         IF random() <= 0.4 THEN
           -- Select a number of destinations between 1 and 3
@@ -1411,7 +1400,7 @@ BEGIN
             IF weekday BETWEEN 1 AND 5 THEN
               str = '    Evening';
             ELSE
-              IF k = 1 THEN
+              IF leis = 1 THEN
                 str = '    Morning';
               ELSE
                 str = '    Afternoon';
@@ -1419,25 +1408,25 @@ BEGIN
             END IF;
             RAISE INFO '% leisure trip with % destinations', str, noDest;
           END IF;
-          sourceNode = homeNode;
-          FOR m IN 1..noDest + 1 LOOP
-            IF m <= noDest THEN
-              targetNode = berlinmod_selectDestNode(i, noNeigh, noNodes);
+          sourceN = homeN;
+          FOR dest IN 1..noDest + 1 LOOP
+            IF dest <= noDest THEN
+              targetN = berlinmod_selectDestNode(veh, noNeigh, noNodes);
             ELSE
-              targetNode = homeNode;
+              targetN = homeN;
             END IF;
-            IF targetNode IS NULL THEN
+            IF targetN IS NULL THEN
               RAISE EXCEPTION '    Destination node cannot be NULL';
             END IF;
             IF messages = 'verbose' THEN
-              RAISE INFO '    Leisure trip from % to %', sourceNode, targetNode;
+              RAISE INFO '    Leisure trip from % to %', sourceN, targetN;
             END IF;
-            INSERT INTO LeisureTrip VALUES
-              (i, day, k, m, sourceNode, targetNode);
-            INSERT INTO Destinations(vehicle, source, target)
-              VALUES (i, sourceNode, targetNode)
+            INSERT INTO LeisureTrips(vehId, day, tripNo, seqNo, sourceNode, targetNode) VALUES
+              (veh, d, leis, dest, sourceN, targetN);
+            INSERT INTO Destinations(vehId, sourceNode, targetNode)
+              VALUES (veh, sourceN, targetN)
               ON CONFLICT DO NOTHING;
-            sourceNode = targetNode;
+            sourceN = targetN;
           END LOOP;
         ELSE
           IF messages = 'verbose' THEN
@@ -1445,12 +1434,12 @@ BEGIN
           END IF;
         END IF;
       END LOOP;
-      day = day + 1 * interval '1 day';
+      d = d + 1 * interval '1 day';
     END LOOP;
   END LOOP;
 
   -- Build indexes to speed up processing
-  CREATE INDEX Destinations_vehicle_idx ON Destinations USING BTREE(vehicle);
+  CREATE INDEX Destinations_vehId_idx ON Destinations USING BTREE(vehId);
 
   -------------------------------------------------------------------------
   -- Call pgRouting to generate the paths
@@ -1464,22 +1453,22 @@ BEGIN
   DROP TABLE IF EXISTS Paths;
   CREATE TABLE Paths(
     -- This attribute is needed for partitioning the table for big scale factors
-    vehicle int,
+    vehId int,
     -- The following attributes are generated by pgRouting
-    start_vid bigint, end_vid bigint, seq int,
-    node bigint, edge bigint,
+    start_vid bigint, end_vid bigint, seqNo int, node bigint, edge bigint,
     -- The following attributes are filled in the subsequent update
     geom geometry NOT NULL, speed float NOT NULL, category int NOT NULL,
-    PRIMARY KEY (vehicle, start_vid, end_vid, seq));
+    PRIMARY KEY (vehId, start_vid, end_vid, seqNo));
 
   -- Select query sent to pgRouting
   IF pathMode = 'Fastest Path' THEN
-    query1_pgr = 'SELECT id, source, target, cost_s AS cost, reverse_cost_s as reverse_cost FROM edges';
+    query1_pgr = 'SELECT id, sourceNode AS source, targetNode AS target, cost_s AS cost, reverse_cost_s as reverse_cost FROM Edges';
   ELSE
-    query1_pgr = 'SELECT id, source, target, length_m AS cost, length_m * sign(reverse_cost_s) as reverse_cost FROM edges';
+    query1_pgr = 'SELECT id, sourceNode AS source, targetNode AS target, length_m AS cost, length_m * sign(reverse_cost_s) as reverse_cost FROM Edges';
   END IF;
   -- Get the total number of paths and number of calls to pgRouting
-  SELECT COUNT(*) INTO noPaths FROM (SELECT DISTINCT source, target FROM Destinations) AS T;
+  SELECT COUNT(*) INTO noPaths
+  FROM (SELECT DISTINCT sourceNode, targetNode FROM Destinations) AS T;
   noCalls = ceiling(noPaths / P_PGROUTING_BATCH_SIZE::float);
   IF messages = 'medium' OR messages = 'verbose' THEN
     IF noCalls = 1 THEN
@@ -1491,39 +1480,38 @@ BEGIN
   END IF;
 
   startPgr = clock_timestamp();
-  FOR i IN 1..noCalls LOOP
-    query2_pgr = format('SELECT DISTINCT source, target FROM Destinations '
-      'ORDER BY source, target LIMIT %s OFFSET %s',
-      P_PGROUTING_BATCH_SIZE, (i - 1) * P_PGROUTING_BATCH_SIZE);
+  FOR c IN 1..noCalls LOOP
+    query2_pgr = format('SELECT DISTINCT sourceNode AS source, targetNode AS target '
+      'FROM Destinations ORDER BY sourceNode, targetNode LIMIT %s OFFSET %s',
+      P_PGROUTING_BATCH_SIZE, (c - 1) * P_PGROUTING_BATCH_SIZE);
     IF messages = 'medium' OR messages = 'verbose' THEN
       IF noCalls = 1 THEN
         RAISE INFO '  Call started at %', clock_timestamp();
       ELSE
-        RAISE INFO '  Call number % started at %', i, clock_timestamp();
+        RAISE INFO '  Call number % started at %', c, clock_timestamp();
       END IF;
     END IF;
-    INSERT INTO Paths(vehicle, start_vid, end_vid, seq,
-      node, edge, geom, speed, category)
+    INSERT INTO Paths(vehId, start_vid, end_vid, seqNo, node, edge, geom, speed, category)
     WITH Temp AS (
       SELECT start_vid, end_vid, path_seq, node, edge
       FROM pgr_dijkstra(query1_pgr, query2_pgr, true)
       WHERE edge > 0
     )
-    SELECT D.vehicle, start_vid, end_vid, path_seq, node, edge,
+    SELECT D.vehId, start_vid, end_vid, path_seq, node, edge,
       -- adjusting directionality
       CASE
-        WHEN T.node = E.source THEN E.geom
+        WHEN T.node = E.sourceNode THEN E.geom
         ELSE ST_Reverse(E.geom)
       END AS geom, E.maxspeed_forward AS speed,
       berlinmod_roadCategory(E.tag_id) AS category
     FROM Destinations D, Temp T, Edges E
-    WHERE D.source = T.start_vid AND D.target = T.end_vid AND E.id = T.edge;
+    WHERE D.sourceNode = T.start_vid AND D.targetNode = T.end_vid AND E.id = T.edge;
   END LOOP;
   endPgr = clock_timestamp();
 
   -- Build index to speed up processing
   CREATE INDEX Paths_vehicle_start_vid_end_vid_idx ON Paths
-  USING BTREE(vehicle, start_vid, end_vid);
+  USING BTREE(vehId, start_vid, end_vid);
 
   -------------------------------------------------------------------------
   -- Generate the trips

@@ -58,19 +58,19 @@ LOOP
 
   -- Query 18
   EXPLAIN (ANALYZE, FORMAT JSON)
-  SELECT L1.Licence AS Licence1, I.InstantId, C3.RowNo, C3.Licence AS Licence2, C3.Dist
+  SELECT L1.Licence AS Licence1, I.InstantId, V3.RowNo, V3.Licence AS Licence2, V3.Dist
   FROM Licences1 L1
   CROSS JOIN Instants1 I
-  JOIN Trips T1 ON L1.CarId = T1.CarId AND T1.Trip @> I.Instant
+  JOIN Trips T1 ON L1.VehId = T1.VehId AND T1.Trip @> I.Instant
   CROSS JOIN LATERAL (
-    SELECT C2.*, ROW_NUMBER() OVER() AS RowNo
+    SELECT V2.*, ROW_NUMBER() OVER() AS RowNo
     FROM (
-    SELECT C.Licence, valueAtTimestamp(T1.Trip, I.Instant) <-> valueAtTimestamp(T2.Trip, I.Instant) AS Dist
-    FROM Trips T2, Cars C
-    WHERE T2.CarId = C.CarId AND T1.CarId < T2.CarId
+    SELECT V.Licence, valueAtTimestamp(T1.Trip, I.Instant) <-> valueAtTimestamp(T2.Trip, I.Instant) AS Dist
+    FROM Trips T2, Vehicles V
+    WHERE T2.VehId = V.VehId AND T1.VehId < T2.VehId
     AND T2.Trip @> I.Instant
     ORDER BY valueAtTimestamp(T1.Trip, I.Instant) <-> valueAtTimestamp(T2.Trip, I.Instant)
-    LIMIT 3 ) AS C2 ) AS C3
+    LIMIT 3 ) AS V2 ) AS V3
   ORDER BY Licence1, InstantId, RowNo
   INTO J;
 
@@ -81,8 +81,8 @@ LOOP
   -- DISTINCT is necessary since there are duplicates in Licences1
   SELECT DISTINCT L1.Licence AS Licence1, I.InstantId, I.Instant, C2.Licence AS Licence2,
   ST_distance(valueAtTimestamp(T1.Trip, I.Instant),valueAtTimestamp(T2.Trip, I.Instant)) AS Dist
-  FROM Trips T1, Licences1 L1, Trips T2, Cars C2, Instants1 I
-  WHERE T1.CarId = L1.CarId AND T2.CarId = C2.CarId AND T1.CarId <> T2.CarId
+  FROM Trips T1, Licences1 L1, Trips T2, Vehicles C2, Instants1 I
+  WHERE T1.VehId = L1.VehId AND T2.VehId = C2.VehId AND T1.VehId <> T2.VehId
   AND T1.Trip @> I.Instant AND T2.Trip @> I.Instant
   )
   SELECT *
@@ -116,7 +116,7 @@ LOOP
   -- Query 19
   EXPLAIN (ANALYZE, FORMAT JSON)
   SELECT L1.Licence AS Licence1, PR.PeriodId, PO2.RowNo, PO2.PointId, PO2.Dist
-  FROM Trips T JOIN Licences1 L1 ON T.CarId = L1.CarId
+  FROM Trips T JOIN Licences1 L1 ON T.VehId = L1.VehId
   JOIN Periods1 PR ON T.Trip && PR.Period
   CROSS JOIN LATERAL (
     SELECT PO1.*, ROW_NUMBER() OVER () AS RowNo
@@ -137,7 +137,7 @@ LOOP
   SELECT DISTINCT L.Licence, PR.PeriodId, PR.Period, PO.PointId, PO.geom,
   MIN(st_distance(trajectory(atPeriod(T.Trip, PR.Period)), PO.geom)) AS Dist
   FROM Trips T, Licences1 L, Periods1 PR, Points PO
-  WHERE T.CarId = L.CarId AND T.Trip && PR.Period
+  WHERE T.VehId = L.VehId AND T.Trip && PR.Period
   GROUP BY L.licence, PR.PeriodId, PR.Period, PO.PointId, PO.geom
   -- 10,000 rows after 36 seconds =
   -- card(Licences1) = 10 * card(Periods1) = 10 * card(Points) = 100
@@ -180,8 +180,8 @@ LOOP
   CROSS JOIN LATERAL (
     SELECT C1.*, ROW_NUMBER() OVER () AS RowNo FROM (
     SELECT C.Licence, trajectory(atPeriod(T.trip, P.Period)) <-> R.geom AS Dist
-    FROM Trips T, Cars C
-    WHERE T.CarId = C.CarId AND T.Trip && P.Period
+    FROM Trips T, Vehicles C
+    WHERE T.VehId = C.VehId AND T.Trip && P.Period
     ORDER BY trajectory(atPeriod(T.trip, P.Period)) <-> R.geom
     LIMIT 3 ) AS C1 ) AS C2
   ORDER BY R.RegionId, P.PeriodId, C2.RowNo
@@ -193,8 +193,8 @@ LOOP
   WITH DistanceRegionCar AS (
   SELECT R.RegionId, P.PeriodId, P.Period, C.Licence,
   MIN(st_distance(trajectory(atPeriod(T.Trip, P.Period)), R.geom)) AS Dist
-  FROM Regions1 R, Periods1 P, Trips T, Cars C
-  WHERE T.CarId = C.CarId AND T.Trip && P.Period
+  FROM Regions1 R, Periods1 P, Trips T, Vehicles C
+  WHERE T.VehId = C.VehId AND T.Trip && P.Period
   GROUP BY R.RegionId, P.PeriodId, P.Period, C.Licence
   -- 14,100 rows in 77 seconds
   )
@@ -237,9 +237,9 @@ LOOP
     SELECT L2.*, ROW_NUMBER() OVER () AS RowNo FROM (
     SELECT C.Licence, trajectory(atPeriodSet(T1.Trip, getTime(T2.trip) + P.Period)) <->
       trajectory(atPeriodSet(T2.Trip, getTime(T1.trip) + P.Period)) AS Dist
-    FROM Trips T1, Trips T2, Cars C
-    WHERE T1.CarId = L1.CarId AND T1.trip && P.Period
-    AND T2.CarId = C.CarId AND T2.trip && P.Period
+    FROM Trips T1, Trips T2, Vehicles C
+    WHERE T1.VehId = L1.VehId AND T1.trip && P.Period
+    AND T2.VehId = C.VehId AND T2.trip && P.Period
     AND getTime(T1.trip) && getTime(T2.trip)
     ORDER BY trajectory(atPeriodSet(T1.Trip, getTime(T2.trip) + P.Period)) <->
       trajectory(atPeriodSet(T2.Trip, getTime(T1.trip) + P.Period))
@@ -254,8 +254,8 @@ LOOP
   SELECT L1.Licence AS Licence1, P.PeriodId, P.Period, C2.Licence AS Licence2,
   st_distance(trajectory(atPeriod(T1.Trip, P.Period)), trajectory(atPeriod(T2.Trip, P.Period))) AS Dist
   -- minValue(distance(atPeriod(T1.Trip, P.Period),atPeriod(T2.Trip, P.Period))) AS Dist
-  FROM Trips T1, Licences1 L1, Trips T2, Cars C2, Periods1 P
-  WHERE T1.CarId = L1.CarId AND T2.CarId = C2.CarId AND T1.CarId <> T2.CarId
+  FROM Trips T1, Licences1 L1, Trips T2, Vehicles C2, Periods1 P
+  WHERE T1.VehId = L1.VehId AND T2.VehId = C2.VehId AND T1.VehId <> T2.VehId
   AND T1.Trip && P.Period AND T2.Trip && P.Period
   -- LIMIT 100
   )
@@ -290,18 +290,18 @@ LOOP
 
   -- Query 22
   EXPLAIN (ANALYZE, FORMAT JSON)
-  SELECT L.Licence, L.CarId, P.PointId, T.CarId, T.Dist
+  SELECT L.Licence, L.VehId, P.PointId, T.VehId, T.Dist
   -- Given a car L and a point P
   FROM Licences1 L CROSS JOIN Points P
   JOIN LATERAL (
     -- Find the car T which is the closest to P
-    SELECT CarId, trajectory(Trip) <-> P.Geom AS Dist
+    SELECT VehId, trajectory(Trip) <-> P.Geom AS Dist
     FROM Trips
     ORDER BY trajectory(Trip) <-> P.Geom
     LIMIT 1
     ) AS T
     -- Verify that the closest car T is equal to L
-    ON L.CarId = T.CarId
+    ON L.VehId = T.VehId
   ORDER BY L.Licence, P.PointId
   INTO J;
 
@@ -312,7 +312,7 @@ LOOP
   -- Minimum distance between a point and all trajectories of a car
   SELECT PO.PointId, L.Licence, UNNEST(MIN(distance(PO.geom, T.Trip))) AS Dist
   FROM Points1 PO, Trips T, Licences1 L
-  WHERE T.CarId = L.CarId
+  WHERE T.VehId = L.VehId
   GROUP BY PointId, Licence
   ),
   MinDistancePoint AS (
@@ -364,8 +364,8 @@ LOOP
   FROM Points1 P1 CROSS JOIN Periods1 PR
   CROSS JOIN LATERAL (
     -- Project the trips T to the period PR. Notice that the
-    -- same CarId can appear with various different TripIds
-    SELECT CarId, TripId, atPeriod(Trip, PR.Period) AS Trip
+    -- same VehId can appear with various different TripIds
+    SELECT VehId, TripId, atPeriod(Trip, PR.Period) AS Trip
     FROM Trips
     WHERE Trip && PR.Period ) AS T
   JOIN LATERAL (
@@ -378,7 +378,7 @@ LOOP
     -- Verify that the closest point P3 is equal to P1
     ON P1.PointId = P3.PointId
   -- Find the Licence of T
-  JOIN Cars C ON T.CarId = C.CarId
+  JOIN Vehicles C ON T.VehId = C.VehId
   ORDER BY P1.PointId, PR.PeriodId, C.Licence
   INTO J;
 
@@ -390,7 +390,7 @@ LOOP
   SELECT T.TripId, L.Licence, PR.PeriodId, PO.PointId,
   distance(atPeriod(T.Trip, PR.Period), PO.geom) AS Dist
   FROM Trips T, Licences1 L, Periods1 PR, Points1 PO
-  WHERE T.CarId = L.CarId AND T.Trip && PR.Period
+  WHERE T.VehId = L.VehId AND T.Trip && PR.Period
   ),
   DistanceCarPoint AS (
   -- Minimum distance between all trajectories of a car (projected to a period)
@@ -445,7 +445,7 @@ LOOP
   -- Query 24
   EXPLAIN (ANALYZE, FORMAT JSON)
   WITH ProjTrips AS (
-    SELECT PeriodId, CarId, TripId, atPeriod(Trip, Period) AS Trip
+    SELECT PeriodId, VehId, TripId, atPeriod(Trip, Period) AS Trip
     FROM Periods1, Trips
     -- Use the temporal index if any
     WHERE Trip && Period
@@ -455,18 +455,18 @@ LOOP
   FROM Licences1 L CROSS JOIN Periods1 P
   CROSS JOIN LATERAL (
     -- Find trips of cars T1 distinct from L during the period P.
-    SELECT CarId, TripId, Trip FROM ProjTrips
-    WHERE CarId != L.CarId AND PeriodId = P.PeriodId ) AS T1
+    SELECT VehId, TripId, Trip FROM ProjTrips
+    WHERE VehId != L.VehId AND PeriodId = P.PeriodId ) AS T1
   JOIN LATERAL (
     -- Find car T2 which is the closest car to T1 during the period.
-    SELECT CarId AS ClosestOjbId FROM ProjTrips
-    WHERE CarId != T1.CarId AND PeriodId = P.PeriodId
+    SELECT VehId AS ClosestOjbId FROM ProjTrips
+    WHERE VehId != T1.VehId AND PeriodId = P.PeriodId
     ORDER BY trajectory(T1.Trip) <-> trajectory(Trip)
     LIMIT 1 ) AS T2
     -- Verify that the closest car T2 is equal to L
-    ON L.CarId = T2.ClosestOjbId
+    ON L.VehId = T2.ClosestOjbId
   -- Find the Licence of T1
-  JOIN Cars C ON T1.CarId = C.CarId
+  JOIN Vehicles C ON T1.VehId = C.VehId
   ORDER BY L.Licence, P.PeriodId, C.Licence
   INTO J;
 
@@ -480,7 +480,7 @@ LOOP
   distance(atPeriod(T1.Trip, PR.Period), atPeriod(T2.Trip, PR.Period)) AS Dist
   FROM Trips T1, Licences1 L1, Trips T2, Licences1 L2,
   Periods1 PR
-  WHERE T1.CarId = L1.CarId AND T2.CarId = L2.CarId AND T1.CarId <> T2.CarId
+  WHERE T1.VehId = L1.VehId AND T2.VehId = L2.VehId AND T1.VehId <> T2.VehId
   AND T1.Trip && PR.Period AND T2.Trip && PR.Period
   ),
   DistanceCar1Car2 AS (
@@ -539,8 +539,8 @@ LOOP
   FROM Licences
   ),
   Groups AS (
-  SELECT L.Licence, C.CarId, ((row_number() OVER (ORDER BY L.Licence))-1)/10 + 1 AS GroupId
-  FROM Licences L, Cars C
+  SELECT L.Licence, C.VehId, ((row_number() OVER (ORDER BY L.Licence))-1)/10 + 1 AS GroupId
+  FROM Licences L, Vehicles C
   WHERE L.Licence = C.Licence
   ),
   SumDistances AS (
@@ -548,7 +548,7 @@ LOOP
   SUM(st_distance(trajectory(atPeriod(T.Trip, PR.Period)), PO.geom)) AS SumDist
   -- SUM(distance(atPeriod(T.Trip, PR.Period), PO.geom)) AS SumDist
   FROM Groups G, Periods1 PR, Points1 PO, Trips T
-  WHERE T.CarId = G.CarId AND T.Trip && PR.Period
+  WHERE T.VehId = G.VehId AND T.Trip && PR.Period
   GROUP BY G.GroupId, PR.PeriodId, PO.PointId
   )
   SELECT S1.GroupId, S1.PeriodId, S1.PointId, S1.SumDist
@@ -589,8 +589,8 @@ LOOP
   FROM Licences
   ),
   Groups AS (
-  SELECT L.Licence, C.CarId, ((row_number() OVER (ORDER BY L.Licence))-1)/10 + 1 AS Group_id
-  FROM Licences L, Cars C
+  SELECT L.Licence, C.VehId, ((row_number() OVER (ORDER BY L.Licence))-1)/10 + 1 AS Group_id
+  FROM Licences L, Vehicles C
   WHERE L.Licence = C.Licence
   ),
   Pairs AS (
@@ -606,7 +606,7 @@ LOOP
   -- MIN(minValue(distance(atPeriod(T1.Trip, PR.Period), atPeriod(T2.Trip, PR.Period)))) AS MinDist
   FROM Pairs PA, Groups G1, Groups G2, Periods1 PR, Trips T1, Trips T2
   WHERE PA.Group1_id = G1.Group_id AND PA.Group2_id = G2.Group_id
-  AND T1.CarId = G1.CarId AND T2.CarId = G2.CarId AND T1.CarId <> T2.CarId
+  AND T1.VehId = G1.VehId AND T2.VehId = G2.VehId AND T1.VehId <> T2.VehId
   AND T1.Trip && PR.Period AND T2.Trip && PR.Period
   GROUP BY PA.Group1_id, PA.Group2_id, PR.PeriodId, PR.Period, G1.Licence, G2.Licence
   ),
@@ -639,11 +639,11 @@ LOOP
 
   /*
   -- There are several trajectories of the same object in a period
-  SELECT PR.PeriodId, CarId, array_agg(TripId order by TripId)
+  SELECT PR.PeriodId, VehId, array_agg(TripId order by TripId)
   FROM Periods1 PR, Trips T1
   WHERE atPeriod(T1.Trip, PR.Period) IS NOT NULL
-  GROUP BY PR.PeriodId, CarId
-  ORDER BY PR.PeriodId, CarId;
+  GROUP BY PR.PeriodId, VehId
+  ORDER BY PR.PeriodId, VehId;
   */
 -------------------------------------------------------------------------------
 
