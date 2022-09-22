@@ -417,17 +417,18 @@ SET Traj = trajectory(Trip);
 		The visualization of the trajectories in QGIS is given in <xref linkend="berlinmod_trips" />. In the figure red lines correspond to the trajectories of moving vehicles, while yellow points correspond to the position of stationary vehicles. In order to know the total number of trips as well as the number of moving and stationary trips we can issue the following queries.
 			<programlisting language="sql" xml:space="preserve">
 SELECT count(*) FROM Trips;
--- 1797
+-- 1672
 SELECT count(*) FROM Trips WHERE GeometryType(Traj) = 'POINT';
--- 969
+-- 0
 SELECT count(*) FROM Trips WHERE GeometryType(Traj) = 'LINESTRING';
--- 828
+-- 1672
 </programlisting>
 		We can also determine the spatiotemporal extent of the data using the following query.
 			<programlisting language="sql" xml:space="preserve">
-SELECT extent(Trip) from Trips
--- "STBOX T((2983189.5, 5831006.5,2007-05-27 00:00:00+02),
-(3021179.8, 5860883,2007-05-31 00:00:00+02))"
+SELECT extent(Trip) from Trips;
+-- SRID=3857;STBOX XT(((469715.0960907607,6577078.768286072),
+--    (500997.56505993055,6607214.0038881665)),
+--    [2020-06-01 08:01:16.984+02, 2020-06-05 01:40:04.281127+02])
 </programlisting>
 		</para>
 
@@ -441,34 +442,30 @@ SELECT extent(Trip) from Trips
 		We continue investigating the data set by computing the maximum number of concurrent trips over the whole period
 			<programlisting language="sql" xml:space="preserve">
 SELECT maxValue(tcount(Trip)) FROM Trips;
--- 141
+-- 51
 </programlisting>
 		the average sampling rate
 			<programlisting language="sql" xml:space="preserve">
-SELECT AVG(timespan(Trip)/numInstants(Trip)) FROM Trips;
--- "03:43:01.695539"
+SELECT AVG(duration(Trip)/numInstants(Trip)) FROM Trips;
+-- 00:00:01.370537
 </programlisting>
 			and the total travelled distance in kilometers of all trips:
 			<programlisting language="sql" xml:space="preserve">
 SELECT SUM(length(Trip)) / 1e3 as TotalLengthKm FROM Trips;
--- 10074.8123345527
+-- 24209.259034796323
 </programlisting>
 		</para>
 
 		<para>
 		Now we want to know the average duration of a trip.
 			<programlisting language="sql" xml:space="preserve">
-SELECT AVG(timespan(Trip)) FROM Trips;
---"07:31:57.195325"
+SELECT AVG(duration(Trip)) FROM Trips;
+-- 00:25:09.065361
 </programlisting>
-		This average duration is too long. To investigate more we use the following query
+		This following query tells us the length in kilometers and the duration of each trip.
 			<programlisting language="sql" xml:space="preserve">
-SELECT length(Trip) / 1e3, timespan(Trip) FROM Trips ORDER BY duration;
-</programlisting>
-		The query shows very many trips with zero length and a duration of more than one day. That would imply that there are stationary trips, representing parking overnight and even over the weekend. The previous query can hence be refined as follows:
-			<programlisting language="sql" xml:space="preserve">
-SELECT AVG(timespan(Trip)/numInstants(Trip)) FROM Trips WHERE length(Trip) > 0;
--- "00:00:01.861784"
+SELECT tripId, length(Trip) / 1e3 AS lengthKm, duration(Trip) AS duration
+FROM Trips ORDER BY duration;
 </programlisting>
 		</para>
 
@@ -476,31 +473,33 @@ SELECT AVG(timespan(Trip)/numInstants(Trip)) FROM Trips WHERE length(Trip) > 0;
 		The following query produces a histogram of trip length.
 			<programlisting language="sql" xml:space="preserve">
 WITH buckets (bucketNo, bucketRange) AS (
-  SELECT 1, floatrange '[0, 0]' UNION
-  SELECT 2, floatrange '(0, 100)' UNION
-  SELECT 3, floatrange '[100, 1000)' UNION
-  SELECT 4, floatrange '[1000, 5000)' UNION
-  SELECT 5, floatrange '[5000, 10000)' UNION
-  SELECT 6, floatrange '[10000, 50000)' UNION
-  SELECT 7, floatrange '[50000, 100000)' ),
+  SELECT 1, floatspan '[0, 1)' UNION
+  SELECT 2, floatspan '[1, 2)' UNION
+  SELECT 3, floatspan '[2, 5)' UNION
+  SELECT 4, floatspan '[5, 10)' UNION
+  SELECT 5, floatspan '[10, 50)' UNION
+  SELECT 6, floatspan '[50, 100)' ),
 histogram AS (
   SELECT bucketNo, bucketRange, count(TripId) as freq
-  FROM buckets left outer join trips on length(trip) &lt;@ bucketRange
+  FROM buckets left outer join trips on length(trip) / 1e3 &lt;@ bucketRange
   GROUP BY bucketNo, bucketRange
   ORDER BY bucketNo, bucketRange )
 SELECT bucketNo, bucketRange, freq,
   repeat('&#9632;', ( freq::float / max(freq) OVER () * 30 )::int ) AS bar
 FROM histogram;
 </programlisting>
-			The result of the above query is given in <xref linkend="histogram_length" />. 
+			The result of the above query is given next. 
+			<programlisting language="sql" xml:space="preserve">
+ bucketno | bucketrange | freq |              bar
+----------+-------------+------+--------------------------------
+        1 | [0, 1)      |   41 | &#9632;
+        2 | [1, 2)      |   91 | &#9632;&#9632;&#9632;
+        3 | [2, 5)      |  329 | &#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;
+        4 | [5, 10)     |  294 | &#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;
+        5 | [10, 50)    |  909 | &#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;
+        6 | [50, 100)   |    8 |
+</programlisting>
 		</para>
-
-		<figure id="histogram_length" float="start"><title>Result of the query building an histogram of trip lengths.</title>
-			<mediaobject>
-				<imageobject><imagedata scale='80' fileref='images/histogram_length.png' /></imageobject>
-			</mediaobject>
-		</figure>
-
 	</sect1>
 
 	<sect1>
@@ -625,14 +624,14 @@ ORDER BY S.Period;
 		</sect2>
 
 		<sect2>
-			<title>Distance queries</title>
+			<title>Distance Queries</title>
 			<para>The queries in this category deal with either the distance travelled by a single object or the distance between two objects. The complexity of the latter queries depend, on the one hand, on whether the reference objects are static or moving, and on the other, on whether the operation required is either the minimum distance ever or the temporal distance computed at each instant.</para>
 
 			<orderedlist continuation="continues">
 				<listitem id="qa_distance_overall">
 					<para>List the overall traveled distances of the vehicles during the periods from <varname>Periods</varname>.</para>
 					<programlisting language="sql" xml:space="preserve">
-SELECT T.VehId, P.PeriodId, P.Period, 
+SELECT T.VehId, P.PeriodId, P.Period,
   SUM(length(atPeriod(T.Trip, P.Period))) AS Distance
 FROM Trips T, Periods P
 WHERE T.Trip &amp;&amp; P.Period
@@ -672,7 +671,7 @@ SELECT T1.VehId AS Car1Id, T1.TripId AS Trip1Id, T2.VehId AS Car2Id,
   T2.TripId AS Trip2Id, period(NearestApproachInstant(T1.Trip, T2.Trip)) AS Time,
   NearestApproachDistance(T1.Trip, T2.Trip) AS Distance, 
   ShortestLine(T1.Trip, T2.Trip) AS Line
-FROM Trips1 T1, Trips1 T2
+FROM Trips T1, Trips T2
 WHERE T1.VehId &lt; T2.VehId AND period(T1.Trip) &amp;&amp; period(T2.Trip)
 ORDER BY T1.VehId, T1.TripId, T2.VehId, T2.TripId;
 </programlisting>
@@ -719,10 +718,10 @@ ORDER BY T1.VehId, T2.VehId, Position;
 					<para>For each trip from <varname>Trips</varname>, list the three points from <varname>Points</varname> that have been closest to that vehicle.</para>
 					<programlisting language="sql" xml:space="preserve">
 WITH TripsTraj AS (
-  SELECT *, trajectory(Trip) AS Traj FROM Trips )
+  SELECT TripId, VehId, trajectory(Trip) AS Trajectory FROM Trips )
 SELECT T.VehId, P1.PointId, P1.Distance
 FROM TripsTraj T CROSS JOIN LATERAL (
-  SELECT P.PointId, T.Traj &lt;-&gt; P.Geom AS Distance
+  SELECT P.PointId, T.Trajectory &lt;-&gt; P.Geom AS Distance
   FROM Points P
   ORDER BY Distance LIMIT 3 ) AS P1
 ORDER BY T.TripId, T.VehId, P1.Distance;
@@ -748,7 +747,7 @@ ORDER BY T1.VehId, C2.VehId;
 					<para>For each trip from <varname>Trips</varname>, list the points from <varname>Points</varname> that have that vehicle among their three nearest neighbors.</para>
 					<programlisting language="sql" xml:space="preserve">
 WITH TripsTraj AS (
-  SELECT *, trajectory(Trip) AS Trajectory FROM Trips ),
+  SELECT TripId, VehId, trajectory(Trip) AS Trajectory FROM Trips ),
 PointTrips AS (
   SELECT P.PointId, T2.VehId, T2.TripId, T2.Distance
   FROM Points P CROSS JOIN LATERAL (
@@ -771,13 +770,13 @@ WITH TripDistances AS (
     T3.TripId AS TripId2, T3.Distance
   FROM Trips T1 CROSS JOIN LATERAL (
     SELECT T2.VehId, T2.TripId, minValue(T1.Trip &lt;-&gt; T2.Trip) AS Distance
-    FROM Trips T
+    FROM Trips T2
     WHERE T1.VehId &lt; T2.VehId AND period(T1.Trip) &amp;&amp; period(T2.Trip)
     ORDER BY Distance LIMIT 3 ) AS T3 )
 SELECT T1.VehId, T1.TripId, T2.VehId, T2.TripId, TD.Distance
 FROM Trips T1 JOIN Trips T2 ON T1.VehId &lt; T2.VehId
   JOIN TripDistances TD ON T1.VehId = TD.VehId1 AND T1.TripId = TD.TripId1 AND
-  T2.VehId = TD.VehId2 AND T2.TripId = TD.TripId
+  T2.VehId = TD.VehId2 AND T2.TripId = TD.TripId2
 ORDER BY T1.VehId, T1.TripId, T2.VehId, T2.TripId;
 </programlisting>
 					<para>This is a reverse nearest-neighbor query where both the reference and the candidate objects are moving. The query starts by computing the corresponding nearest-neighbor query in the temporary table <varname>TripDistances</varname> as it is done in Query 14. Then, in the main query it verifies for each pair of trips <varname>T1</varname> and <varname>T2</varname> that both belong to the <varname>TripDistances</varname> table.</para>
@@ -796,10 +795,10 @@ SumDistances AS (
   WHERE T.VehId = G.VehId
   GROUP BY G.GroupId, P.PointId )
 SELECT S1.GroupId, S1.PointId, S1.SumDist
-FROM SumDistances S
+FROM SumDistances S1
 WHERE S1.SumDist &lt;= ALL (
   SELECT SumDist
-  FROM SumDistances S
+  FROM SumDistances S2
   WHERE S1.GroupId = S2.GroupId )
 ORDER BY S1.GroupId, S1.PointId;
 </programlisting>
