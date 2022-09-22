@@ -71,10 +71,11 @@ functions are executed using the following tables
     seqNo is the sequence of trips composing a leisure trip
 *  Trips(tripId serial, vehId int, day date, seqNo int, sourceNode bigint,
     targetNode bigint, trip tgeompoint, trajectory geometry);
-*  Points(id int, geom geometry)
-*  Regions(id int, geom geometry)
-*  Instants(id int, instant timestamptz)
-*  Periods(id int, period)
+*  Licences(licenceId int primary key, licence text, vehId int)
+*  Points(pointId int, geom geometry)
+*  Regions(regionId int, geom geometry)
+*  Instants(instantId int, instant timestamptz)
+*  Periods(periodd int, period)
 
 -----------------------------------------------------------------------------*/
 
@@ -1300,10 +1301,33 @@ BEGIN
   -- The number of rows these tables is determined by P_SAMPLE_SIZE
   -------------------------------------------------------------------------
 
+  RAISE INFO 'Creating the Licences table';
+
+  DROP TABLE IF EXISTS Licences;
+  CREATE TABLE Licences(licenceId int PRIMARY KEY, licence text, vehId int);
+  INSERT INTO Licences(licenceId, licence, vehId)
+  WITH Temp(licenceId, vehId) AS (
+    SELECT licenceId, random_int(1, noVehicles)
+    FROM generate_series(1, P_SAMPLE_SIZE) licenceId
+  )
+  SELECT T.licenceId, V.licence, V.vehId
+  FROM Temp T, Vehicles V
+  WHERE T.vehId = V.vehId;
+
+  CREATE VIEW Licences1 (LicenceId, Licence, VehId) AS
+  SELECT LicenceId, Licence, VehId
+  FROM Licences
+  LIMIT 10;
+  
+  CREATE VIEW Licences2 (LicenceId, Licence, VehId) AS
+  SELECT LicenceId, Licence, VehId
+  FROM Licences
+  LIMIT 10 OFFSET 10;
+
   RAISE INFO 'Creating the Points and Regions tables';
 
   DROP TABLE IF EXISTS Points;
-  CREATE TABLE Points(pointId int PRIMARY KEY, geom geometry(Point));
+  CREATE TABLE Points(pointId int PRIMARY KEY, PosX float, PosY float, geom geometry(Point));
   INSERT INTO Points(pointId, geom)
   WITH Temp(pointId, nodeId) AS (
     SELECT pointId, random_int(1, noNodes)
@@ -1312,6 +1336,13 @@ BEGIN
   SELECT T.pointId, N.geom
   FROM Temp T, Nodes N
   WHERE T.nodeId = N.id;
+  UPDATE Points
+  SET PosX = ST_X(geom), PosY = ST_Y(geom);
+
+  CREATE VIEW Points1 (PointId, PosX, PosY, geom) AS
+  SELECT PointId, PosX, PosY, geom
+  FROM Points
+  LIMIT 10;
 
   -- Random regions
 
@@ -1326,6 +1357,11 @@ BEGIN
   FROM Temp T, Nodes N
   WHERE T.nodeId = N.id;
 
+  CREATE VIEW Regions1 (RegionId, geom) AS
+  SELECT RegionId, geom
+  FROM Regions
+  LIMIT 10;
+
   -- Random instants
 
   RAISE INFO 'Creating the Instants and Periods tables';
@@ -1336,10 +1372,15 @@ BEGIN
   SELECT id, startDay + (random() * noDays) * interval '1 day' AS instant
   FROM generate_series(1, P_SAMPLE_SIZE) id;
 
+  CREATE VIEW Instants1 (InstantId, Instant) AS
+  SELECT InstantId, Instant 
+  FROM Instants
+  LIMIT 10;
+
   -- Random periods
 
   DROP TABLE IF EXISTS Periods;
-  CREATE TABLE Periods(periodId int PRIMARY KEY, period period);
+  CREATE TABLE Periods(periodId int PRIMARY KEY, BeginP TimestampTz, EndP TimestampTz, period period);
   INSERT INTO Periods(periodId, period)
   WITH Instants AS (
     SELECT id, startDay + (random() * noDays) * interval '1 day' AS instant
@@ -1348,7 +1389,15 @@ BEGIN
   SELECT id, Period(instant, instant + abs(random_gauss()) * interval '1 day',
     true, true) AS period
   FROM Instants;
+  UPDATE Periods
+  SET BeginP = lower(period),
+    EndP = upper(period);
 
+  CREATE VIEW Periods1 (PeriodId, BeginP, EndP, Period) AS
+  SELECT PeriodId, BeginP, EndP, Period
+  FROM Periods
+  LIMIT 10;
+  
   -------------------------------------------------------------------------
   -- Generate the leisure trips.
   -- There is at most 1 leisure trip during the week (evening) and at most

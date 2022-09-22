@@ -129,9 +129,9 @@ BEGIN
 
   DROP TABLE IF EXISTS Licences CASCADE;
   CREATE TABLE Licences (
+    VehId integer PRIMARY KEY,
     LicenceId integer,
-    Licence varchar(8),
-    VehId integer );
+    Licence varchar(8) );
   EXECUTE format('COPY Licences(Licence, LicenceId) FROM ''%slicences.csv'' 
     DELIMITER  '','' CSV HEADER', fullpath);
   UPDATE Licences Q
