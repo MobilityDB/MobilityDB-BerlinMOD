@@ -6,32 +6,75 @@
  * Parameters:
  *    fullpath: states the full path in which the CSV files are located.
  *    gist: states whether GiST or SP-GiST indexes are created on the tables.
- *      By default it is set to TRUE. 
- * Example of usage:
+ *      By default it is set to TRUE and thus creates GiST indexes.
+ * Example of usage on psql:
  *     CREATE EXTENSION mobilitydb CASCADE;
- *     <Create the function>
- *     SELECT berlinmod_load('/home/mobilitydb/berlinmod_0.005/', false)
+ *     \i berlinmod_load.sql
+ *     SELECT berlinmod_load('/home/mobilitydb/data/', false);
  *****************************************************************************/
 
 DROP FUNCTION IF EXISTS berlinmod_load(fullpath text, gist bool);
 CREATE OR REPLACE FUNCTION berlinmod_load(fullpath text, gist bool DEFAULT TRUE) 
 RETURNS text AS $$
 BEGIN
-  DROP TABLE IF EXISTS streets;
-  CREATE TABLE streets
-  (
-    StreetId integer,
-    vmax integer,
-    x1 double precision,
-    y1 double precision,
-    x2 double precision,
-    y2 double precision,
-    geom geometry(LineString,5676)
-  );
-  EXECUTE format('COPY streets(StreetId, vmax, x1, y1, x2, y2) FROM ''%sstreets.csv'' DELIMITER '','' CSV HEADER', fullpath);
-  UPDATE streets
-  SET geom = ST_Transform(ST_SetSRID(ST_MakeLine(ARRAY[ST_MakePoint(x1,y1),ST_MakePoint(x2,y2)]),4326),5676);
+--------------------------------------------------------------
 
+  RAISE NOTICE 'Creating table Instants';
+  DROP TABLE IF EXISTS Instants CASCADE;
+  CREATE TABLE Instants
+  (
+    InstantId integer PRIMARY KEY,
+    Instant timestamptz
+  );
+  EXECUTE format('COPY Instants(InstantId, Instant) FROM ''%sinstants.csv'' DELIMITER '','' CSV HEADER', fullpath);
+
+  /* There are NO duplicate instants in Instants
+  SELECT COUNT(*)
+  FROM Instants I1, Instants I2
+  WHERE I1.InstantId < I2.InstantId AND I1.Instant = I2.Instant;
+  */
+
+  CREATE VIEW Instants1 (InstantId, Instant) AS
+  SELECT InstantId, Instant 
+  FROM Instants
+  LIMIT 10;
+
+--------------------------------------------------------------
+
+  RAISE NOTICE 'Creating table Periods';
+  DROP TABLE IF EXISTS Periods CASCADE;
+  CREATE TABLE Periods
+  (
+    PeriodId integer PRIMARY KEY,
+    StartP timestamptz,
+    EndP timestamptz,
+    Period period
+  );
+  EXECUTE format('COPY Periods(PeriodId, StartP, EndP) FROM ''%speriods.csv'' DELIMITER '','' CSV HEADER', fullpath);
+  UPDATE Periods
+  SET Period = period(StartP,EndP);
+
+  IF gist THEN
+    CREATE INDEX Periods_Period_gist_idx ON Periods USING gist (Period);
+  ELSE
+    CREATE INDEX Periods_Period_spgist_idx ON Periods USING spgist (Period);
+  END IF;
+  
+  /* There are NO duplicate periods in Periods
+  SELECT COUNT(*)
+  FROM Periods P1, Periods P2
+  WHERE P1.PeriodId < P2.PeriodId AND
+  P1.StartP = P2.StartP AND P1.EndP = P2.EndP;
+  */
+  
+  CREATE VIEW Periods1 (PeriodId, StartP, EndP, Period) AS
+  SELECT PeriodId, StartP, EndP, Period
+  FROM Periods
+  LIMIT 10;
+
+--------------------------------------------------------------
+
+  RAISE NOTICE 'Creating table Points';
   DROP TABLE IF EXISTS Points CASCADE;
   CREATE TABLE Points
   (
@@ -40,7 +83,7 @@ BEGIN
     PosY double precision,
     geom geometry(Point,5676)
   );
-  EXECUTE format('COPY Points(PointId, PosX, PosY) FROM ''%squerypoints.csv'' DELIMITER  '','' CSV HEADER', fullpath);
+  EXECUTE format('COPY Points(PointId, PosX, PosY) FROM ''%spoints.csv'' DELIMITER '','' CSV HEADER', fullpath);
   UPDATE Points
   SET geom = ST_Transform(ST_SetSRID(ST_MakePoint(PosX, PosY),4326),5676);
 
@@ -50,38 +93,31 @@ BEGIN
     CREATE INDEX Points_geom_spgist_idx ON Points USING spgist(geom);
   END IF;
   
-  /* There are duplicate points in Points
-  SELECT count(*)
+  /* There are NO duplicate points in Points
+  SELECT COUNT(*)
   FROM Points P1, Points P2
-  where P1.PointId < P2.PointId AND
-  P1.PosX = P2.PosX AND P1.PosY = P2.PosY
-  -- 4
+  WHERE P1.PointId < P2.PointId AND
+  P1.PosX = P2.PosX AND P1.PosY = P2.PosY;
   */
 
-  /* Remove duplicates in Points
-  DELETE FROM Points Q1
-  WHERE EXISTS (SELECT * FROM Points Q2 
-  WHERE Q1.PointId < Q2.PointId AND Q1.Geom = Q2.Geom );
-  -- SELECT COUNT(*) FROM Points;
-  -- 96
-  */
-  
   CREATE VIEW Points1 (PointId, PosX, PosY, geom) AS
   SELECT PointId, PosX, PosY, geom
   FROM Points
   LIMIT 10;
 
+--------------------------------------------------------------
+
+  RAISE NOTICE 'Creating table Regions';
   DROP TABLE IF EXISTS RegionsInput CASCADE;
   CREATE TABLE RegionsInput
   (
     RegionId integer,
-    SegNo integer,
-    XStart double precision,
-    YStart double precision,
-    XEnd double precision,
-    YEnd double precision
+    PointNo integer,
+    PosX double precision,
+    PosY double precision,
+    PRIMARY KEY (RegionId, PointNo)
   );
-  EXECUTE format('COPY RegionsInput(RegionId, SegNo, XStart, YStart, XEnd, YEnd) FROM ''%squeryregions.csv'' DELIMITER  '','' CSV HEADER', fullpath);
+  EXECUTE format('COPY RegionsInput(RegionId, PointNo, PosX, PosY) FROM ''%sregions.csv'' DELIMITER '','' CSV HEADER', fullpath);
   
   DROP TABLE IF EXISTS Regions CASCADE;
   CREATE TABLE Regions
@@ -89,19 +125,14 @@ BEGIN
     RegionId integer PRIMARY KEY,
     geom Geometry(Polygon,5676)
   );
-  INSERT INTO Regions (RegionId, geom)
-  WITH RegionsSegs AS
-  (
-    SELECT RegionId, SegNo,
-    ST_Transform(ST_SetSRID(St_MakeLine(ST_MakePoint(XStart, YStart), ST_MakePoint(XEnd, YEnd)),4326),5676) AS geom
-    FROM RegionsInput
-  )
-  SELECT RegionId, ST_Polygon(ST_LineMerge(ST_Union(geom order by SegNo)),5676) AS geom
-  FROM RegionsSegs
-  GROUP BY RegionId;  
+  INSERT INTO Regions(RegionId, Geom)
+  SELECT RegionId, ST_MakePolygon(ST_MakeLine(array_agg(
+    ST_Transform(ST_SetSRID(ST_MakePoint(PosX, PosY), 4326), 5676) ORDER BY PointNo)))
+  FROM RegionsInput
+  GROUP BY RegionId;
 
   IF gist THEN
-    CREATE INDEX Regions_geom_gist_idx ON Regions USING spgist (geom);
+    CREATE INDEX Regions_geom_gist_idx ON Regions USING gist (geom);
   ELSE
     CREATE INDEX Regions_geom_spgist_idx ON Regions USING spgist (geom);
   END IF;
@@ -110,59 +141,10 @@ BEGIN
   SELECT RegionId, geom
   FROM Regions
   LIMIT 10;
-  
-  DROP TABLE IF EXISTS Instants CASCADE;
-  CREATE TABLE Instants
-  (
-    InstantId integer PRIMARY KEY,
-    Instant timestamptz
-  );
-  EXECUTE format('COPY Instants(InstantId, Instant) FROM ''%squeryinstants.csv'' DELIMITER  '','' CSV HEADER', fullpath);
 
-  CREATE INDEX Instants_instant_btree_idx ON Instants USING btree (instant);
-  
-  /* There are NO duplicate instants in Instants
-  SELECT count(*)
-  FROM Instants I1, Instants I2
-  where I1.InstantId < I2.InstantId AND
-  I1.instant = I2.instant
-  */
+--------------------------------------------------------------
 
-  CREATE VIEW Instants1 (InstantId, Instant) AS
-  SELECT InstantId, Instant 
-  FROM Instants
-  LIMIT 10;
-  
-  DROP TABLE IF EXISTS Periods CASCADE;
-  CREATE TABLE Periods
-  (
-    PeriodId integer PRIMARY KEY,
-    BeginP timestamp,
-    EndP timestamp,
-    Period period
-  );
-  EXECUTE format('COPY Periods(PeriodId, BeginP, EndP) FROM ''%squeryperiods.csv'' DELIMITER  '','' CSV HEADER', fullpath);
-  UPDATE Periods
-  SET Period = period(BeginP,EndP);
-
-  IF gist THEN
-    CREATE INDEX Periods_Period_gist_idx ON Periods USING gist (Period);
-  ELSE
-    CREATE INDEX Periods_Period_spgist_idx ON Periods USING spgist (Period);
-  END IF;
-  
-  /* There are NO duplicate points in Periods
-  SELECT count(*)
-  FROM Periods P1, Periods P2
-  where P1.PeriodId < P2.PeriodId AND
-  P1.BeginP = P2.BeginP AND P1.EndP = P2.EndP
-  */
-  
-  CREATE VIEW Periods1 (PeriodId, BeginP, EndP, Period) AS
-  SELECT PeriodId, BeginP, EndP, Period
-  FROM Periods
-  LIMIT 10;
-  
+  RAISE NOTICE 'Creating table Vehicles';
   DROP TABLE IF EXISTS Vehicles CASCADE;
   CREATE TABLE Vehicles
   (
@@ -171,85 +153,56 @@ BEGIN
     Type varchar(32),
     Model varchar(32)
   );
-  EXECUTE format('COPY Vehicles(VehId, Licence, Type, Model) FROM ''%svehicles.csv'' DELIMITER  '','' CSV HEADER', fullpath);
+  EXECUTE format('COPY Vehicles(VehId, Licence, Type, Model) FROM ''%svehicles.csv'' DELIMITER '','' CSV HEADER', fullpath);
   
+--------------------------------------------------------------
+
+  RAISE NOTICE 'Creating table Licences';
   DROP TABLE IF EXISTS Licences CASCADE;
   CREATE TABLE Licences
   (
     LicenceId integer PRIMARY KEY,
-    Licence varchar(8),
-    VehId integer
+    Licence text,
+    VehId integer,
+    FOREIGN KEY (VehId) REFERENCES Vehicles(VehId)
   );
-  EXECUTE format('COPY Licences(Licence, LicenceId) FROM ''%slicences.csv'' DELIMITER  '','' CSV HEADER', fullpath);
-  UPDATE Licences L
-  SET VehId = ( SELECT C.VehId FROM Vehicles V WHERE V.Licence = L.Licence );
+  EXECUTE format('COPY Licences(LicenceId, Licence, VehId) FROM ''%slicences.csv'' DELIMITER '','' CSV HEADER', fullpath);
 
   CREATE INDEX Licences_VehId_idx ON Licences USING btree (VehId);
-  
-  /* There are duplicates in Licences
-  SELECT licence, count(*) as count
-  FROM Licences 
-  GROUP BY Licence
-  ORDER BY count desc  
-  */
 
-  /*
-  -- Remove duplicates from Licences
-  DELETE FROM Licences L1
-  WHERE EXISTS (SELECT * FROM Licences L2 
-  WHERE L1.LicenceId < L2.LicenceId 
-  AND L1.VehId = L2.VehId AND L1.Licence = L2.Licence );
-  -- SELECT COUNT(*) FROM Licences;
-  -- 67
+  /* There are duplicate licences in Licences, e.g., in SF 0.005
+  SELECT COUNT(*)
+  FROM Licences L1, Licences L2
+  WHERE L1.LicenceId < L2.LicenceId AND L1.Licence = L2.Licence;
   */
 
   CREATE VIEW Licences1 (LicenceId, Licence, VehId) AS
   SELECT LicenceId, Licence, VehId
   FROM Licences
   LIMIT 10;
-  
+
   CREATE VIEW Licences2 (LicenceId, Licence, VehId) AS
   SELECT LicenceId, Licence, VehId
   FROM Licences
   LIMIT 10 OFFSET 10;
 
+--------------------------------------------------------------
+
+  RAISE NOTICE 'Creating table Trips';
   DROP TABLE IF EXISTS TripsInput CASCADE;
   CREATE TABLE TripsInput
   (
+    TripId integer,
     VehId integer,
-    tripid integer,
-    tstart timestamp without time zone,
-    tend timestamp without time zone,
-    xstart double precision,
-    ystart double precision,
-    xend double precision,
-    yend double precision,
-    geom geometry(LineString)
+    t timestamptz,
+    PosX double precision,
+    PosY double precision,
+    trip tgeompoint,
+    traj geometry(LineString),
+    UNIQUE (VehId, T),
+    FOREIGN KEY (VehId) REFERENCES Vehicles(VehId)
   );
-  EXECUTE format('COPY TripsInput(VehId, tripid, tstart, tend, xstart, ystart, xend, yend) FROM ''%strips.csv'' DELIMITER  '','' CSV HEADER', fullpath);
-  UPDATE TripsInput
-  SET geom = ST_Transform(ST_SetSRID(ST_MakeLine(ARRAY[ST_MakePoint(xstart, ystart),
-    ST_MakePoint(xend, yend)]),4326),5676);
-
--------------------------------------------------------------------------------
-
-  DROP TABLE IF EXISTS berlinmod_input_instants;
-  CREATE TABLE berlinmod_input_instants AS (
-  SELECT VehId, tripid, tstart, xstart, ystart, 
-    ST_Transform(ST_SetSRID(ST_MakePoint(xstart,ystart),4326),5676) as geom
-  FROM TripsInput
-  UNION ALL
-  SELECT b1.VehId, b1.tripid, b1.tend, b1.xend, b1.yend, 
-    ST_Transform(ST_SetSRID(ST_MakePoint(b1.xend,b1.yend),4326),5676) as geom
-  FROM TripsInput b1
-  inner join (
-    SELECT VehId, tripid, MAX(tend) as MaxTend
-    FROM TripsInput 
-    GROUP BY VehId, tripid
-  ) b2 ON b1.VehId = b2.VehId AND b1.tripid = b2.tripid AND b1.tend = b2.MaxTend );
-  ALTER TABLE berlinmod_input_instants ADD COLUMN inst tgeompoint;
-  UPDATE berlinmod_input_instants
-  SET inst = tgeompoint_inst(geom, tstart);
+  EXECUTE format('COPY TripsInput(TripId, VehId, PosX, PosY, T) FROM ''%strips.csv'' DELIMITER '','' CSV HEADER', fullpath);
 
   DROP TABLE IF EXISTS Trips CASCADE;
   CREATE TABLE Trips
@@ -260,10 +213,11 @@ BEGIN
     Traj geometry,
     FOREIGN KEY (VehId) REFERENCES Vehicles(VehId) 
   );
-  INSERT INTO Trips
-    SELECT VehId, tripid, tgeompoint_seq(array_agg(inst order by tstart), true, false)
-    FROM berlinmod_input_instants
-    GROUP BY VehId, tripid;
+  INSERT INTO Trips(TripId, VehId, Trip)
+  SELECT TripId, VehId, tgeompoint_seq(array_agg(tgeompoint_inst(
+    ST_Transform(ST_SetSRID(ST_MakePoint(PosX, PosY), 4326), 5676), T) ORDER BY T))
+  FROM TripsInput
+  GROUP BY VehId, TripId;
   UPDATE Trips
   SET Traj = trajectory(Trip);
 
@@ -296,8 +250,7 @@ BEGIN
 -------------------------------------------------------------------------------
 
   DROP TABLE RegionsInput;
-  DROP TABLE TripsInput;
-  DROP TABLE berlinmod_input_instants;
+  -- DROP TABLE TripsInput;
 
   RETURN 'The End';
 END;

@@ -1,12 +1,32 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <chapter id="tutorial">
 	<title>MobilityDB Tutorial</title>
-	<para>To illustrate the capabilities of MobilityDB, we give an example use case that loads, explores, and query mobility data. The data used is based on the <ulink url="http://dna.fernuni-hagen.de/secondo/BerlinMOD/BerlinMOD.html">BerlinMOD</ulink> benchmark for moving object databases and is available as a <ulink url="https://docs.mobilitydb.com/data/berlinmod_data.zip">ZIP</ulink> file.</para>
+	<para>
+		To illustrate the capabilities of MobilityDB, we give an example use case that loads, explores, and query mobility data. The data used is based on the MobilityDB <ulink url="https://github.com/MobilityDB/MobilityDB-BerlinMOD">implementation</ulink> of the <ulink url="http://dna.fernuni-hagen.de/secondo/BerlinMOD/BerlinMOD.html">BerlinMOD</ulink> benchmark for moving object databases. The data is available as a <ulink url="https://docs.mobilitydb.com/data/berlinmod_data.zip">ZIP</ulink> file.
+	</para>
 
 	<sect1>
 		<title>Installation</title>
 
-		<para>For this tutorial we will use a Docker image containing MobilityDB and all its dependencies (including PostgreSQL and PostGIS). The container has a default database called <varname>mobilitydb</varname> with the MobilityDB extension installed where <varname>user = pw = docker</varname>. This presupposes that you have installed Docker into your computer. In that case, you can run the following command.
+		<para>
+			For this tutorial we can use two alternative installations:
+			<itemizedlist>
+				<listitem><para>Install from sources</para></listitem>
+				<listitem><para>Use a Docker image containing MobilityDB and all its dependencies (including PostgreSQL and PostGIS)</para></listitem>
+			</itemizedlist>
+		We explain first the installation from sources and later in this section we explain the installation using a Docker image.
+		</para>
+
+		<para>
+			In order to use this tutorial you must first have MobilityDB installed in your system. We refer to the MobilityDB <ulink url="https://github.com/MobilityDB/MobilityDB">documentation</ulink> for doing this task. Then we can install the MobilityDB-BerlinMOD tutorial as follows.
+				<programlisting language="bash" xml:space="preserve">
+git clone https://github.com/MobilityDB/MobilityDB-BerlinMOD.git
+cd MobilityDB-BerlinMOD/BerlinMOD
+</programlisting>
+		</para>
+
+		<para>
+		We explain now how to explore this tutorial using a Docker image that contains MobilityDB and all its dependencies (including PostgreSQL and PostGIS). The container has a default database called <varname>mobilitydb</varname> with the MobilityDB extension installed where <varname>user = pw = docker</varname>. This presupposes that you have installed Docker into your computer. In that case, you can run the following command.
 			<programlisting language="bash" xml:space="preserve">
 docker pull codewit/mobilitydb
 docker volume create mobilitydb_data
@@ -97,15 +117,11 @@ docker rm "mobilitydb"
 		<para>The ZIP file with the data for this tutorial contains a set of CSV files as follows:
 			<itemizedlist>
 				<listitem>
-					<para><varname>vehicles.csv</varname> with fields <varname>VehId</varname>, <varname>Licence</varname>, <varname>Type</varname>, and <varname>Model</varname> contains the vehicle descriptions (without position history).</para>
-				</listitem>
-
-				<listitem>
-					<para><varname>trips.csv</varname> with fields <varname>TripId</varname>, <varname>VehId</varname>, <varname>PosX</varname>, <varname>PosY</varname>, and <varname>Instant</varname> contains vehicles movements and pauses.</para>
-				</listitem>
-
-				<listitem>
 					<para><varname>instants.csv</varname> with fields <varname>InstantId</varname> and <varname>Instant</varname> contains timestamps used for queries.</para>
+				</listitem>
+
+				<listitem>
+					<para><varname>licences.csv</varname> with fields <varname>LicenceId</varname>, <varname>Licence</varname> and <varname>VehId</varname> contains vehicle licences used for queries.</para>
 				</listitem>
 
 				<listitem>
@@ -117,9 +133,16 @@ docker rm "mobilitydb"
 				</listitem>
 
 				<listitem>
-					<para><varname>regions.csv</varname> with fields <varname>RegionId</varname>, <varname>SegNo</varname>, <varname>Xstart</varname>, <varname>Ystart</varname>, <varname>Xend</varname>, and <varname>Yend</varname> contains the polygons used for queries.</para>
+					<para><varname>regions.csv</varname> with fields <varname>RegionId</varname>, <varname>PointNo</varname>, <varname>PosX</varname>, and <varname>PosY</varname> and <varname>Yend</varname> contains the polygons used for queries.</para>
 				</listitem>
 
+				<listitem>
+					<para><varname>trips.csv</varname> with fields <varname>TripId</varname>, <varname>VehId</varname>, <varname>PosX</varname>, <varname>PosY</varname>, and <varname>Instant</varname> contains vehicles movements and pauses.</para>
+				</listitem>
+
+				<listitem>
+					<para><varname>vehicles.csv</varname> with fields <varname>VehId</varname>, <varname>Licence</varname>, <varname>Type</varname>, and <varname>Model</varname> contains the vehicle descriptions.</para>
+				</listitem>
 			</itemizedlist>
 		</para>
 
@@ -141,66 +164,64 @@ CREATE EXTENSION MobilityDB CASCADE;
 
 		<para>We create the tables to be loaded with the data in the CSV files as follows.
 			<programlisting language="sql" xml:space="preserve">
-CREATE TABLE Vehicles (
-  VehId integer PRIMARY KEY,
-  Licence varchar(32),
-  Type varchar(32),
-  Model varchar(32)
-  );
-CREATE TABLE TripsInput (
-  TripId integer,
-  VehId integer REFERENCES Vehicles,
-  PosX float,
-  PosY float,
-  T timestamptz,
-  PRIMARY KEY (TripId, T)
-  );
 CREATE TABLE Instants (
   InstantId integer PRIMARY KEY,
-  Instant timestamptz
+  Instant timestamptz NOT NULL
   );
 CREATE TABLE Periods (
   PeriodId integer PRIMARY KEY,
-  Tstart TimestampTz,
-  Tend TimestampTz,
+  Tstart TimestampTz NOT NULL,
+  Tend TimestampTz NOT NULL,
   Period period
   );
 CREATE TABLE Points (
   PointId integer PRIMARY KEY,
-  PosX double precision,
-  PosY double precision,
+  PosX double precision NOT NULL,
+  PosY double precision NOT NULL,
   Geom Geometry(Point)
   );
 CREATE TABLE RegionsInput (
   RegionId integer,
-  PointId integer,
-  XPos double precision,
-  YPos double precision,
-  XEnd double precision,
-  YEnd double precision,
-  PRIMARY KEY (RegionId, PointId)
+  PointNo integer,
+  XPos double precision NOT NULL,
+  YPos double precision NOT NULL,
+  PRIMARY KEY (RegionId, PointNo)
   );
 CREATE TABLE Regions (
   RegionId integer PRIMARY KEY,
-  Geom Geometry(Polygon)
+  Geom Geometry(Polygon) NOT NULL
+  );
+CREATE TABLE Vehicles (
+  VehId integer PRIMARY KEY,
+  Licence text NOT NULL,
+  Type text NOT NULL,
+  Model text NOT NULL
+  );
+CREATE TABLE Licences (
+  LicenceId integer PRIMARY KEY,
+  Licence text NOT NULL,
+  VehId integer NOT NULL REFERENCES Vehicles(VehId)
+  );
+CREATE TABLE TripsInput (
+  TripId integer NOT NULL,
+  VehId integer NOT NULL REFERENCES Vehicles(VehId),
+  PosX float NOT NULL,
+  PosY float NOT NULL,
+  T timestamptz NOT NULL,
+  PRIMARY KEY (TripId, T)
   );
 CREATE TABLE Trips (
   TripId integer PRIMARY KEY,
-  VehId integer NOT NULL,
-  Trip tgeompoint NOT NULL,
-  FOREIGN KEY (VehId) REFERENCES Vehicles(VehId)
+  VehId integer NOT NULL REFERENCES Vehicles(VehId),
+  Trip tgeompoint NOT NULL
   );
 </programlisting>
-		We created one table for each CSV file renaming attributes for better readability. In addition, we created a table <varname>Regions</varname> in order to assemble all segments composing a region into a single geometry and a table <varname>Trips</varname> in order to assemble all points composing a trip into a single temporal point.
+		We created one table for each CSV file. In addition, we created a table <varname>Regions</varname> in order to assemble all points composing the polygon  of a region into a single geometry and a table <varname>Trips</varname> in order to assemble all instants composing a trip into a single temporal point.
 		</para>
 
 		<para>
 		We can load the CSV files into the corresponding tables as follows.
 			<programlisting language="sql" xml:space="preserve">
-COPY Vehicles(VehId, Licence, Type, Model) FROM '/home/mobilitydb/data/vehicles.csv' 
-  DELIMITER ',' CSV HEADER;
-COPY TripsInput(TripId, VehId, PosX, PosY, T) FROM '/home/mobilitydb/data/trips.csv' 
-  DELIMITER ',' CSV HEADER;
 COPY Instants(InstantId, Instant) FROM '/home/mobilitydb/data/instants.csv' 
   DELIMITER ',' CSV HEADER;
 COPY Periods(PeriodId, Tstart, Tend) FROM '/home/mobilitydb/data/periods.csv' 
@@ -213,6 +234,12 @@ UPDATE Points
 SET Geom = ST_Transform(ST_SetSRID(ST_MakePoint(PosX, PosY), 4326), 5676);
 COPY RegionsInput(RegionId, PointId, XPos, YPos) FROM 
   '/home/mobilitydb/data/regions.csv' DELIMITER  ',' CSV HEADER;
+COPY Vehicles(VehId, Licence, Type, Model) FROM '/home/mobilitydb/data/vehicles.csv' 
+  DELIMITER ',' CSV HEADER;
+COPY Licences(LicenceId, Licence, VehId) FROM '/home/mobilitydb/data/licences.csv' 
+  DELIMITER ',' CSV HEADER;
+COPY TripsInput(TripId, VehId, PosX, PosY, T) FROM '/home/mobilitydb/data/trips.csv' 
+  DELIMITER ',' CSV HEADER;
 </programlisting>
 		</para>
 
@@ -220,10 +247,31 @@ COPY RegionsInput(RegionId, PointId, XPos, YPos) FROM
 			<programlisting language="sql" xml:space="preserve">
 INSERT INTO Regions(RegionId, Geom)
 SELECT RegionId, ST_MakePolygon(ST_MakeLine(array_agg(
-ST_Transform(ST_SetSRID(ST_MakePoint(XPos, YPos), 4326), 5676) ORDER BY PointId)))
+  ST_Transform(ST_SetSRID(ST_MakePoint(PosX, PosY), 4326), 5676) ORDER BY PointNo)))
 FROM RegionsInput
 GROUP BY RegionId;
 </programlisting>
+		There are many nested functions, so reading from the innermost:
+			<itemizedlist>
+				<listitem>
+					<para>Function <varname>ST_MakePoint</varname> construct a point from the <varname>PosX</varname> and <varname>PosY</varname> values.</para>
+				</listitem>
+				<listitem>
+					<para>Function <varname>ST_SetSRID</varname> sets the SRID of the point to 4326, that is, to the standard WGS84 GPS coordinates.</para>
+				</listitem>
+				<listitem>
+					<para>Function <varname>ST_Transform</varname> transforms the spherical GPS coordinates to plannar coordinates fitted for Belgium.</para>
+				</listitem>
+				<listitem>
+					<para>Function <varname>array_agg</varname> collects in an array all points of a region (as specified by the <varname>GROUP BY</varname> clause) and sort them by  <varname>PointNo</varname> (as specified by the <varname>ORDER BY</varname> clause).</para>
+				</listitem>
+				<listitem>
+					<para>Function <varname>ST_MakeLine</varname> make a linestring from the array of all points in a region.</para>
+				</listitem>
+				<listitem>
+					<para>Function <varname>ST_MakePolygon</varname> make a polygon for the region from a linestring.</para>
+				</listitem>
+			</itemizedlist>
 		</para>
 
 		<para>The following query is used to load table <varname>Trips</varname> from the data in table <varname>TripsInput</varname>.
@@ -234,32 +282,26 @@ SELECT TripId, VehId, tgeompoint_seq(array_agg(tgeompoint_inst(
 FROM TripsInput
 GROUP BY VehId, TripId;
 </programlisting>
-		There are a lot of nested functions, so reading from the innermost:
+		There are many nested functions, so reading from the innermost:
 			<itemizedlist>
 				<listitem>
 					<para>Function <varname>ST_MakePoint</varname> construct a point from the <varname>PosX</varname> and <varname>PosY</varname> values.</para>
 				</listitem>
-
 				<listitem>
-					<para>Function <varname>ST_SetSRID</varname> sets the SRID of the point to 4326, that is, to the standard WGS 84 GPS coordinates.</para>
+					<para>Function <varname>ST_SetSRID</varname> sets the SRID of the point to 4326.</para>
 				</listitem>
-
 				<listitem>
-					<para>Function <varname>ST_Transform</varname> transforms the spherical GPS coordinates to plannar coordinates fitted for Germany.</para>
+					<para>Function <varname>ST_Transform</varname> transforms the spherical coordinates to plannar coordinates with SRID 5676.</para>
 				</listitem>
-
 				<listitem>
-					<para>Function <varname>tgeompointinst</varname> gets the point and the time values to create a temporal point of instant duration.</para>
+					<para>Function <varname>tgeompoint_inst</varname> gets the point and the time values to create a temporal point of instant duration.</para>
 				</listitem>
-
 				<listitem>
-					<para>Function <varname>array_agg</varname> collects in an array all temporal points of a given vehicle and a given trip (as specified by the <varname>GROUP BY</varname> clause) and sort them by time (as specified by the <varname>ORDER BY</varname> clause)</para>
+					<para>Function <varname>array_agg</varname> collects in an array all temporal instant points of a given vehicle and a given trip (as specified by the <varname>GROUP BY</varname> clause) and sort them by time (as specified by the <varname>ORDER BY</varname> clause).</para>
 				</listitem>
-
 				<listitem>
-					<para>Function <varname>tgeompoint_seq</varname> gets the array of temporal points and construct a temporal point of sequence duration.</para>
+					<para>Function <varname>tgeompoint_seq</varname> gets the array of temporal points and construct a temporal sequence point.</para>
 				</listitem>
-
 			</itemizedlist>
 		</para>
 
@@ -340,14 +382,14 @@ WHERE T1.TripId = T2.TripId;
 		<para>
 		The following statements create table <varname>Trips</varname> partitioned by date and the associated partitions.
 			<programlisting language="sql" xml:space="preserve">
+DROP TABLE Trips CASCADE;
 CREATE TABLE Trips (
-  VehId integer NOT NULL,
-  TripId integer NOT NULL,
+  TripId integer,
   TripDate date,
-  Trip tgeompoint,
+  VehId integer NOT NULL REFERENCES Vehicles(VehId),
+  Trip tgeompoint NOT NULL,
   Traj geometry,
-  PRIMARY KEY (VehId, TripId, TripDate),
-  FOREIGN KEY (VehId) REFERENCES Vehicles(VehId) 
+  PRIMARY KEY (TripId, TripDate)
 ) PARTITION BY LIST(TripDate);
 
 SELECT create_partitions_by_date('Trips', (SELECT MIN(TripDate) FROM TripsInput), 
@@ -364,20 +406,36 @@ WHERE i.inhparent = 'trips'::regclass;
 </programlisting>
 		In our case this would result in the following output.
 			<programlisting language="sql" xml:space="preserve">
-"trips_2007_05_27"
-"trips_2007_05_28"
-"trips_2007_05_29"
-"trips_2007_05_30"
+trips_2020_06_01
+trips_2020_06_02
+trips_2020_06_03
+trips_2020_06_04
+trips_2020_06_05
 </programlisting>
 		</para>
 
 		<para>We modify the query that loads table <varname>Trips</varname> from the data in table <varname>TripsInput</varname> as follows.
 			<programlisting language="sql" xml:space="preserve">
 INSERT INTO Trips
-SELECT VehId, TripId, TripDate, tgeompoint_seq(array_agg(tgeompoint_inst(
+SELECT TripId, TripDate, VehId, tgeompoint_seq(array_agg(tgeompoint_inst(
   ST_Transform(ST_SetSRID(ST_MakePoint(PosX,PosY), 4326), 5676), T) ORDER BY T))
 FROM TripsInput
-GROUP BY VehId, TripId, TripDate;
+GROUP BY TripId, TripDate, VehId;
+</programlisting>
+		</para>
+
+		<para>We can see how many trips are in each partition of the <varname>TripsInput</varname> as follows.
+			<programlisting language="sql" xml:space="preserve">
+SELECT COUNT(*) FROM trips_2020_06_01;
+-- 423
+SELECT COUNT(*) FROM trips_2020_06_02;
+-- 411
+SELECT COUNT(*) FROM trips_2020_06_03;
+-- 415
+SELECT COUNT(*) FROM trips_2020_06_04;
+-- 419
+SELECT COUNT(*) FROM trips_2020_06_05;
+-- 4
 </programlisting>
 		Then, we can define the indexes and the views on the table <varname>Trips</varname> as shown in the previous section.
 		</para>
@@ -386,24 +444,59 @@ GROUP BY VehId, TripId, TripDate;
 		An important advantange of the partitioning mechanism in PostgreSQL is that the constraints and the indexes defined on the <varname>Trips</varname> table are propagated to the partitions as shown next.
 		</para>
 		<programlisting language="sql" xml:space="preserve">
-INSERT INTO Trips VALUES (1, 10, '2007-05-30', NULL);
-
-ERROR:  duplicate key value violates unique constraint "trips_2007_05_30_pkey"
-DETAIL:  Key (VehId, TripId, tripdate)=(1, 10, 2007-05-30) already exists.
-
-EXPLAIN SELECT COUNT(*) from Trips where Trip &amp;&amp; period '[2007-05-28, 2007-05-29]';
-
-"Aggregate  (cost=59.95..59.96 rows=1 width=8)"
-"  ->  Append  (cost=0.14..59.93 rows=8 width=0)"
-"        ->  Index Scan using trips_2007_05_27_trip_idx on trips_2007_05_27  (cost=0.14..8.16 rows=1 width=0)"
-"              Index Cond: (trip &amp;&amp; 'STBOX T((,,2007-05-28 00:00:00+00),(,,2007-05-29 00:00:00+00))'::stbox)"
-"        ->  Index Scan using trips_2007_05_28_trip_idx on trips_2007_05_28  (cost=0.27..8.29 rows=1 width=0)"
-"              Index Cond: (trip &amp;&amp; 'STBOX T((,,2007-05-28 00:00:00+00),(,,2007-05-29 00:00:00+00))'::stbox)"
-"        ->  Index Scan using trips_2007_05_29_trip_idx on trips_2007_05_29  (cost=0.27..8.29 rows=1 width=0)"
-"              Index Cond: (trip &amp;&amp; 'STBOX T((,,2007-05-28 00:00:00+00),(,,2007-05-29 00:00:00+00))'::stbox)"
-[...]
+INSERT INTO Trips VALUES (1, '2020-06-01', 10,
+  '[POINT(2389629.8979609837 5626986.483650829)@2020-06-02 08:00]');
+-- ERROR:  duplicate key value violates unique constraint "trips_2020_06_01_pkey"
+-- DETAIL:  Key (tripid, tripdate)=(1, 2020-06-01) already exists.
 </programlisting>
 
+		<para>
+			Similarly, queries on the <varname>Trips</varname> table are propagated to the partitions as shown next.
+		</para>
+		<programlisting language="sql" xml:space="preserve">
+EXPLAIN SELECT COUNT(*) FROM Trips WHERE Trip &amp;&amp; period '[2020-06-02, 2020-06-03)';
+</programlisting>
+
+		<para>
+			If there is no index defined on the <varname>Trip</varname> column, the execution plan of the query is as follows:
+		<programlisting language="sql" xml:space="preserve">
+Aggregate (cost=63.64..63.65 rows=1 width=8)
+-> Append (cost=0.00..63.62 rows=5 width=0)
+   -> Seq Scan on trips_2020_06_01 trips_1  (cost=0.00..11.29 rows=1 width=0)
+        Filter: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+   -> Seq Scan on trips_2020_06_02 trips_2  (cost=0.00..11.14 rows=1 width=0)
+        Filter: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+   -> Seq Scan on trips_2020_06_03 trips_3  (cost=0.00..11.19 rows=1 width=0)
+        Filter: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+   -> Seq Scan on trips_2020_06_04 trips_4  (cost=0.00..10.24 rows=1 width=0)
+        Filter: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+   -> Seq Scan on trips_2020_06_05 trips_5  (cost=0.00..19.75 rows=1 width=0)
+        Filter: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+</programlisting>
+			After defining an index on the <varname>Trip</varname> column as follows
+			<programlisting language="sql" xml:space="preserve">
+CREATE INDEX Trips_Trip_gist_Idx ON Trips USING gist (Trip);
+</programlisting>
+			the execution plan of the query is as follows
+		<programlisting language="sql" xml:space="preserve">
+Aggregate (cost=33.73..33.74 rows=1 width=8)
+-> Append (cost=0.14..33.71 rows=5 width=0)
+   -> Index Scan using trips_2020_06_01_trip_idx on trips_2020_06_01 trips_1
+      (cost=0.14..8.16 rows=1 width=0)
+        Index Cond: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+   -> Index Scan using trips_2020_06_02_trip_idx on trips_2020_06_02 trips_2
+      (cost=0.14..8.16 rows=1 width=0)
+        Index Cond: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+   -> Index Scan using trips_2020_06_03_trip_idx on trips_2020_06_03 trips_3
+      (cost=0.14..8.16 rows=1 width=0)
+        Index Cond: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+   -> Index Scan using trips_2020_06_04_trip_idx on trips_2020_06_04 trips_4
+      (cost=0.14..8.16 rows=1 width=0)
+        Index Cond: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+   -> Seq Scan on trips_2020_06_05 trips_5  (cost=0.00..1.05 rows=1 width=0)
+        Filter: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+</programlisting>
+		</para>
 	</sect1>
 
 	<sect1>

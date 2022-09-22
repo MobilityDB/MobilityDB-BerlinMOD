@@ -160,7 +160,7 @@ INFO:  Verbosity = minimal, Trip generation = C
 			The generator will take about one minute. It will generate trajectories, according to the default parameters, for 141 cars over 4 days starting from Monday, June 1<superscript>st</superscript> 2020. As you may have guessed, it is possible to generate more or less data by respectively passing a bigger or a smaller scale factor value. If you want to save the messages produced by the generator in a file you can use a command such as the following one.
 			<programlisting language="bash" xml:space="preserve">
 psql -h localhost -p 5432 -U dbowner -d brussels -c &#92;
-"select berlinmod_generate(scaleFactor := 0.005, messages := 'medium')" 2>&amp;1 | \
+"SELECT berlinmod_generate(scaleFactor := 0.005, messages := 'medium')" 2>&amp;1 | \
 tee trace.txt
 </programlisting>
 			You can show more messages describing the generation process by setting the optional parameter <varname>messages</varname> with one of the values <varname>minimal</varname> (the default), <varname>medium</varname>, <varname>verbose</varname>, or <varname>debug</varname>. In <xref linkend="datagen_customizing" /> are explained all the parameters that can be used to customize the simulation.
@@ -176,6 +176,43 @@ tee trace.txt
 				<imageobject><imagedata scalefit="1" fileref='images/berlinmod2.png' /></imageobject>
 			</mediaobject>
 		</figure>
+	</sect1>
+
+	<sect1 id ="datagen_exporting">
+		<title>Exporting the Generated Data</title>
+		<para>
+		The generated data can be exported, for example, in CSV format using the following queries.
+		</para>
+			<programlisting language="sql" xml:space="preserve">
+COPY (SELECT InstantId, Instant FROM Instants ORDER BY InstantId)
+  TO '/home/mobilitydb/data/instants.csv' CSV HEADER DELIMITER ',';
+COPY (SELECT LicenceId, Licence, VehId FROM Licences ORDER BY LicenceId)
+  TO '/home/mobilitydb/data/licences.csv' CSV HEADER DELIMITER ',';
+COPY (SELECT PeriodId, lower(Period) AS StartP, upper(Period) AS EndP FROM Periods ORDER BY PeriodId)
+  TO '/home/mobilitydb/data/periods.csv' CSV HEADER DELIMITER ',';
+COPY (SELECT PointId, ST_X(Geom) AS PosX, ST_Y(Geom) AS PosY FROM Points ORDER BY PointId)
+  TO '/home/mobilitydb/data/points.csv' CSV HEADER DELIMITER ',';
+COPY (
+  SELECT RegionId, (dp).path[2] AS PointID, ST_X((dp).geom) AS PosX,
+    ST_Y((dp).geom) AS PosY
+  FROM (SELECT RegionId, ST_DumpPoints(ST_Transform(geom, 4326)) AS dp FROM Regions) AS T
+  ) TO '/home/mobilitydb/data/regions.csv' CSV HEADER DELIMITER ',';
+COPY (
+  WITH Temp1 AS (
+    SELECT TripId, VehId, unnest(instants(trip)) AS Inst FROM Trips ),
+  Temp2 AS (
+    SELECT TripId, VehId, ST_Transform(getValue(Inst),4326) AS Point,
+      getTimestamp(Inst) AS T FROM Temp1 )
+  SELECT TripId, VehId, ST_X(Point) AS PosX, ST_Y(Point) AS PosY, T
+  FROM Temp2
+  ORDER BY TripId, VehId, T
+  ) TO '/home/mobilitydb/data/trips.csv' CSV HEADER DELIMITER ',';
+COPY (SELECT VehId, Licence, Type, Model FROM SELECT Vehicles ORDER BY VehicleId)
+  TO '/home/mobilitydb/data/vehicles.csv' CSV HEADER DELIMITER ',';
+</programlisting>
+		<para>
+		Actually, the data we used in <xref linkend="tutorial" /> was exported by running the BerlinMOD generator with OSM data for Brussels with the scale factor 0.005. 
+		</para>
 	</sect1>
 
 	<sect1 id ="datagen_exploring">
