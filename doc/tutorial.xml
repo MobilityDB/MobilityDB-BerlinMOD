@@ -507,7 +507,18 @@ ALTER TABLE Trips ADD COLUMN traj geometry;
 UPDATE Trips
 SET Traj = trajectory(Trip);
 </programlisting>
-		The visualization of the trajectories in QGIS is given in <xref linkend="berlinmod_trips" />. In the figure red lines correspond to the trajectories of moving vehicles, while yellow points correspond to the position of stationary vehicles. In order to know the total number of trips as well as the number of moving and stationary trips we can issue the following queries.
+		The visualization of the trajectories in QGIS is given in <xref linkend="berlinmod_visualization" />. As we will explain in <xref linkend ="datagen" /> this synthetic dataset models people using their car for going from home to work in the morning, from work to home in the afternoon, as well as doing some additional leisure trips at evenings or weekends.
+		</para>
+		<figure id="berlinmod_visualization" float="start"><title>Visualization of the trips in QGIS. The streets are shown in blue, the trips are shown in black, the home nodes in black and the work nodes in red.</title>
+			<mediaobject>
+				<imageobject><imagedata scalefit="1" fileref='images/berlinmod1.png' /></imageobject>
+			</mediaobject>
+			<mediaobject>
+				<imageobject><imagedata scalefit="1" fileref='images/berlinmod2.png' /></imageobject>
+			</mediaobject>
+		</figure>
+		<para>
+		In order to know the total number of trips as well as the number of trips we can issue the following queries.
 			<programlisting language="sql" xml:space="preserve">
 SELECT count(*) FROM Trips;
 -- 1672
@@ -524,13 +535,6 @@ SELECT extent(Trip) from Trips;
 --    [2020-06-01 08:01:16.984+02, 2020-06-05 01:40:04.281127+02])
 </programlisting>
 		</para>
-
-		<figure id="berlinmod_trips" float="start"><title>Visualization of the trajectories of the trips in QGIS.</title>
-			<mediaobject>
-				<imageobject><imagedata scalefit="1" fileref='images/berlinmod_trips.png' /></imageobject>
-			</mediaobject>
-		</figure>
-
 		<para>
 		We continue investigating the data set by computing the maximum number of concurrent trips over the whole period
 			<programlisting language="sql" xml:space="preserve">

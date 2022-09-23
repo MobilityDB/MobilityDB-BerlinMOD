@@ -166,16 +166,8 @@ tee trace.txt
 			You can show more messages describing the generation process by setting the optional parameter <varname>messages</varname> with one of the values <varname>minimal</varname> (the default), <varname>medium</varname>, <varname>verbose</varname>, or <varname>debug</varname>. In <xref linkend="datagen_customizing" /> are explained all the parameters that can be used to customize the simulation.
 		</para>
 		<para>
-			<xref linkend="berlinmod_visualization" /> shows a visualization of the trips generated in QGIS.
+			We have shown in <xref linkend="berlinmod_visualization" /> a visualization of the trips generated in QGIS.
 		</para>
-		<figure id="berlinmod_visualization" float="start"><title>Visualization of the trips generated. The edges of the network are shown in blue, the edges traversed by the trips are shown in black, the home nodes in black and the work nodes in red.</title>
-			<mediaobject>
-				<imageobject><imagedata scalefit="1" fileref='images/berlinmod1.png' /></imageobject>
-			</mediaobject>
-			<mediaobject>
-				<imageobject><imagedata scalefit="1" fileref='images/berlinmod2.png' /></imageobject>
-			</mediaobject>
-		</figure>
 	</sect1>
 
 	<sect1 id ="datagen_exporting">
