@@ -562,9 +562,9 @@ BEGIN
 
   -- Select query sent to pgRouting
   IF pathMode = 'Fastest Path' THEN
-    query1_pgr = 'SELECT id, source, target, cost_s AS cost, reverse_cost_s as reverse_cost FROM edges';
+    query1_pgr = 'SELECT id, sourcenode as source, targetnode as target, cost_s AS cost, reverse_cost_s as reverse_cost FROM edges';
   ELSE
-    query1_pgr = 'SELECT id, source, target, length_m AS cost, length_m * sign(reverse_cost_s) as reverse_cost FROM edges';
+    query1_pgr = 'SELECT id, sourcenode as source, targetnode as target, length_m AS cost, length_m * sign(reverse_cost_s) as reverse_cost FROM edges';
   END IF;
   -- Get the total number of paths and number of calls to pgRouting
   SELECT COUNT(*) INTO noPaths FROM (SELECT DISTINCT source, target FROM Destinations) AS T;
@@ -598,7 +598,7 @@ BEGIN
   UPDATE Paths SET geom =
       -- adjusting directionality
       CASE
-        WHEN node = E.source THEN E.geom
+        WHEN node = E.sourcenode THEN E.geom
         ELSE ST_Reverse(E.geom)
       END,
       speed = maxspeed_forward,
