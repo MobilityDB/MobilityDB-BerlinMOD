@@ -48,11 +48,11 @@ BEGIN
     PeriodId integer PRIMARY KEY,
     StartP timestamptz,
     EndP timestamptz,
-    Period period
+    Period tstzspan
   );
   EXECUTE format('COPY Periods(PeriodId, StartP, EndP) FROM ''%speriods.csv'' DELIMITER '','' CSV HEADER', fullpath);
   UPDATE Periods
-  SET Period = period(StartP,EndP);
+  SET Period = tstzspan(StartP,EndP);
 
   IF gist THEN
     CREATE INDEX Periods_Period_gist_idx ON Periods USING gist (Period);
