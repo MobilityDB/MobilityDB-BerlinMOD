@@ -172,7 +172,7 @@ CREATE TABLE Periods (
   PeriodId integer PRIMARY KEY,
   Tstart TimestampTz NOT NULL,
   Tend TimestampTz NOT NULL,
-  Period period
+  Period tstzspan
   );
 CREATE TABLE Points (
   PointId integer PRIMARY KEY,
@@ -227,7 +227,7 @@ COPY Instants(InstantId, Instant) FROM '/home/mobilitydb/data/instants.csv'
 COPY Periods(PeriodId, Tstart, Tend) FROM '/home/mobilitydb/data/periods.csv' 
   DELIMITER ',' CSV HEADER;
 UPDATE Periods
-SET Period = period(Tstart, Tend);
+SET Period = span(Tstart, Tend);
 COPY Points(PointId, PosX, PosY) FROM '/home/mobilitydb/data/points.csv' 
   DELIMITER ',' CSV HEADER;
 UPDATE Points
@@ -454,7 +454,7 @@ INSERT INTO Trips VALUES (1, '2020-06-01', 10,
 			Similarly, queries on the <varname>Trips</varname> table are propagated to the partitions as shown next.
 		</para>
 		<programlisting language="sql" xml:space="preserve">
-EXPLAIN SELECT COUNT(*) FROM Trips WHERE Trip &amp;&amp; period '[2020-06-02, 2020-06-03)';
+EXPLAIN SELECT COUNT(*) FROM Trips WHERE Trip &amp;&amp; tstzspan '[2020-06-02, 2020-06-03)';
 </programlisting>
 
 		<para>
@@ -463,15 +463,15 @@ EXPLAIN SELECT COUNT(*) FROM Trips WHERE Trip &amp;&amp; period '[2020-06-02, 20
 Aggregate (cost=63.64..63.65 rows=1 width=8)
 -> Append (cost=0.00..63.62 rows=5 width=0)
    -> Seq Scan on trips_2020_06_01 trips_1  (cost=0.00..11.29 rows=1 width=0)
-        Filter: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+        Filter: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::tstzspan)
    -> Seq Scan on trips_2020_06_02 trips_2  (cost=0.00..11.14 rows=1 width=0)
-        Filter: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+        Filter: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::tstzspan)
    -> Seq Scan on trips_2020_06_03 trips_3  (cost=0.00..11.19 rows=1 width=0)
-        Filter: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+        Filter: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::tstzspan)
    -> Seq Scan on trips_2020_06_04 trips_4  (cost=0.00..10.24 rows=1 width=0)
-        Filter: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+        Filter: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::tstzspan)
    -> Seq Scan on trips_2020_06_05 trips_5  (cost=0.00..19.75 rows=1 width=0)
-        Filter: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+        Filter: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::tstzspan)
 </programlisting>
 			After defining an index on the <varname>Trip</varname> column as follows
 			<programlisting language="sql" xml:space="preserve">
@@ -483,18 +483,18 @@ Aggregate (cost=33.73..33.74 rows=1 width=8)
 -> Append (cost=0.14..33.71 rows=5 width=0)
    -> Index Scan using trips_2020_06_01_trip_idx on trips_2020_06_01 trips_1
       (cost=0.14..8.16 rows=1 width=0)
-        Index Cond: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+        Index Cond: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::tstzspan)
    -> Index Scan using trips_2020_06_02_trip_idx on trips_2020_06_02 trips_2
       (cost=0.14..8.16 rows=1 width=0)
-        Index Cond: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+        Index Cond: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::tstzspan)
    -> Index Scan using trips_2020_06_03_trip_idx on trips_2020_06_03 trips_3
       (cost=0.14..8.16 rows=1 width=0)
-        Index Cond: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+        Index Cond: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::tstzspan)
    -> Index Scan using trips_2020_06_04_trip_idx on trips_2020_06_04 trips_4
       (cost=0.14..8.16 rows=1 width=0)
-        Index Cond: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+        Index Cond: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::tstzspan)
    -> Seq Scan on trips_2020_06_05 trips_5  (cost=0.00..1.05 rows=1 width=0)
-        Filter: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+        Filter: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::tstzspan)
 </programlisting>
 		</para>
 	</sect1>
@@ -625,10 +625,10 @@ ORDER BY R.RegionId, T.VehId;
 SELECT R.RegionId, P.PeriodId, T.VehId
 FROM Trips T, Regions R, Periods P
 WHERE T.Trip &amp;&amp; stbox(R.Geom, P.Period) AND 
-  intersects(atPeriod(T.Trip, P.Period), R.Geom)
+  eintersects(atTime(T.Trip, P.Period), R.Geom)
 ORDER BY R.RegionId, P.PeriodId, T.VehId;
 </programlisting>
-					<para>This is a spatio-temporal range query. The query performs a bounding box comparison with the <varname>&amp;&amp;</varname> operator using the spatio-temporal index on table <varname>Trips</varname>. After that, the query verifies that the location of the vehicle during the period intersects the region. Notice that the predicate <varname>_intersects</varname> is used instead of <varname>intersects</varname> to avoid an implicit index test with the bounding box comparison <varname>atPeriod(Trip, P.Period) &amp;&amp; R.Geom</varname> is performed using the spatio-temporal index.</para>
+					<para>This is a spatio-temporal range query. The query performs a bounding box comparison with the <varname>&amp;&amp;</varname> operator using the spatio-temporal index on table <varname>Trips</varname>. After that, the query verifies that the location of the vehicle during the period intersects the region. Notice the predicate <varname>eintersects</varname> (ever intersects) that is applied to the arguments <varname>atTime(Trip, P.Period)</varname> and <varname>R.Geom</varname>.</para>
 				</listitem>
 
 				<listitem id="qa_range_spatiotemporal_join">
@@ -638,8 +638,8 @@ SELECT DISTINCT T1.VehId AS VehId1, T2.VehId AS VehId2, R.RegionId, P.PeriodId
 FROM Trips T1, Trips T2, Regions R, Periods P
 WHERE T1.VehId &lt; T2.VehId AND T1.Trip &amp;&amp; stbox(R.Geom, P.Period) AND
   T2.Trip &amp;&amp; stbox(R.Geom, P.Period) AND 
-  intersects(atPeriod(T1.Trip, P.Period), R.Geom) AND
-  intersects(atPeriod(T2.Trip, P.Period), R.Geom)
+  eintersects(atTime(T1.Trip, P.Period), R.Geom) AND
+  eintersects(atTime(T2.Trip, P.Period), R.Geom)
 ORDER BY T1.VehId, T2.VehId, R.RegionId, P.PeriodId;
 </programlisting>
 					<para>This is a spatio-temporal range join query. The query selects two trips of different vehicles and performs bounding box comparisons of each trip with a region and a period using the spatio-temporal index of the <varname>Trips</varname> table. The query then verifies that both vehicles were located within the region during the period.</para>
@@ -648,7 +648,7 @@ ORDER BY T1.VehId, T2.VehId, R.RegionId, P.PeriodId;
 				<listitem id="qa_range_entering">
 					<para>List the first time at which a vehicle visited a point in <varname>Points</varname>.</para>
 					<programlisting language="sql" xml:space="preserve">
-SELECT T.VehId, P.PointId, MIN(startTimestamp(atValue(T.Trip,P.Geom))) AS Instant
+SELECT T.VehId, P.PointId, MIN(startTimestamp(atValues(T.Trip,P.Geom))) AS Instant
 FROM Trips T, Points P
 WHERE ST_Contains(trajectory(T.Trip), P.Geom)
 GROUP BY T.VehId, P.PointId;
@@ -680,7 +680,7 @@ GROUP BY T.VehId, P.PointId;
 				<listitem id="qa_aggregate_instant">
 					<para>Compute how many vehicles were active at each period in <varname>Periods</varname>.</para>
 					<programlisting language="sql" xml:space="preserve">
-SELECT P.PeriodID, COUNT(*), TCOUNT(atPeriod(T.Trip, P.Period))
+SELECT P.PeriodID, COUNT(*), TCOUNT(atTime(T.Trip, P.Period))
 FROM Trips T, Periods P
 WHERE T.Trip &amp;&amp; P.Period
 GROUP BY P.PeriodID
@@ -692,11 +692,11 @@ ORDER BY P.PeriodID;
 				<listitem id="qa_aggregate_window">
 					<para>For each region in <varname>Regions</varname>, give the window temporal count of trips with a 10-minute interval.</para>
 					<programlisting language="sql" xml:space="preserve">
-SELECT R.RegionID, WCOUNT(atGeometry(T.Trip, R.Geom), interval '10 min')
+SELECT R.RegionID, wcount(atGeometry(T.Trip, R.Geom), interval '10 min')
 FROM Trips T, Regions R
-WHERE T.Trip &amp;&amp; R.Geom
+WHERE T.Trip &amp;&amp; stbox(R.Geom)
 GROUP BY R.RegionID
-HAVING WCOUNT(atGeometry(T.Trip, R.Geom), interval '10 min') IS NOT NULL
+HAVING wcount(atGeometry(T.Trip, R.Geom), interval '10 min') IS NOT NULL
 ORDER BY R.RegionID;
 </programlisting>
 					<para>This is a window temporal aggregate query. Suppose that we are computing pollution levels by region. Since the effect of a vehicle passing at a location lasts some time interval, this is a typical case for window aggregates. For each region, the query computes the spatial projection of the trips to the given region and apply the window temporal count to the projected trips. The condition in the <varname>WHERE</varname> clause is used for filtering the trips with the spatio-temporal index. The condition in the <varname>HAVING</varname> clause is used for removing regions that do not intersect with any trip.</para>
@@ -706,12 +706,12 @@ ORDER BY R.RegionID;
 					<para>Count the number of trips that were active during each hour in May 29, 2007.</para>
 					<programlisting language="sql" xml:space="preserve">
 WITH TimeSplit(Period) AS (
-  SELECT period(H, H + interval '1 hour')
+  SELECT span(H, H + interval '1 hour')
   FROM generate_series(timestamptz '2007-05-29 00:00:00', 
     timestamptz '2007-05-29 23:00:00', interval '1 hour') AS H )
 SELECT Period, COUNT(*)
 FROM TimeSplit S, Trips T
-WHERE S.Period &amp;&amp; T.Trip AND atPeriod(Trip, Period) IS NOT NULL
+WHERE S.Period &amp;&amp; T.Trip AND atTime(Trip, Period) IS NOT NULL
 GROUP BY S.Period
 ORDER BY S.Period;
 </programlisting>
@@ -729,7 +729,7 @@ ORDER BY S.Period;
 					<para>List the overall traveled distances of the vehicles during the periods from <varname>Periods</varname>.</para>
 					<programlisting language="sql" xml:space="preserve">
 SELECT T.VehId, P.PeriodId, P.Period,
-  SUM(length(atPeriod(T.Trip, P.Period))) AS Distance
+  SUM(length(atTime(T.Trip, P.Period))) AS Distance
 FROM Trips T, Periods P
 WHERE T.Trip &amp;&amp; P.Period
 GROUP BY T.VehId, P.PeriodId, P.Period
@@ -754,7 +754,7 @@ ORDER BY T.VehId, P.PointId;
 					<programlisting language="sql" xml:space="preserve">
 SELECT T1.VehId AS Car1Id, T2.VehId AS Car2Id, tmin(T1.Trip &lt;-&gt; T2.Trip) AS MinDistance
 FROM Trips T1, Trips T2
-WHERE T1.VehId &lt; T2.VehId AND period(T1.Trip) &amp;&amp; period(T2.Trip)
+WHERE T1.VehId &lt; T2.VehId AND timeSpan(T1.Trip) &amp;&amp; timeSpan(T2.Trip)
 GROUP BY T1.VehId, T2.VehId
 ORDER BY T1.VehId, T2.VehId;
 </programlisting>
@@ -765,11 +765,11 @@ ORDER BY T1.VehId, T2.VehId;
 					<para>List the nearest approach time, distance, and shortest line between each pair of trips.</para>
 					<programlisting language="sql" xml:space="preserve">
 SELECT T1.VehId AS Car1Id, T1.TripId AS Trip1Id, T2.VehId AS Car2Id, 
-  T2.TripId AS Trip2Id, period(NearestApproachInstant(T1.Trip, T2.Trip)) AS Time,
+  T2.TripId AS Trip2Id, timeSpan(NearestApproachInstant(T1.Trip, T2.Trip)) AS Time,
   NearestApproachDistance(T1.Trip, T2.Trip) AS Distance, 
   ShortestLine(T1.Trip, T2.Trip) AS Line
 FROM Trips T1, Trips T2
-WHERE T1.VehId &lt; T2.VehId AND period(T1.Trip) &amp;&amp; period(T2.Trip)
+WHERE T1.VehId &lt; T2.VehId AND timeSpan(T1.Trip) &amp;&amp; timeSpan(T2.Trip)
 ORDER BY T1.VehId, T1.TripId, T2.VehId, T2.TripId;
 </programlisting>
 					<para>This query shows similar functionality as that provided by the PostGIS functions <varname>ST_ClosestPointOfApproach</varname> and <varname>ST_DistanceCPA</varname>. The query selects two trips <varname>T1</varname> and <varname>T2</varname> from different vehicles that were both traveling during a common period of time and computes the required results.</para>
@@ -778,14 +778,14 @@ ORDER BY T1.VehId, T1.TripId, T2.VehId, T2.TripId;
 				<listitem id="qa_distance_tdwithin">
 					<para>List when and where a pairs of vehicles have been at 10 m or less from each other.</para>
 					<programlisting language="sql" xml:space="preserve">
-SELECT T1.VehId AS VehId1, T2.VehId AS VehId2, atPeriodSet(T1.Trip,
+SELECT T1.VehId AS VehId1, T2.VehId AS VehId2, atTime(T1.Trip,
   getTime(tdwithin(T1.Trip, T2.Trip, 10.0, TRUE))) AS Position
 FROM Trips T1, Trips T2
-WHERE T1.VehId &lt; T2.VehId AND T1.Trip &amp;&amp; expandSpatial(T2.Trip, 10) AND
+WHERE T1.VehId &lt; T2.VehId AND T1.Trip &amp;&amp; expandSpace(T2.Trip, 10) AND
   tdwithin(T1.Trip, T2.Trip, 10.0, TRUE) IS NOT NULL
 ORDER BY T1.VehId, T2.VehId, Position;
 </programlisting>
-					<para>The query performs for each pair of trips <varname>T1</varname> and <varname>T2</varname> of different vehicles a bounding box comparison with the <varname>&amp;&amp;</varname> operator using the spatio-temporal index on the <varname>Trips</varname> table, where the bounding box of <varname>T2</varname> is expanded by 10 m. Then, the <varname>period</varname> expression computes the periods during which the vehicles were within 10 m. from each other and the <varname>atPeriodSet</varname> function projects the trips to those periods. Notice that the expression <varname>tdwithin(T1.Trip, T2.Trip, 10.0)</varname> is conceptually equivalent to <varname>dwithin(T1.Trip, T2.Trip) #&lt;= 10.0</varname>. However, in this case the spatio-temporal index cannot be used for filtering values.</para>
+					<para>The query performs for each pair of trips <varname>T1</varname> and <varname>T2</varname> of different vehicles a bounding box comparison with the <varname>&amp;&amp;</varname> operator using the spatio-temporal index on the <varname>Trips</varname> table, where the bounding box of <varname>T2</varname> is expanded by 10 m. Then, the <varname>period</varname> expression computes the periods during which the vehicles were within 10 m. from each other and the <varname>atTime</varname> function projects the trips to those periods. Notice that the expression <varname>tdwithin(T1.Trip, T2.Trip, 10.0)</varname> is conceptually equivalent to <varname>dwithin(T1.Trip, T2.Trip) #&lt;= 10.0</varname>. However, in this case the spatio-temporal index cannot be used for filtering values.</para>
 				</listitem>
 			</orderedlist>
 		</sect2>
@@ -833,7 +833,7 @@ SELECT T1.VehId AS VehId1, C2.VehId AS VehId2, C2.Distance
 FROM Trips T1 CROSS JOIN LATERAL (
   SELECT T2.VehId, minValue(T1.Trip &lt;-&gt; T2.Trip) AS Distance
   FROM Trips T2
-  WHERE T1.VehId &lt; T2.VehId AND period(T1.Trip) &amp;&amp; period(T2.Trip)
+  WHERE T1.VehId &lt; T2.VehId AND timeSpan(T1.Trip) &amp;&amp; timeSpan(T2.Trip)
   ORDER BY Distance LIMIT 3 ) AS C2
 ORDER BY T1.VehId, C2.VehId;
 </programlisting>
@@ -868,7 +868,7 @@ WITH TripDistances AS (
   FROM Trips T1 CROSS JOIN LATERAL (
     SELECT T2.VehId, T2.TripId, minValue(T1.Trip &lt;-&gt; T2.Trip) AS Distance
     FROM Trips T2
-    WHERE T1.VehId &lt; T2.VehId AND period(T1.Trip) &amp;&amp; period(T2.Trip)
+    WHERE T1.VehId &lt; T2.VehId AND timeSpan(T1.Trip) &amp;&amp; timeSpan(T2.Trip)
     ORDER BY Distance LIMIT 3 ) AS T3 )
 SELECT T1.VehId, T1.TripId, T2.VehId, T2.TripId, TD.Distance
 FROM Trips T1 JOIN Trips T2 ON T1.VehId &lt; T2.VehId

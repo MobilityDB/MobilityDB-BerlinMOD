@@ -105,11 +105,11 @@ BEGIN
     PeriodId integer,
     BeginP timestamp,
     EndP timestamp,
-    Period period );
+    Period tstzspan );
   EXECUTE format('COPY Periods(PeriodId, BeginP, EndP) FROM ''%speriods.csv'' 
     DELIMITER  '','' CSV HEADER', fullpath);
   UPDATE Periods
-  SET Period = period(BeginP,EndP);
+  SET Period = tstzspan(BeginP,EndP);
 
   CREATE INDEX Periods_Period_gist_idx ON Periods USING gist(Period);
 
@@ -321,7 +321,7 @@ ORDER BY L.Licence, I.InstantId;
 				<programlisting language="sql" xml:space="preserve">
 SELECT DISTINCT P.PointId, P.Geom, C.Licence
 FROM Trips T, Vehicles C, Points P
-WHERE T.VehId = C.VehId AND T.Trip &amp;&amp; P.Geom AND
+WHERE T.VehId = C.VehId AND T.Trip &amp;&amp; stbox(P.Geom) AND
   ST_Intersects(trajectory(T.Trip), P.Geom) 
 ORDER BY P.PointId, C.Licence;
 </programlisting>
@@ -346,7 +346,7 @@ SELECT DISTINCT C1.Licence AS Licence1, C2.Licence AS Licence2
 FROM Trips T1, Vehicles C1, Trips T2, Vehicles C2
 WHERE T1.VehId = C1.VehId AND T2.VehId = C2.VehId AND
   T1.VehId &lt; T2.VehId AND C1.Type = 'truck' AND C2.Type = 'truck' AND
-  T1.Trip &amp;&amp; expandSpatial(T2.Trip, 10) AND
+  T1.Trip &amp;&amp; expandSpace(T2.Trip, 10) AND
   tdwithin(T1.Trip, T2.Trip, 10.0) ?= true
 ORDER BY C1.Licence, C2.Licence;
 </programlisting>
@@ -357,10 +357,10 @@ ORDER BY C1.Licence, C2.Licence;
 				<programlisting language="sql" xml:space="preserve">
 WITH Timestamps AS (
   SELECT DISTINCT C.Licence, P.PointId, P.Geom, 
-    MIN(startTimestamp(atValue(T.Trip,P.Geom))) AS Instant
+    MIN(startTimestamp(atValues(T.Trip,P.Geom))) AS Instant
   FROM Trips T, Vehicles C, Points1 P
   WHERE T.VehId = C.VehId AND C.Type = 'passenger' AND
-    T.Trip &amp;&amp; P.Geom AND ST_Intersects(trajectory(T.Trip), P.Geom)
+    T.Trip &amp;&amp; stbox(P.Geom) AND ST_Intersects(trajectory(T.Trip), P.Geom)
   GROUP BY C.Licence, P.PointId, P.Geom )
 SELECT T1.Licence, T1.PointId, T1.Geom, T1.Instant
 FROM Timestamps T1
@@ -375,7 +375,7 @@ ORDER BY T1.PointId, T1.Licence;
 			<listitem>
 				<para>What are the overall travelled distances of the vehicles with licence plate numbers from <varname>Licences1</varname> during the periods from <varname>Periods1</varname>?</para>
 				<programlisting language="sql" xml:space="preserve">
-SELECT L.Licence, P.PeriodId, P.Period, SUM(length(atPeriod(T.Trip, P.Period))) AS Dist
+SELECT L.Licence, P.PeriodId, P.Period, SUM(length(atTime(T.Trip, P.Period))) AS Dist
 FROM Trips T, Licences1 L, Periods1 P
 WHERE T.VehId = L.VehId AND T.Trip &amp;&amp; P.Period
 GROUP BY L.Licence, P.PeriodId, P.Period 
@@ -387,7 +387,7 @@ ORDER BY L.Licence, P.PeriodId;
 				<para>What is the longest distance that was travelled by a vehicle during each of the periods from <varname>Periods</varname>?</para>
 				<programlisting language="sql" xml:space="preserve">
 WITH Distances AS (
-  SELECT P.PeriodId, P.Period, T.VehId, SUM(length(atPeriod(T.Trip, P.Period))) AS Dist
+  SELECT P.PeriodId, P.Period, T.VehId, SUM(length(atTime(T.Trip, P.Period))) AS Dist
   FROM Trips T, Periods P
   WHERE T.Trip &amp;&amp; P.Period
   GROUP BY P.PeriodId, P.Period, T.VehId )
@@ -403,11 +403,11 @@ ORDER BY PeriodId;
 				<programlisting language="sql" xml:space="preserve">
 WITH Values AS (
   SELECT DISTINCT L1.Licence AS QueryLicence, C2.Licence AS OtherLicence,
-    atPeriodSet(T1.Trip, getTime(atValue(tdwithin(T1.Trip, T2.Trip, 3.0), TRUE))) AS Pos
+    atTime(T1.Trip, getTime(atValues(tdwithin(T1.Trip, T2.Trip, 3.0), TRUE))) AS Pos
   FROM Trips T1, Licences1 L1, Trips T2, Licences2 C2 
   WHERE T1.VehId = L1.VehId AND T2.VehId = C2.VehId AND T1.VehId &lt; T2.VehId AND
-    expandSpatial(T1.Trip, 3) &amp;&amp; expandSpatial(T2.Trip, 3) 
-    dwithin(T1.Trip, T2.Trip, 3.0) )
+    expandSpace(T1.Trip, 3) &amp;&amp; expandSpace(T2.Trip, 3) AND
+    edwithin(T1.Trip, T2.Trip, 3.0) )
 SELECT QueryLicence, OtherLicence, array_agg(Pos ORDER BY startTimestamp(Pos)) AS Pos
 FROM Values 
 GROUP BY QueryLicence, OtherLicence
@@ -420,7 +420,7 @@ ORDER BY QueryLicence, OtherLicence;
 				<programlisting language="sql" xml:space="preserve">
 SELECT P.PointId, P.Geom, I.InstantId, I.Instant, C.Licence
 FROM Trips T, Vehicles C, Points1 P, Instants1 I
-WHERE T.VehId = C.VehId AND T.Trip @&gt; STBOX(P.Geom, I.Instant) AND
+WHERE T.VehId = C.VehId AND T.Trip @&gt; stbox(P.Geom, I.Instant) AND
   valueAtTimestamp(T.Trip, I.Instant) = P.Geom
 ORDER BY P.PointId, I.InstantId, C.Licence;
 </programlisting>
@@ -433,7 +433,7 @@ SELECT DISTINCT P.PointId, P.Geom, I.InstantId, I.Instant,
   C1.Licence AS Licence1, C2.Licence AS Licence2
 FROM Trips T1, Vehicles C1, Trips T2, Vehicles C2, Points1 P, Instants1 I
 WHERE T1.VehId = C1.VehId AND T2.VehId = C2.VehId AND T1.VehId &lt; T2.VehId AND
-  T1.Trip @&gt; STBOX(P.Geom, I.Instant) AND T2.Trip @&gt; STBOX(P.Geom, I.Instant) AND
+  T1.Trip @&gt; stbox(P.Geom, I.Instant) AND T2.Trip @&gt; stbox(P.Geom, I.Instant) AND
   valueAtTimestamp(T1.Trip, I.Instant) = P.Geom AND
   valueAtTimestamp(T2.Trip, I.Instant) = P.Geom
 ORDER BY P.PointId, I.InstantId, C1.Licence, C2.Licence;
@@ -445,8 +445,8 @@ ORDER BY P.PointId, I.InstantId, C1.Licence, C2.Licence;
 				<programlisting language="sql" xml:space="preserve">
 SELECT DISTINCT R.RegionId, P.PeriodId, P.Period, C.Licence
 FROM Trips T, Vehicles C, Regions1 R, Periods1 P
-WHERE T.VehId = C.VehId AND T.trip &amp;&amp; STBOX(R.Geom, P.Period) AND
-  ST_Intersects(trajectory(atPeriod(T.Trip, P.Period)), R.Geom)
+WHERE T.VehId = C.VehId AND T.trip &amp;&amp; stbox(R.Geom, P.Period) AND
+  ST_Intersects(trajectory(atTime(T.Trip, P.Period)), R.Geom)
 ORDER BY R.RegionId, P.PeriodId, C.Licence;
 </programlisting>
 			</listitem>
@@ -456,7 +456,7 @@ ORDER BY R.RegionId, P.PeriodId, C.Licence;
 				<programlisting language="sql" xml:space="preserve">
 SELECT DISTINCT R.RegionId, I.InstantId, I.Instant, C.Licence
 FROM Trips T, Vehicles C, Regions1 R, Instants1 I
-WHERE T.VehId = C.VehId AND T.Trip &amp;&amp; STBOX(R.Geom, I.Instant) AND
+WHERE T.VehId = C.VehId AND T.Trip &amp;&amp; stbox(R.Geom, I.Instant) AND
   ST_Contains(R.Geom, valueAtTimestamp(T.Trip, I.Instant))
 ORDER BY R.RegionId, I.InstantId, C.Licence;
 </programlisting>
@@ -467,8 +467,8 @@ ORDER BY R.RegionId, I.InstantId, C.Licence;
 				<programlisting language="sql" xml:space="preserve">
 SELECT DISTINCT PO.PointId, PO.Geom, PR.PeriodId, PR.Period, C.Licence
 FROM Trips T, Vehicles C, Points1 PO, Periods1 PR
-WHERE T.VehId = C.VehId AND T.Trip &amp;&amp; STBOX(PO.Geom, PR.Period) AND
-  ST_Intersects(trajectory(atPeriod(T.Trip, PR.Period)),PO.Geom)
+WHERE T.VehId = C.VehId AND T.Trip &amp;&amp; stbox(PO.Geom, PR.Period) AND
+  ST_Intersects(trajectory(atTime(T.Trip, PR.Period)),PO.Geom)
 ORDER BY PO.PointId, PR.PeriodId, C.Licence;
 </programlisting>
 			</listitem>
@@ -479,10 +479,10 @@ ORDER BY PO.PointId, PR.PeriodId, C.Licence;
 SELECT P.PeriodId, P.Period, R.RegionId, L1.Licence AS Licence1, L2.Licence AS Licence2
 FROM Trips T1, Licences1 L1, Trips T2, Licences2 L2, Periods1 P, Regions1 R
 WHERE T1.VehId = L1.VehId AND T2.VehId = L2.VehId AND L1.Licence &lt; L2.Licence AND
-  T1.Trip &amp;&amp; STBOX(R.Geom, P.Period) AND T2.Trip &amp;&amp; STBOX(R.Geom, P.Period) AND
-  ST_Intersects(trajectory(atPeriod(T1.Trip, P.Period)), R.Geom) AND
-  ST_Intersects(trajectory(atPeriod(T2.Trip, P.Period)), R.Geom) AND
-  tintersects(atPeriod(T1.Trip, P.Period), atPeriod(T2.Trip, P.Period)) %= FALSE
+  T1.Trip &amp;&amp; stbox(R.Geom, P.Period) AND T2.Trip &amp;&amp; stbox(R.Geom, P.Period) AND
+  ST_Intersects(trajectory(atTime(T1.Trip, P.Period)), R.Geom) AND
+  ST_Intersects(trajectory(atTime(T2.Trip, P.Period)), R.Geom) AND
+  tintersects(atTime(T1.Trip, P.Period), atTime(T2.Trip, P.Period)) %= FALSE
 ORDER BY PeriodId, RegionId, Licence1, Licence2;
 </programlisting>
 			</listitem>

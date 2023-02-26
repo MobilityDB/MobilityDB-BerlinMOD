@@ -438,12 +438,12 @@ INSERT INTO QueryInstants
 SELECT id, startDay + (random() * noDays) * interval '1 day' AS instant
 FROM generate_series(1, P_SAMPLE_SIZE) id;
 
-CREATE TABLE QueryPeriods(id int PRIMARY KEY, period period);
+CREATE TABLE QueryPeriods(id int PRIMARY KEY, period tstzspan);
 INSERT INTO QueryPeriods
 WITH Instants AS (
   SELECT id, startDay + (random() * noDays) * interval '1 day' AS instant
   FROM generate_series(1, P_SAMPLE_SIZE) id )
-SELECT id, Period(instant, instant + abs(random_gauss()) * interval '1 day',
+SELECT id, tstzspan(instant, instant + abs(random_gauss()) * interval '1 day',
   true, true) AS period
 FROM Instants;
 </programlisting>
