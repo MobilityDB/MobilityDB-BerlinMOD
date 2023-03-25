@@ -51,7 +51,7 @@ functions are executed using the following tables
 *  QueryPoints(id int primary key, geom geometry)
 *  QueryRegions(id int primary key, geom geometry)
 *  QueryInstants(id int primary key, instant timestamptz)
-*  QueryPeriods(id int primary key, period)
+*  QueryPeriods(id int primary key, period tstzspan)
 
 -----------------------------------------------------------------------------*/
 
@@ -472,13 +472,13 @@ BEGIN
   -- Random periods
 
   DROP TABLE IF EXISTS QueryPeriods;
-  CREATE TABLE QueryPeriods(id int PRIMARY KEY, period period);
+  CREATE TABLE QueryPeriods(id int PRIMARY KEY, period tstzspan);
   INSERT INTO QueryPeriods
   WITH Instants AS (
     SELECT id, startDay + (random() * noDays) * interval '1 day' AS instant
     FROM generate_series(1, P_SAMPLE_SIZE) id
   )
-  SELECT id, Period(instant, instant + abs(random_gauss()) * interval '1 day',
+  SELECT id, span(instant, instant + abs(random_gauss()) * interval '1 day',
     true, true) AS period
   FROM Instants;
 
@@ -524,6 +524,9 @@ BEGIN
             prevNodes = prevNodes || targetNode;
           ELSE
             targetNode = warehouseNode;
+          END IF;
+          IF sourceNode IS NULL THEN
+            RAISE EXCEPTION '    Destination node cannot be NULL';
           END IF;
           IF targetNode IS NULL THEN
             RAISE EXCEPTION '    Destination node cannot be NULL';
