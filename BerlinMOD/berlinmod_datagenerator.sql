@@ -69,8 +69,8 @@ functions are executed using the following tables
     primary key (vehId, day, tripNo, seqNo)
     tripNo is 1 for morning/evening trip and is 2 for afternoon trip
     seqNo is the sequence of trips composing a leisure trip
-*  Trips(tripId serial, vehId int, day date, seqNo int, sourceNode bigint,
-    targetNode bigint, trip tgeompoint, trajectory geometry);
+*  Trips(tripId serial primary key, vehId int, day date, seqNo int,
+     sourceNode bigint, targetNode bigint, trip tgeompoint, trajectory geometry);
 *  Licences(licenceId int primary key, licence text, vehId int)
 *  Points(pointId int, geom geometry)
 *  Regions(regionId int, geom geometry)
@@ -919,8 +919,12 @@ DECLARE
   -- Loop variables
   veh int; j int; leis int; dest int;
 BEGIN
-  RAISE INFO 'Creation of the Trips table started at %', clock_timestamp();
-  DROP TABLE IF EXISTS Trips;
+  IF messages = 'minimal' THEN
+    RAISE INFO 'Creation of the Trips table';
+  ELSE
+    RAISE INFO 'Creation of the Trips table started at %', clock_timestamp();
+  END IF;
+  DROP TABLE IF EXISTS Trips CASCADE;
   CREATE TABLE Trips(tripId SERIAL PRIMARY KEY, vehId int, day date, seqNo int,
     sourceNode bigint, targetNode bigint, trip tgeompoint, trajectory geometry,
     UNIQUE (vehId, day, seqNo));
@@ -1005,7 +1009,7 @@ BEGIN
           ELSE
             SELECT tripNo INTO leisNo
             FROM LeisureTrips L
-            WHERE L.vehicle = vehId AND L.day = d
+            WHERE L.vehId = veh AND L.day = d
             LIMIT 1;
           END IF;
           -- Determine the start time
@@ -1033,7 +1037,7 @@ BEGIN
           -- Get the path
           SELECT array_agg((geom, speed, category)::step ORDER BY seqNo) INTO path
           FROM Paths P
-          WHERE vehId = veh AND start_vid = sourceN AND end_vid = targetN;
+          WHERE vehId = veh AND start_vid = sourceN AND end_vid = targetN AND edge > 0;
           IF messages = 'verbose' OR messages = 'debug' THEN
             RAISE INFO '    Leisure trip from % to % started at %', sourceN, targetN, t;
           END IF;
@@ -1238,7 +1242,7 @@ BEGIN
   -- function MUST use 'SELECT DISTINCT ...'
 
   RAISE INFO 'Creating the Destinations table';
-  DROP TABLE IF EXISTS Destinations;
+  DROP TABLE IF EXISTS Destinations CASCADE;
   CREATE TABLE Destinations(vehId int, sourceNode bigint, targetNode bigint,
     PRIMARY KEY (vehId, sourceNode, targetNode));
 
@@ -1246,13 +1250,13 @@ BEGIN
   -- number of neighbourhood nodes
 
   RAISE INFO 'Creating the VehicleNodes, Vehicles, and Neighbourhood tables';
-  DROP TABLE IF EXISTS VehicleNodes;
+  DROP TABLE IF EXISTS VehicleNodes CASCADE;
   CREATE TABLE VehicleNodes(vehId int PRIMARY KEY, homeNode bigint NOT NULL,
     workNode bigint NOT NULL, noNeighbours int);
-  DROP TABLE IF EXISTS Vehicles;
+  DROP TABLE IF EXISTS Vehicles CASCADE;
   CREATE TABLE Vehicles(vehId int PRIMARY KEY, licence text, type text,
     model text);
-  DROP TABLE IF EXISTS Neighbourhood;
+  DROP TABLE IF EXISTS Neighbourhood CASCADE;
   CREATE TABLE Neighbourhood(vehId int, seqNo int, node bigint NOT NULL,
     PRIMARY KEY (vehId, seqNo));
 
@@ -1303,7 +1307,7 @@ BEGIN
 
   RAISE INFO 'Creating the Licences table';
 
-  DROP TABLE IF EXISTS Licences;
+  DROP TABLE IF EXISTS Licences CASCADE;
   CREATE TABLE Licences(licenceId int PRIMARY KEY, licence text, vehId int);
   INSERT INTO Licences(licenceId, licence, vehId)
   WITH Temp(licenceId, vehId) AS (
@@ -1326,7 +1330,7 @@ BEGIN
 
   RAISE INFO 'Creating the Points and Regions tables';
 
-  DROP TABLE IF EXISTS Points;
+  DROP TABLE IF EXISTS Points CASCADE;
   CREATE TABLE Points(pointId int PRIMARY KEY, PosX float, PosY float, geom geometry(Point));
   INSERT INTO Points(pointId, geom)
   WITH Temp(pointId, nodeId) AS (
@@ -1346,7 +1350,7 @@ BEGIN
 
   -- Random regions
 
-  DROP TABLE IF EXISTS Regions;
+  DROP TABLE IF EXISTS Regions CASCADE;
   CREATE TABLE Regions(regionId int PRIMARY KEY, geom geometry(Polygon));
   INSERT INTO Regions(regionId, geom)
   WITH Temp(regionId, nodeId) AS (
@@ -1366,7 +1370,7 @@ BEGIN
 
   RAISE INFO 'Creating the Instants and Periods tables';
 
-  DROP TABLE IF EXISTS Instants;
+  DROP TABLE IF EXISTS Instants CASCADE;
   CREATE TABLE Instants(instantId int PRIMARY KEY, instant timestamptz);
   INSERT INTO Instants(instantId, instant)
   SELECT id, startDay + (random() * noDays) * interval '1 day' AS instant
@@ -1379,7 +1383,7 @@ BEGIN
 
   -- Random periods
 
-  DROP TABLE IF EXISTS Periods;
+  DROP TABLE IF EXISTS Periods CASCADE;
   CREATE TABLE Periods(periodId int PRIMARY KEY, BeginP TimestampTz, EndP TimestampTz, period tstzspan);
   INSERT INTO Periods(periodId, period)
   WITH Instants AS (
@@ -1407,7 +1411,7 @@ BEGIN
   -------------------------------------------------------------------------
 
   RAISE INFO 'Creating the LeisureTrips table';
-  DROP TABLE IF EXISTS LeisureTrips;
+  DROP TABLE IF EXISTS LeisureTrips CASCADE;
   CREATE TABLE LeisureTrips(vehId int, day date, tripNo int, seqNo int,
     sourceNode bigint, targetNode bigint,
     PRIMARY KEY (vehId, day, tripNo, seqNo));
@@ -1495,11 +1499,11 @@ BEGIN
   -------------------------------------------------------------------------
 
   IF messages = 'minimal' THEN
-    RAISE INFO 'Creation of the Paths table started at %', clock_timestamp();
-  ELSE
     RAISE INFO 'Creating the Paths table';
+  ELSE
+    RAISE INFO 'Creation of the Paths table started at %', clock_timestamp();
   END IF;
-  DROP TABLE IF EXISTS Paths;
+  DROP TABLE IF EXISTS Paths CASCADE;
   CREATE TABLE Paths(
     -- This attribute is needed for partitioning the table for big scale factors
     vehId int,
@@ -1519,7 +1523,7 @@ BEGIN
   SELECT COUNT(*) INTO noPaths
   FROM (SELECT DISTINCT sourceNode, targetNode FROM Destinations) AS T;
   noCalls = ceiling(noPaths / P_PGROUTING_BATCH_SIZE::float);
-  IF messages = 'medium' OR messages = 'verbose' THEN
+  IF messages = 'minimal' OR messages = 'medium' OR messages = 'verbose' THEN
     IF noCalls = 1 THEN
       RAISE INFO 'Call to pgRouting to compute % paths', noPaths;
     ELSE
@@ -1555,6 +1559,13 @@ BEGIN
       berlinmod_roadCategory(E.tag_id) AS category
     FROM Destinations D, Temp T, Edges E
     WHERE D.sourceNode = T.start_vid AND D.targetNode = T.end_vid AND E.id = T.edge;
+    IF messages = 'medium' OR messages = 'verbose' THEN
+      IF noCalls = 1 THEN
+        RAISE INFO '  Call ended at %', clock_timestamp();
+      ELSE
+        RAISE INFO '  Call number % ended at %', i, clock_timestamp();
+      END IF;
+    END IF;
   END LOOP;
   endPgr = clock_timestamp();
 

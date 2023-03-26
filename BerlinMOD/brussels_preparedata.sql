@@ -1,25 +1,6 @@
 -------------------------------------------------------------------------------
--- Getting OSM data and importing it in PostgreSQL
+-- Prepare the BerlinMOD generator using the OSM data from Brussels
 -------------------------------------------------------------------------------
-/* To be done on a terminal
-
-CITY="brussels"
-BBOX="4.22,50.75,4.5,50.92"
-wget --progress=dot:mega -O "$CITY.osm" "http://www.overpass-api.de/api/xapi?*[bbox=${BBOX}][@meta]"
-
--- To reduce the size of the OSM file
-sed -r "s/version=\"[0-9]+\" timestamp=\"[^\"]+\" changeset=\"[0-9]+\" uid=\"[0-9]+\" user=\"[^\"]+\"//g" brussels.osm -i.org
-
--- The resulting data is by default in Spherical Mercator (SRID 3857) so that
-- it can be displayed directly, e.g. in QGIS
-osm2pgsql --create --database brussels --host localhost brussels.osm
-
--- IT IS NECESSARY TO SETUP the configuration file mapconfig_brussels.xml,
--- e.g., starting from the default file mapconfig_for_cars.xml provided by
--- osm2pgrouting. An example of this file can be found in this directory.
--- The resulting data are in WGS84 (SRID 4326)
-osm2pgrouting -U username -f brussels.osm --dbname brussels -c mapconfig_brussels.xml
-*/
 
 -- We need to convert the resulting data in Spherical Mercator (SRID = 3857)
 -- We create two tables for that
@@ -73,10 +54,11 @@ DELETE FROM Edges WHERE sourceNode IS NULL OR targetNode IS NULL;
 CREATE INDEX Edges_geom_index ON Edges USING GiST(geom);
 
 /*
+-- The following were obtained FROM the OSM file extracted on March 26, 2023
 SELECT COUNT(*) FROM Edges;
--- 80831
+-- 95025
 SELECT COUNT(*) FROM Nodes;
--- 65052
+-- 80304
 */
 
 -------------------------------------------------------------------------------
@@ -118,56 +100,15 @@ SELECT name, way AS geom
 FROM planet_osm_line L
 WHERE name IN ( SELECT name from Communes );
 
-/*
--- There is an error in the geometry for Saint-Josse that can be visualized with QGIS
--- We generate individual points in order to visualize in QGIS where is the problem
-
-DROP TABLE IF EXISTS SaintJosse;
-CREATE TABLE SaintJosse AS
-WITH Temp AS (
-  SELECT way FROM planet_osm_line WHERE name = 'Saint-Josse-ten-Noode - Sint-Joost-ten-Node'
-)
-SELECT i AS Id, ST_PointN(way, i) AS geom
-FROM Temp, generate_series(1, ST_Numpoints(way)) i;
-
--- Points 21-31 are inverted, they should come in the following order 20,31-21,32
--- The list of points can be obtained with the following query
-
--- SELECT id, ST_AsText(geom) FROM SaintJosse;
-*/
-
--- Correct the error in the geometry for Saint-Josse
-UPDATE CommunesGeom
-SET geom = geometry 'SRID=3857;Linestring(485033.737822976 6596581.15577077,
-484882.699537867 6595894.90831692, 486242.322402569 6595270.99729829,
-486270.987171449 6595242.32624894, 486296.334619502 6595152.22292529,
-486444.890479966 6594395.79948933, 486444.890479966 6594357.57551346,
-486394.251243604 6594195.14322833, 486461.131993673 6594306.93959754,
-486702.86226793 6594323.17761322, 486820.382254361 6594335.6073863,
-486864.331189326 6594451.54898297, 487062.112528618 6594385.62639354,
-487109.879722118 6594534.68025487, 487308.62954098 6594607.90346883,
-487474.651429549 6594665.25887597, 487473.638422183 6594778.13717801,
-487542.433867493 6594810.61510205, 487697.279279186 6594907.96148306,
-487933.688481784 6595012.41484948, 487797.35550141 6595129.98818652,
-487683.542454023 6595221.7487493, 487618.843565974 6595274.40044916,
-487585.99318424 6595301.83730244, 487439.775033083 6595418.46258324,
-487082.907009498 6595706.71785908, 486743.727653 6595996.23528515,
-486437.020191967 6596112.79987494, 486423.639589173 6596071.71110935,
-486234.463246519 6596137.62958044, 486245.929154071 6596175.86183038,
-485033.737822976 6596581.15577077)'
-WHERE name = 'Saint-Josse-ten-Noode - Sint-Joost-ten-Node';
-
--- There is a non-closed geometry associated with Saint-Gilles
-
-DELETE FROM CommunesGeom WHERE NOT ST_IsClosed(geom);
+-- The geometries of the communes are of type Linestring. They need to be
+-- converted into polygons.
 
 ALTER TABLE CommunesGeom ADD COLUMN geompoly geometry;
-
 UPDATE CommunesGeom
 SET geompoly = ST_MakePolygon(geom);
 
--- Disjoint components of Ixelles are encoded as two different features
--- For this reason ST_Union is needed to make a multipolygon
+-- Disjoint components of Ixelles and Saint-Gilles are encoded as two different
+-- features. For this reason ST_Union is needed to make a multipolygon
 ALTER TABLE Communes ADD COLUMN geom geometry;
 UPDATE Communes C
 SET geom = (
@@ -175,7 +116,6 @@ SET geom = (
   WHERE C.name = G.name);
 
 -- Clean up tables
-DROP TABLE IF EXISTS SaintJosse;
 DROP TABLE IF EXISTS CommunesGeom;
 
 -- Create home/work regions and nodes
