@@ -97,6 +97,8 @@ DECLARE
   deliveryTime interval;
   -- Loop variables
   i int; j int; k int;
+  -- Number of vehicles for showing heartbeat messages when message is 'minimal'
+  P_DELIVERIES_NO_VEHICLES int = 50;
 BEGIN
   RAISE INFO 'Creating the Deliveries and Segments tables';
   DROP TABLE IF EXISTS Deliveries;
@@ -112,12 +114,17 @@ BEGIN
   aDay = startDay;
   FOR i IN 1..noDays LOOP
     SELECT date_part('dow', aDay) into weekday;
-    IF messages = 'medium' OR messages = 'verbose' THEN
+    IF messages = 'minimal' OR messages = 'medium' OR messages = 'verbose' THEN
       RAISE INFO '-- Date %', aDay;
     END IF;
     -- 6: saturday, 0: sunday
     IF weekday <> 0 THEN
+      <<vehicles_loop>>
       FOR j IN 1..noVehicles LOOP
+        IF messages = 'minimal' AND j % P_DELIVERIES_NO_VEHICLES = 1 THEN
+          RAISE INFO '  -- Vehicles % to %', j,
+            LEAST(j + P_DELIVERIES_NO_VEHICLES - 1, noVehicles);
+        END IF;
         IF messages = 'medium' OR messages = 'verbose' THEN
           RAISE INFO '  -- Vehicle %', j;
         END IF;
@@ -130,6 +137,7 @@ BEGIN
         SELECT count(*) INTO noSegments
         FROM Trips
         WHERE vehicle = j AND day = aDay;
+        <<segments_loop>>
         FOR k IN 1..noSegments LOOP
           -- Get the source and destination nodes of the segment
           SELECT source, target INTO sourceNode, targetNode
@@ -139,14 +147,24 @@ BEGIN
           SELECT array_agg((geom, speed, category) ORDER BY path_seq) INTO path
           FROM Paths P
           WHERE start_vid = sourceNode AND end_vid = targetNode AND edge > 0;
+          -- In exceptional circumstances, depending on the input graph, it may
+          -- be the case that pgrouting does not find a connecting path between 
+          -- two nodes. Instead of stopping the generation process, the error
+          -- is reported, the trip for the vehicle and the day is ignored, and
+          -- the generation process is continued.
           IF path IS NULL THEN
-            RAISE EXCEPTION 'The path of a trip cannot be NULL. '
-              'Source node: %, target node: %, k: %, noSegments: %', sourceNode, targetNode, k, noSegments;
+            RAISE INFO 'ERROR: The path of a trip cannot be NULL. '
+            RAISE INFO '       Source node: %, target node: %, k: %, noSegments: %',
+              sourceNode, targetNode, k, noSegments;
+            RAISE INFO '       The trip of vehicle % for day % is ignored', j, aDay;
+            CONTINUE vehicles_loop;
           END IF;
           startTime = t;
           trip = create_trip(path, t, disturbData, messages);
           IF trip IS NULL THEN
-            RAISE EXCEPTION 'A trip cannot be NULL';
+            RAISE INFO 'ERROR: A trip cannot be NULL';
+            RAISE INFO '  The trip of vehicle % for day % is ignored', j, aDay;
+            CONTINUE vehicles_loop;
           END IF;
           t = endTimestamp(trip);
           tripTime = t - startTime;
@@ -287,9 +305,13 @@ DECLARE
   -- Default: 2 seconds
   P_GPSINTERVAL interval = 2 * interval '1 ms';
 
-  -- Quantity of messages shown describing the generation process
-  -- Possible values are 'verbose', 'medium' and 'minimal'
-  P_MESSAGES text = 'minimal';
+  -- Quantity of messages shown describing the generation process.
+  -- Possible values are 'verbose', 'medium', 'minimal', and 'none'.
+  -- Choose 'none' to only show the main steps of the process. However,
+  -- for large scale factors, no message will be issued while executing steps
+  -- taking long time and it may seems that the generated is blocked.
+  -- You may change to 'minimal' to be sure that the generator is running.
+  P_MESSAGES text = 'none';
 
   -- Constants defining the values of the Vehicles table
   VEHICLETYPES text[] = '{"van", "truck", "pickup"}';
@@ -595,6 +617,13 @@ BEGIN
     INSERT INTO Paths(start_vid, end_vid, path_seq, node, edge, cost, agg_cost)
     SELECT start_vid, end_vid, path_seq, node, edge, cost, agg_cost
     FROM pgr_dijkstra(query1_pgr, query2_pgr, true);
+    IF messages = 'medium' OR messages = 'verbose' THEN
+      IF noCalls = 1 THEN
+        RAISE INFO '  Call ended at %', clock_timestamp();
+      ELSE
+        RAISE INFO '  Call number % ended at %', i, clock_timestamp();
+      END IF;
+    END IF;
   END LOOP;
   endPgr = clock_timestamp();
 
