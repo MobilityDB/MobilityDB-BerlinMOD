@@ -153,7 +153,7 @@ BEGIN
           -- is reported, the trip for the vehicle and the day is ignored, and
           -- the generation process is continued.
           IF path IS NULL THEN
-            RAISE INFO 'ERROR: The path of a trip cannot be NULL. '
+            RAISE INFO 'ERROR: The path of a trip cannot be NULL. ';
             RAISE INFO '       Source node: %, target node: %, k: %, noSegments: %',
               sourceNode, targetNode, k, noSegments;
             RAISE INFO '       The trip of vehicle % for day % is ignored', j, aDay;
@@ -594,11 +594,11 @@ BEGIN
   -- Get the total number of paths and number of calls to pgRouting
   SELECT COUNT(*) INTO noPaths FROM (SELECT DISTINCT source, target FROM Destinations) AS T;
   noCalls = ceiling(noPaths / P_PGROUTING_BATCH_SIZE::float);
-  IF messages = 'medium' OR messages = 'verbose' THEN
+  IF messages = 'minimal' OR messages = 'medium' OR messages = 'verbose' THEN
     IF noCalls = 1 THEN
-      RAISE INFO 'Call to pgRouting to compute % paths', noPaths;
+      RAISE INFO '  Call to pgRouting to compute % paths', noPaths;
     ELSE
-      RAISE INFO 'Call to pgRouting to compute % paths in % calls of % (source, target) couples each',
+      RAISE INFO '  Call to pgRouting to compute % paths in % calls of % (source, target) couples each',
         noPaths, noCalls, P_PGROUTING_BATCH_SIZE;
     END IF;
   END IF;
@@ -627,6 +627,9 @@ BEGIN
   END LOOP;
   endPgr = clock_timestamp();
 
+  IF messages = 'minimal' OR messages = 'medium' OR messages = 'verbose' THEN
+    RAISE INFO '  Adjusting directionality and creating indexes';
+  END IF;
   UPDATE Paths SET geom =
       -- adjusting directionality
       CASE
