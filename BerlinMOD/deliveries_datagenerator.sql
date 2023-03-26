@@ -196,7 +196,7 @@ BEGIN
         alltrips = '{}';
       END LOOP;
     ELSE
-      IF messages = 'medium' OR messages = 'verbose' THEN
+      IF messages = 'minimal' OR messages = 'medium' OR messages = 'verbose' THEN
         RAISE INFO '  No deliveries on Sunday';
       END IF;
     END IF;
