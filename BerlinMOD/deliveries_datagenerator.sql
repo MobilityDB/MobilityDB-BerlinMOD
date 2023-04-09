@@ -539,6 +539,7 @@ BEGIN
         END IF;
         sourceNode = warehouseNode;
         prevNodes = '{}';
+        prevNodes = prevNodes || warehouseNode;
         FOR k IN 1..noDest + 1 LOOP
           IF k <= noDest THEN
             targetNode = deliveries_selectDestNode(i, noNodes, prevNodes);
