@@ -156,6 +156,9 @@ BEGIN
             RAISE INFO '       Source node: %, target node: %, k: %, noSegments: %',
               sourceNode, targetNode, k, noSegments;
             RAISE INFO '       The trip of vehicle % for day % is ignored', j, aDay;
+            DELETE FROM Segments where deliveryId = delivId;
+            alltrips = '{}';
+            delivId = delivId + 1;
             CONTINUE vehicles_loop;
           END IF;
           startTime = t;
@@ -163,6 +166,9 @@ BEGIN
           IF trip IS NULL THEN
             RAISE INFO 'ERROR: A trip cannot be NULL';
             RAISE INFO '  The trip of vehicle % for day % is ignored', j, aDay;
+            DELETE FROM Segments where deliveryId = delivId;
+            alltrips = '{}';
+            delivId = delivId + 1;
             CONTINUE vehicles_loop;
           END IF;
           t = endTimestamp(trip);
