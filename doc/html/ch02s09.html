@@ -1,0 +1,76 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>Tuning the Generator Parameters</title><link rel="stylesheet" type="text/css" href="docbook.css"><meta name="generator" content="DocBook XSL Stylesheets Vsnapshot"><link rel="home" href="index.html" title="BerlinMOD Benchmark on MobilityDB"><link rel="up" href="ch02.html" title="Chapter 2. Generating Realistic Trajectory Datasets"><link rel="prev" href="ch02s08.html" title="Customizing the Generator to Your City"><link rel="next" href="ch02s10.html" title="Changing the Simulation Scenario"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Tuning the Generator Parameters</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="ch02s08.html">Prev</a> </td><th width="60%" align="center">Chapter 2. Generating Realistic Trajectory Datasets</th><td width="20%" align="right"> <a accesskey="n" href="ch02s10.html">Next</a></td></tr></table><hr></div><div class="sect1"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="datagen_parameters"></a>Tuning the Generator Parameters</h2></div></div></div><p>
+			Multiple parameters can be used to tune the generator according to your needs. We describe next these parameters.
+		</p><p>
+			A first set of primary parameters determine the global behaviour of the generator. These parameters can also be set by a corresponding optional argument when calling the function <code class="varname">berlinmod_generate</code>.
+		</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem"><p>
+					<code class="varname">P_SCALE_FACTOR: float</code>: Main parameter that determines the size of the data generated. Default value: 0.005. Corresponding optional argument: <code class="varname">scaleFactor</code>. By default, the scale factor determine the number of vehicles and the number of days they are observed as follows:
+					</p><pre class="programlisting">
+noVehicles int = round((2000 * sqrt(P_SCALE_FACTOR))::numeric, 0)::int;
+noDays int = round((sqrt(P_SCALE_FACTOR) * 28)::numeric, 0)::int;
+</pre><p>
+					For example, for a scale factor of 1.0, the number of vehicles and the number of days will be, respectively, 2000 and 28. Alternatively, you can manually set the number of vehicles or the number of days using the optional arguments <code class="varname">noVehicles</code> and <code class="varname">noDays</code>, which are both integers.
+				</p></li><li class="listitem"><p>
+					<code class="varname">P_START_DAY: date</code>: The day the observation starts. Default value: Monday 2020-01-06. Corresponding optional argument: <code class="varname">startDay</code>.
+				</p></li><li class="listitem"><p>
+					<code class="varname">P_PATH_MODE: text</code>: Method for selecting a path between source and target nodes. Possible values are <code class="varname">'Fastest Path'</code> (default) and <code class="varname">'Shortest Path'</code>. Corresponding optional argument: <code class="varname">pathMode</code>.
+				</p></li><li class="listitem"><p>
+					<code class="varname">P_NODE_CHOICE: text</code>: Method for selecting home and work nodes. Possible values are <code class="varname">'Network Based'</code> for chosing the nodes with a uniform distribution among all nodes (default) and <code class="varname">'Region Based'</code> to use the population and number of enterprises statistics in the <code class="varname">Regions</code> tables. Corresponding optional argument: <code class="varname">nodeChoice</code>.
+				</p></li><li class="listitem"><p>
+					<code class="varname">P_DISTURB_DATA: boolean</code>: Determine whether imprecision is added to the data generated. Possible values are false (no imprecision, default) and true (disturbed data). Corresponding optional argument: <code class="varname">disturbData</code>.
+				</p></li><li class="listitem"><p>
+					<code class="varname">P_MESSAGES: text</code>: Quantity of messages shown describing the generation process. Possible values are <code class="varname">'minimal'</code>, <code class="varname">'mediummmm'</code>, <code class="varname">'verbose'</code>, and <code class="varname">'debug'</code>. Corresponding optional argument: <code class="varname">messages</code>.
+				</p></li><li class="listitem"><p>
+					<code class="varname">P_TRIP_GENERATION: text</code>: Determine the language used to generate the trips. Possible values are <code class="varname">'C'</code> (default) and <code class="varname">'SQL'</code>. Corresponding optional argument: <code class="varname">tripGeneration</code>. This parameter determines whether the SQL function <code class="varname">createTrip</code> in the file <code class="varname">berlinmod_datagenerator.sql</code> or the C function <code class="varname">create_trip</code> in the distribution of MobilityDB will be used for generating trips. Although the C function is faster than the corresponding SQL function, the SQL function can be easily modified to further customize the data generation.
+				</p></li></ul></div><p>
+			For example, possible calls of the <code class="varname">berlinmod_generate</code> function setting values for the parameters are as follows.
+			</p><pre class="programlisting">
+-- Use all default values
+SELECT berlinmod_generate();
+-- Set the scale factor and use all other default values
+SELECT berlinmod_generate(scaleFactor := 2.0);
+-- Set the number of vehicles and number of days
+SELECT berlinmod_generate(noVehicles := 10, noDays := 10);
+</pre><p>
+		</p><p>
+			Another set of parameters determining the global behaviour of the generator are given next.
+		</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem"><p>
+					<code class="varname">P_RANDOM_SEED: float</code>: Seed for the random generator used to ensure deterministic results. Default value: 0.5.
+				</p></li><li class="listitem"><p>
+					<code class="varname">P_NEIGHBOURHOOD_RADIUS: float</code>: Radius in meters defining a node neigbourhood. Default value: 3000.0.
+				</p></li><li class="listitem"><p>
+					<code class="varname">P_SAMPLE_SIZE: int</code>: Size for sample relations. Default value: 100.
+				</p></li><li class="listitem"><p>
+					<code class="varname">P_VEHICLE_TYPES: text[]</code>: Set of vehicle types. Default value: <code class="varname">{"passenger", "bus", "truck"}</code>.
+				</p></li><li class="listitem"><p>
+					<code class="varname">P_VEHICLE_MODELS: text[]</code>: Set of vehicle models. Default value:
+					</p><pre class="programlisting">
+{"Mercedes-Benz", "Volkswagen", "Maybach", "Porsche", "Opel", "BMW", "Audi", "Acabion",
+"Borgward", "Wartburg", "Sachsenring", "Multicar"}
+</pre><p>
+				</p></li><li class="listitem"><p>
+					<code class="varname">P_PGROUTING_BATCH_SIZE: int</code>: Number of paths sent in a batch to pgRouting. Default value: 1e5
+					.</p></li></ul></div><p>
+			Another set of paramaters determine how the trips are created out of the paths.
+		</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem"><p>
+					<code class="varname">P_EPSILON_SPEED: float</code>: Minimum speed in Km/h that is considered as a stop and thus only an accelaration event can be applied. Default value: 1.0.
+				</p></li><li class="listitem"><p>
+					<code class="varname">P_EPSILON: float</code>: Minimum distance in the units of the coordinate system that is considered as zero. Default value: 0.0001.
+				</p></li><li class="listitem"><p>
+					<code class="varname">P_EVENT_C: float</code>: The probability of a stop or a deceleration event is proportional to <code class="varname">P_EVENT_C / maxspeed</code>. Default value: 1.0
+				</p></li><li class="listitem"><p>
+					<code class="varname">P_EVENT_P: float</code>: The probability for an event to be a stop. The complement 1.0 - <code class="varname">P_EVENT_P</code> is the probability for an event to be a deceleration. Default value: 0.1
+				</p></li><li class="listitem"><p>
+					<code class="varname">P_EVENT_LENGTH: float</code>: Sampling distance in meters at which an acceleration, deceleration, or stop event may be generated. Default value: 5.0.
+				</p></li><li class="listitem"><p>
+					<code class="varname">P_EVENT_ACC: float</code>: Constant speed in Km/h that is added to the current speed in an acceleration event. Default value: 12.0.
+				</p></li><li class="listitem"><p>
+					<code class="varname">P_DEST_STOPPROB: float</code>: Probabilities for forced stops at crossings depending on the road type. It is defined by a transition matrix where lines and columns are ordered by side road (S), main road (M), freeway (F). The OSM highway types must be mapped to one of these categories in the function <code class="varname">berlinmod_roadCategory</code>. Default value:
+					</p><pre class="programlisting">
+{{0.33, 0.66, 1.00}, {0.33, 0.50, 0.66}, {0.10, 0.33, 0.05}}
+</pre><p>
+				</p></li><li class="listitem"><p>
+					<code class="varname">P_DEST_EXPMU: float</code>: Mean waiting time in seconds using an exponential distribution.
+Increasing/decreasing this parameter allows us to slow down or speed up the trips. Could be think of as a measure of network congestion. Given a specific path, fine-tuning this parameter enable us to obtain an average travel time for this path that is the same as the expected travel time computed by a routing service such as, e.g., Google Maps. Default value: 1.0.
+				</p></li><li class="listitem"><p>
+					<code class="varname">P_GPS_TOTALMAXERR: float</code> and <code class="varname">P_GPS_STEPMAXERR: float</code>: Parameters for simulating measuring errors. They are only required when the parameter <code class="varname">P_DISTURB_DATA</code> is true. They are, respectively, the maximum total deviation from the real position and maximum deviation per step, both in meters. Default values: 100.0 and 1.0.
+				</p></li></ul></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="ch02s08.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="ch02.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="ch02s10.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Customizing the Generator to Your City </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> Changing the Simulation Scenario</td></tr></table></div></body></html>

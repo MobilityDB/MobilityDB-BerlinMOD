@@ -1,0 +1,69 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>Quick Start</title><link rel="stylesheet" type="text/css" href="docbook.css"><meta name="generator" content="DocBook XSL Stylesheets Vsnapshot"><link rel="home" href="index.html" title="BerlinMOD Benchmark on MobilityDB"><link rel="up" href="ch02.html" title="Chapter 2. Generating Realistic Trajectory Datasets"><link rel="prev" href="ch02s03.html" title="Tools and Data"><link rel="next" href="ch02s05.html" title="Exporting the Generated Data"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Quick Start</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="ch02s03.html">Prev</a> </td><th width="60%" align="center">Chapter 2. Generating Realistic Trajectory Datasets</th><td width="20%" align="right"> <a accesskey="n" href="ch02s05.html">Next</a></td></tr></table><hr></div><div class="sect1"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="datagen_quickstart"></a>Quick Start</h2></div></div></div><p>
+		Running the generator is done in three steps:
+		</p><p>
+		<span class="emphasis"><em>Firstly, load the street network</em></span>. Create a new database <code class="varname">brussels</code>, then add the extensions hstore, PostGIS, MobilityDB, and pgRouting to it.
+			</p><pre class="programlisting">
+# in a console:
+createdb -h localhost -p 5432 -U dbowner brussels
+# replace localhost with your database host, 5432 with your port, 
+# and dbowner with your database user 
+
+psql -h localhost -p 5432 -U dbowner -d brussels -c 'CREATE EXTENSION hstore'
+# adds the hstore extension needed by osm2pgsql
+
+psql -h localhost -p 5432 -U dbowner -d brussels -c 'CREATE EXTENSION MobilityDB CASCADE'
+# adds the PostGIS and the MobilityDB extensions to the database
+
+psql -h localhost -p 5432 -U dbowner -d brussels -c 'CREATE EXTENSION pgRouting'
+# adds the pgRouting extension
+</pre><p>
+			For the moment, we will use the OSM map of Brussels. It is given in the data section of this workshop in the two files: <code class="varname">brussels.osm, mapconfig_brussels.xml</code>. In the next sections, we will explain how to use other maps. It has been downloaded using the Overpass API, hence it is by default in Spherical Mercator (SRID 3857), which is good for calculating distances. Next load the map and convert it into a routable network topology format suitable for pgRouting.
+			</p><pre class="programlisting">
+# in a console, go to the generatorHome then:
+osm2pgrouting -h localhost -p 5432 -U dbowner -W passwd -f brussels.osm --dbname brussels \
+-c mapconfig_brussels.xml
+</pre><p>
+			The configuration file <code class="varname">mapconfig_brussels.xml</code> tells osm2pgrouting which are the roads that will be selected to build the road network as well as the speed limits of the different road types. During the conversion, osm2pgrouting transforms the data into WGS84 (SRID 4326), so we will need later to convert it back to SRID 3857.
+		</p><p>
+		<span class="emphasis"><em>Secondly, prepare the base data for the simulation.</em></span> Now, the street network is ready in the database. The simulation scenario requires to sample home and work locations. To make it realistic, we want to load a map of the administrative regions of Brussels (called communes) and feed the simulator with real population and employment statistics in every commune.
+		</p><p>
+			Load the administrative regions from the downloaded <code class="varname">brussels.osm</code> file, then run the <code class="varname">brussels_generatedata.sql</code> script using your PostgreSQL client, for example:
+			</p><pre class="programlisting">
+osm2pgsql -c -H localhost -P 5432 -U dbowner -W -d brussels brussels.osm
+# loads all layers in the osm file, including the adminstrative regions 
+
+psql -h localhost -p 5432 -U dbowner -d brussels -f brussels_preparedata.sql
+# samples home and work nodes, transforms data to SRID 3857, does further data preparation
+
+psql -h localhost -p 5432 -U dbowner -d brussels -f berlinmod_datagenerator.sql
+# adds the pgplsql functions of the simulation to the database
+</pre><p>
+		</p><p>
+		<span class="emphasis"><em>Finally, run the generator.</em></span>
+			</p><pre class="programlisting">
+psql -h localhost -p 5432 -U dbowner -d brussels \
+-c 'select berlinmod_generate(scaleFactor := 0.005)'
+# calls the main pgplsql function to start the simulation
+</pre><p>
+			If everything is correct, you should see an output like that starts with this:
+			</p><pre class="programlisting">
+INFO:  ------------------------------------------------------------------
+INFO:  Starting the BerlinMOD data generator with scale factor 0.005
+INFO:  ------------------------------------------------------------------
+INFO:  Parameters:
+INFO:  ------------
+INFO:  No. of vehicles = 141, No. of days = 4, Start day = 2020-06-01
+INFO:  Path mode = Fastest Path, Disturb data = f
+INFO:  Verbosity = minimal, Trip generation = C
+...
+</pre><p>
+			The generator will take about one minute. It will generate trajectories, according to the default parameters, for 141 cars over 4 days starting from Monday, June 1<sup>st</sup> 2020. As you may have guessed, it is possible to generate more or less data by respectively passing a bigger or a smaller scale factor value. If you want to save the messages produced by the generator in a file you can use a command such as the following one.
+			</p><pre class="programlisting">
+psql -h localhost -p 5432 -U dbowner -d brussels -c \
+"SELECT berlinmod_generate(scaleFactor := 0.005, messages := 'medium')" 2&gt;&amp;1 | \
+tee trace.txt
+</pre><p>
+			You can show more messages describing the generation process by setting the optional parameter <code class="varname">messages</code> with one of the values <code class="varname">minimal</code> (the default), <code class="varname">medium</code>, <code class="varname">verbose</code>, or <code class="varname">debug</code>. In <a class="xref" href="ch02s08.html" title="Customizing the Generator to Your City">the section called “Customizing the Generator to Your City”</a> are explained all the parameters that can be used to customize the simulation.
+		</p><p>
+			We have shown in <a class="xref" href="ch01s04.html#berlinmod_visualization" title="Figure 1.2. Visualization of the trips in QGIS. The streets are shown in blue, the trips are shown in black, the home nodes in black and the work nodes in red.">Figure 1.2, “Visualization of the trips in QGIS. The streets are shown in blue, the trips are shown in black, the home nodes in black and the work nodes in red.”</a> a visualization of the trips generated in QGIS.
+		</p></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="ch02s03.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="ch02.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="ch02s05.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Tools and Data </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> Exporting the Generated Data</td></tr></table></div></body></html>

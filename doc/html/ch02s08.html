@@ -1,0 +1,27 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>Customizing the Generator to Your City</title><link rel="stylesheet" type="text/css" href="docbook.css"><meta name="generator" content="DocBook XSL Stylesheets Vsnapshot"><link rel="home" href="index.html" title="BerlinMOD Benchmark on MobilityDB"><link rel="up" href="ch02.html" title="Chapter 2. Generating Realistic Trajectory Datasets"><link rel="prev" href="ch02s07.html" title="Understanding the Generation Process"><link rel="next" href="ch02s09.html" title="Tuning the Generator Parameters"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Customizing the Generator to Your City</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="ch02s07.html">Prev</a> </td><th width="60%" align="center">Chapter 2. Generating Realistic Trajectory Datasets</th><td width="20%" align="right"> <a accesskey="n" href="ch02s09.html">Next</a></td></tr></table><hr></div><div class="sect1"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="datagen_customizing"></a>Customizing the Generator to Your City</h2></div></div></div><p>
+			In order to customize the generator to a particular city the only thing we need is to define a bounding box that will be used to download the data from OSM. There are many ways to obtain such a bounding box, and a typical way to proceed is to use one of the multiple online services that allows one to visually define a bounding box over a map. <a class="xref" href="ch02s08.html#barcelona_bbox" title="Figure 2.5. Defining the bounding box for obtaining OSM data from Barcelona.">Figure 2.5, “Defining the bounding box for obtaining OSM data from Barcelona.”</a> shows how we can define the bounding box around Barcelona using the web site <a class="ulink" href="http://bboxfinder.com/" target="_top">bboxfinder</a>.
+		</p><div class="figure-float"><div class="figure"><a name="barcelona_bbox"></a><p class="title"><b>Figure 2.5. Defining the bounding box for obtaining OSM data from Barcelona.</b></p><div class="figure-contents"><div class="mediaobject"><img src="images/barcelona_bbox.png" alt="Defining the bounding box for obtaining OSM data from Barcelona."></div></div></div><br class="figure-break"></div><p>
+			After obtaining the bounding box, we can proceed as we stated in <a class="xref" href="ch02s04.html" title="Quick Start">the section called “Quick Start”</a>.
+			We create a new database <code class="varname">barcelona</code>, then add both PostGIS, MobilityDB, and pgRouting to it.
+			</p><pre class="programlisting">
+CREATE EXTENSION mobilitydb CASCADE;
+CREATE EXTENSION pgRouting;
+</pre><p>
+			Then, we download the OSM data from Barcelona using the Overpass API by writing the following in a terminal:
+			</p><pre class="programlisting">
+CITY="barcelona"
+BBOX="2.042084,41.267743,2.258720,41.445043"
+wget --progress=dot:mega -O "$CITY.osm" 
+"http://www.overpass-api.de/api/xapi?*[bbox=${BBOX}][@meta]"
+</pre><p>
+
+			We can optionally reduce the size of the OSM file as follows
+			</p><pre class="programlisting">
+sed -r "s/version=\"[0-9]+\" timestamp=\"[^\"]+\" changeset=\"[0-9]+\" uid=\"[0-9]+\" 
+user=\"[^\"]+\"//g" barcelona.osm -i.org
+</pre><p>
+			Finally, we load the map and convert it into a routable format suitable for pgRouting as follows.
+			</p><pre class="programlisting">
+osm2pgrouting -f barcelona.osm --dbname barcelona -c mapconfig_brussels.xml
+</pre><p>
+		</p></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="ch02s07.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="ch02.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="ch02s09.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Understanding the Generation Process </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> Tuning the Generator Parameters</td></tr></table></div></body></html>

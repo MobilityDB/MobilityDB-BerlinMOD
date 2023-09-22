@@ -1,0 +1,352 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>Creating a Graph from Input Data</title><link rel="stylesheet" type="text/css" href="docbook.css"><meta name="generator" content="DocBook XSL Stylesheets Vsnapshot"><link rel="home" href="index.html" title="BerlinMOD Benchmark on MobilityDB"><link rel="up" href="ch02.html" title="Chapter 2. Generating Realistic Trajectory Datasets"><link rel="prev" href="ch02s10.html" title="Changing the Simulation Scenario"><link rel="next" href="ch03.html" title="Chapter 3. BerlinMOD Benchmark on MobilityDB"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Creating a Graph from Input Data</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="ch02s10.html">Prev</a> </td><th width="60%" align="center">Chapter 2. Generating Realistic Trajectory Datasets</th><td width="20%" align="right"> <a accesskey="n" href="ch03.html">Next</a></td></tr></table><hr></div><div class="sect1"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="creategraph"></a>Creating a Graph from Input Data</h2></div></div></div><p>
+			In this workshop, we have used until now the network topology obtained by osm2pgrouting. However, in some circumstances it is necessary to build the network topology ourselves, for example, when the data comes from other sources than OSM, such as data from an official mapping agency. In this section we show how to build the network topology from input data. We import Brussels data from OSM into a PostgreSQL database using osm2pgsql. Then, we construct the network topology using SQL so that the resulting graph can be used with pgRouting. We show two approaches for doing this, depending on whether we want to keep the original roads of the input data or we want to merge roads when they have similar characteristics such as road type, direction, maximum speed, etc. At the end, we compare the two networks obtained with the one obtained by osm2pgrouting.
+		</p><div class="sect2"><div class="titlepage"><div><div><h3 class="title"><a name="create_graph"></a>Creating the Graph</h3></div></div></div><p>
+				As we did at the beginning of this chapter, we load the OSM data from Brussels into PostgreSQL with the following command.
+				</p><pre class="programlisting">
+osm2pgsql --create --database brussels --host localhost brussels.osm
+</pre><p>
+				The table <code class="varname">planet_osm_line</code> contains all linear features imported from OSM, in particular road data, but also many other features which are not relevant for our use case such as pedestrian paths, cycling ways, train ways, electric lines, etc. Therefore, we use the attribute <code class="varname">highway</code> to extract the roads from this table. We first create a table containing the road types we are interested in and associate to them a priority, a maximum speed, and a category as follows.
+				</p><pre class="programlisting">
+DROP TABLE IF EXISTS RoadTypes;
+CREATE TABLE RoadTypes(id int PRIMARY KEY, type text, priority float, maxspeed float,
+category int);
+INSERT INTO RoadTypes VALUES
+(101, 'motorway', 1.0, 120, 1),
+(102, 'motorway_link', 1.0, 120, 1),
+(103, 'motorway_junction', 1.0, 120, 1),
+(104, 'trunk', 1.05, 120, 1),
+(105, 'trunk_link', 1.05, 120, 1),
+(106, 'primary', 1.15, 90, 2),
+(107, 'primary_link', 1.15, 90, 1),
+(108, 'secondary', 1.5, 70, 2),
+(109, 'secondary_link', 1.5, 70, 2),
+(110, 'tertiary', 1.75, 50, 2),
+(111, 'tertiary_link', 1.75, 50, 2),
+(112, 'residential', 2.5, 30, 3),
+(113, 'living_street', 3.0, 20, 3),
+(114, 'unclassified', 3.0, 20, 3),
+(115, 'service', 4.0, 20, 3),
+(116, 'services', 4.0, 20, 3);
+</pre><p>
+				Then, we create a table that contains the roads corresponding to one of the above types as follows.
+				</p><pre class="programlisting">
+DROP TABLE IF EXISTS Roads;
+CREATE TABLE Roads AS
+SELECT osm_id, admin_level, bridge, cutting, highway, junction, name, oneway, operator,
+ref, route, surface, toll, tracktype, tunnel, width, way AS geom
+FROM planet_osm_line
+WHERE highway IN (SELECT type FROM RoadTypes);
+
+CREATE INDEX Roads_geom_idx ON Roads USING GiST(geom);
+</pre><p>
+			</p><p>
+				We then create a table that contains all intersections between two roads as follows:
+				</p><pre class="programlisting">
+DROP TABLE IF EXISTS Intersections;
+CREATE TABLE Intersections AS
+WITH Temp1 AS (
+  SELECT ST_Intersection(a.geom, b.geom) AS geom
+  FROM Roads a, Roads b
+  WHERE a.osm_id &lt; b.osm_id AND ST_Intersects(a.geom, b.geom) ),
+Temp2 AS (
+  SELECT DISTINCT geom
+  FROM Temp1
+  WHERE geometrytype(geom) = 'POINT'
+  UNION
+  SELECT (ST_DumpPoints(geom)).geom
+  FROM Temp1
+  WHERE geometrytype(geom) = 'MULTIPOINT' )
+SELECT ROW_NUMBER() OVER () AS id, geom
+FROM Temp2;
+
+CREATE INDEX Intersections_geom_idx ON Intersections USING GIST(geom);
+</pre><p>
+				The temporary table <code class="varname">Temp1</code> computes all intersections between two different roads, while the temporary table <code class="varname">Temp2</code> selects all intersections of type point and splits the intersections of type multipoint into the component points with the function <code class="varname">ST_DumpPoints</code>. Finally, the last query adds a sequence identifier to the resulting intersections.
+			</p><p>
+				Our next task is to use the table <code class="varname">Intersections</code> we have just created to split the roads. This is done as follows.
+				</p><pre class="programlisting">
+DROP TABLE IF EXISTS Segments;
+CREATE TABLE Segments AS
+SELECT DISTINCT osm_id, (ST_Dump(ST_Split(R.geom, I.geom))).geom
+FROM Roads R, Intersections I
+WHERE ST_Intersects(R.Geom, I.geom);
+
+CREATE INDEX Segments_geom_idx ON Segments USING GIST(geom);
+</pre><p>
+				The function <code class="varname">ST_Split</code> breaks the geometry of a road using an intersection and the function <code class="varname">ST_Dump</code> obtains the individual segments resulting from the splitting. However, as shown in the following query, there are duplicate segments with distinct <code class="varname">osm_id</code>.
+				</p><pre class="programlisting">
+SELECT S1.osm_id, S2.osm_id
+FROM Segments S1, Segments S2
+WHERE S1.osm_id &lt; S2.osm_id AND st_intersects(S1.geom, S2.geom) AND 
+  ST_Equals(S1.geom, S2.geom);
+-- 490493551  740404156
+-- 490493551  740404157
+</pre><p>
+				We can remove those duplicates segments with the following query, which keeps arbitrarily the smaller <code class="varname">osm_id</code>.
+				</p><pre class="programlisting">
+DELETE FROM Segments S1
+USING Segments S2
+WHERE S1.osm_id &gt; S2.osm_id AND ST_Equals(S1.geom, S2.geom);
+</pre><p>
+				We can obtain some characteristics of the segments with the following queries.
+				</p><pre class="programlisting">
+SELECT DISTINCT geometrytype(geom) FROM Segments;
+-- "LINESTRING"
+
+SELECT min(ST_NPoints(geom)), max(ST_NPoints(geom)) FROM Segments;
+-- 2	283
+</pre><p>
+			</p><p>
+				Now we are ready to obtain a first set of nodes for our graph.
+				</p><pre class="programlisting">
+DROP TABLE IF EXISTS TempNodes;
+CREATE TABLE TempNodes AS
+WITH Temp(geom) AS (
+  SELECT ST_StartPoint(geom) FROM Segments UNION
+  SELECT ST_EndPoint(geom) FROM Segments )
+SELECT ROW_NUMBER() OVER () AS id, geom
+FROM Temp;
+
+CREATE INDEX TempNodes_geom_idx ON TempNodes USING GIST(geom);
+</pre><p>
+				The above query select as nodes the start and the end points of the segments and assigns to each of them a sequence identifier. We construct next the set of edges of our graph as follows.
+				</p><pre class="programlisting">
+DROP TABLE IF EXISTS Edges;
+CREATE TABLE Edges(id bigint, osm_id bigint, tag_id int, length_m float, source bigint,
+  target bigint, cost_s float, reverse_cost_s float, one_way int, maxspeed float,
+  priority float, geom geometry);
+INSERT INTO Edges(id, osm_id, source, target, geom, length_m)
+SELECT ROW_NUMBER() OVER () AS id, S.osm_id, N1.id AS source, N2.id AS target, S.geom,
+  ST_Length(S.geom) AS length_m
+FROM Segments S, TempNodes N1, TempNodes N2
+WHERE ST_Intersects(ST_StartPoint(S.geom), N1.geom) AND
+  ST_Intersects(ST_EndPoint(S.geom), N2.geom);
+
+CREATE UNIQUE INDEX Edges_id_idx ON Edges USING BTREE(id);
+CREATE INDEX Edges_geom_index ON Edges USING GiST(geom);
+</pre><p>
+				The above query connects the segments obtained previously to the source and target nodes. We can verify that all edges were connected correctly to their source and target nodes using the following query.
+				</p><pre class="programlisting">
+SELECT count(*) FROM Edges WHERE source IS NULL OR target IS NULL;
+-- 0
+</pre><p>
+			</p><p>
+				Now we can fill the other attributes of the edges. We start first with the attributes <code class="varname">tag_id</code>, <code class="varname">priority</code>, and <code class="varname">maxspeed</code>, which are obtained from the table <code class="varname">RoadTypes</code> using the attribute <code class="varname">highway</code>.
+				</p><pre class="programlisting">
+UPDATE Edges E
+SET tag_id = T.id, priority = T.priority, maxspeed = T.maxSpeed
+FROM Roads R, RoadTypes T
+WHERE E.osm_id = R.osm_id AND R.highway = T.type;
+</pre><p>
+				We continue with the attribute <code class="varname">one_way</code> according to the <a class="ulink" href="https://wiki.openstreetmap.org/wiki/Key:oneway" target="_top">semantics</a> stated in the OSM documentation.
+				</p><pre class="programlisting">
+UPDATE Edges E
+SET one_way = CASE
+  WHEN R.oneway = 'yes' OR R.oneway = 'true' OR R.oneway = '1' THEN 1 -- Yes
+  WHEN R.oneway = 'no' OR R.oneway = 'false' OR R.oneway = '0' THEN 2 -- No
+  WHEN R.oneway = 'reversible' THEN 3 -- Reversible
+  WHEN R.oneway = '-1' OR R.oneway = 'reversed' THEN -1 -- Reversed
+  WHEN R.oneway IS NULL THEN 0 -- Unknown
+  END
+FROM Roads R
+WHERE E.osm_id = R.osm_id;
+</pre><p>
+				We compute the implied one way restriction based on OSM documentation as follows.
+				</p><pre class="programlisting">
+UPDATE Edges E
+SET one_way = 1
+FROM Roads R
+WHERE E.osm_id = R.osm_id AND R.oneway IS NULL AND
+  (R.junction = 'roundabout' OR R.highway = 'motorway');
+</pre><p>
+				Finally, we compute the cost and reverse cost in seconds according to the length and the maximum speed of the edge.
+				</p><pre class="programlisting">
+UPDATE Edges E SET
+cost_s = CASE
+  WHEN one_way = -1 THEN - length_m / (maxspeed / 3.6)
+  ELSE length_m / (maxspeed / 3.6)
+  END,
+reverse_cost_s = CASE
+  WHEN one_way = 1 THEN - length_m / (maxspeed / 3.6)
+  ELSE length_m / (maxspeed / 3.6)
+  END;
+</pre><p>
+			</p><p>
+				Our last task is to compute the strongly connected components of the graph. This is necessary to ensure that there is a path between every couple of arbritrary nodes in the graph.
+				</p><pre class="programlisting">
+DROP TABLE IF EXISTS Nodes;
+CREATE TABLE Nodes AS
+WITH Components AS (
+  SELECT * FROM pgr_strongComponents(
+    'SELECT id, source, target, length_m AS cost, '
+    'length_m * sign(reverse_cost_s) AS reverse_cost FROM Edges') ),
+LargestComponent AS (
+  SELECT component, count(*) FROM Components
+  GROUP BY component ORDER BY count(*) DESC LIMIT 1 ),
+Connected AS (
+  SELECT geom
+  FROM TempNodes N, LargestComponent L, Components C
+  WHERE N.id = C.node AND C.component = L.component )
+SELECT ROW_NUMBER() OVER () AS id, geom
+FROM Connected;
+
+CREATE UNIQUE INDEX Nodes_id_idx ON Nodes USING BTREE(id);
+CREATE INDEX Nodes_geom_idx ON Nodes USING GiST(geom);
+</pre><p>
+				The temporary table <code class="varname">Components</code> is obtained by calling the function <code class="varname">pgr_strongComponents</code> from pgRouting, the temporary table <code class="varname">LargestComponent</code> selects the largest component from the previous table, and the temporary table <code class="varname">Connected</code> selects all nodes that belong to the largest component. Finally, the last query assigns a sequence identifier to all nodes.
+			</p><p>
+				Now that we computed the nodes of the graph, we need to link the edges with the identifiers of these nodes. This is done as follows.
+				</p><pre class="programlisting">
+UPDATE Edges SET source = NULL, target = NULL;
+
+UPDATE Edges E SET
+  source = N1.id, target = N2.id
+FROM Nodes N1, Nodes N2
+WHERE ST_Intersects(E.geom, N1.geom) AND ST_StartPoint(E.geom) = N1.geom AND
+  ST_Intersects(E.geom, N2.geom) AND ST_EndPoint(E.geom) = N2.geom;
+</pre><p>
+				We first set the identifiers of the source and target nodes to NULL before connecting them to the identifiers of the node.
+
+				Finally, we delete the edges whose source or target node has been removed.
+				</p><pre class="programlisting">
+DELETE FROM Edges WHERE source IS NULL OR target IS NULL;
+-- DELETE 1080
+</pre><p>
+			</p><p>
+				In order to compare the graph we have just obtained with the one obtained by osm2pgrouting we can issue the following queries.
+				</p><pre class="programlisting">
+SELECT count(*) FROM Ways;
+-- 83017
+SELECT count(*) FROM Edges;
+-- 81073
+SELECT count(*) FROM Ways_vertices_pgr;
+-- 66832
+SELECT count(*) FROM Nodes;
+-- 45494
+</pre><p>
+				As can be seen, we have reduced the size of the graph. This can also be shown in <a class="xref" href="ch02s11.html#node_comp1" title="Figure 2.8. Comparison of the nodes obtained (in blue) with those obtained by osm2pgrouting (in red).">Figure 2.8, “Comparison of the nodes obtained (in blue) with those obtained by osm2pgrouting (in red).”</a>, where the nodes we have obtained are shown in blue and the ones obtained by osm2pgrouting are shown in red. It can be seen that osm2pgrouting adds many more nodes to the graph, in particular, at the intersection of a road and a pedestrian crossing. Our method only adds nodes when there is an intersection between two roads. We will show in the next section how this network can still be optimized by removing unnecessary nodes and merging the corresponding edges.
+			</p><div class="figure-float"><div class="figure"><a name="node_comp1"></a><p class="title"><b>Figure 2.8. Comparison of the nodes obtained (in blue) with those obtained by osm2pgrouting (in red).</b></p><div class="figure-contents"><div class="mediaobject"><img src="images/node_comp1.png" alt="Comparison of the nodes obtained (in blue) with those obtained by osm2pgrouting (in red)."></div></div></div><br class="figure-break"></div></div><div class="sect2"><div class="titlepage"><div><div><h3 class="title"><a name="idm925"></a>Linear Contraction of the Graph</h3></div></div></div><p>
+				We show next a possible approach to contract the graph. This approach corresponds to <a class="ulink" href="https://docs.pgrouting.org/3.0/en/contraction-family.html" target="_top">linear contraction</a> provided by pgRouting although we do it differently by taking into account the type, the direction, and the geometry of the roads. For this, we get the initial roads to merge as we did previously but now we put them in a table <code class="varname">TempRoads</code>.
+				</p><pre class="programlisting">
+DROP TABLE IF EXISTS TempRoads;
+CREATE TABLE TempRoads AS
+SELECT osm_id, admin_level, bridge, cutting, highway, junction, name, oneway, operator,
+  ref, route, surface, toll, tracktype, tunnel, width, way AS geom
+FROM planet_osm_line
+WHERE highway IN (SELECT type FROM RoadTypes);
+-- SELECT 37045
+CREATE INDEX TempRoads_geom_idx ON TempRoads USING GiST(geom);
+</pre><p>
+				Then, we use the following procedure to merge the roads.
+				</p><pre class="programlisting">
+CREATE OR REPLACE FUNCTION mergeRoads()
+RETURNS void LANGUAGE PLPGSQL AS $$
+DECLARE
+  i integer = 1;
+  cnt integer;
+BEGIN
+  -- Create tables
+  DROP TABLE IF EXISTS MergedRoads;
+  CREATE TABLE MergedRoads AS
+  SELECT *, '{}'::bigint[] AS path
+  FROM TempRoads;
+  CREATE INDEX MergedRoads_geom_idx ON MergedRoads USING GIST(geom);
+  DROP TABLE IF EXISTS Merge;
+  CREATE TABLE Merge(osm_id1 bigint, osm_id2 bigint, geom geometry);
+  DROP TABLE IF EXISTS DeletedRoads;
+  CREATE TABLE DeletedRoads(osm_id bigint);
+  -- Iterate until no geometry can be extended
+  LOOP
+    RAISE INFO 'Iteration %', i;
+    i = i + 1;
+    -- Compute the union of two roads
+    DELETE FROM Merge;
+    INSERT INTO Merge
+    SELECT R1.osm_id AS osm_id1, R2.osm_id AS osm_id2,
+      ST_LineMerge(ST_Union(R1.geom, R2.geom)) AS geom
+    FROM MergedRoads R1, TempRoads R2
+    WHERE R1.osm_id &lt;&gt; R2.osm_id AND R1.highway = R2.highway AND
+      R1.oneway = R2.oneway AND ST_Intersects(R1.geom, R2.geom) AND
+      ST_EndPoint(R1.geom) = ST_StartPoint(R2.geom) AND NOT EXISTS (
+        SELECT * FROM TempRoads R3
+        WHERE osm_id NOT IN (SELECT osm_id FROM DeletedRoads) AND
+          R3.osm_id &lt;&gt; R1.osm_id AND R3.osm_id &lt;&gt; R2.osm_id AND
+          ST_Intersects(R3.geom, ST_StartPoint(R2.geom)) ) AND
+      geometryType(ST_LineMerge(ST_Union(R1.geom, R2.geom))) = 'LINESTRING'
+      AND NOT St_Equals(ST_LineMerge(ST_Union(R1.geom, R2.geom)), R1.geom);
+    -- Exit if there is no more roads to extend
+    SELECT count(*) INTO cnt FROM Merge;
+    RAISE INFO 'Extended % roads', cnt;
+    EXIT WHEN cnt = 0;
+    -- Extend the geometries
+    UPDATE MergedRoads R SET
+      geom = M.geom,
+      path = R.path || osm_id2
+    FROM Merge M
+    WHERE R.osm_id = M.osm_id1;
+    -- Keep track of redundant roads
+    INSERT INTO DeletedRoads
+    SELECT osm_id2 FROM Merge
+    WHERE osm_id2 NOT IN (SELECT osm_id FROM DeletedRoads);
+  END LOOP;
+  -- Delete redundant roads
+  DELETE FROM MergedRoads R USING DeletedRoads M
+  WHERE R.osm_id = M.osm_id;
+  -- Drop tables
+  DROP TABLE Merge;
+  DROP TABLE DeletedRoads;
+  RETURN;
+END; $$
+</pre><p>
+			</p><p>
+				The procedure starts by creating a table <code class="varname">MergedRoads</code> obtained by adding a column <code class="varname">path</code> to the table <code class="varname">TempRoads</code> created before. This column keeps track of the identifiers of the roads that are merged with the current one and is initialized to an empty array. It also creates two tables <code class="varname">Merge</code> and <code class="varname">DeletedRoads</code> that will contain, respectively, the result of merging two roads, and the identifiers of the roads that will be deleted at the end of the process. The procedure then iterates while there is at least one road that can be extended with the geometry of another one to which it connects to. More precisely, a road can be extended with the geometry of another one if they are of the same type and the same direction (as indicated by the attributes <code class="varname">highway</code> and <code class="varname">one_way</code>), the end point of the road is the start point of the other road, and this common point is not a crossing, that is, there is no other road that starts and this common point. Notice that we only merge roads if their resulting geometry is a linestring and we avoid infinite loops by verifying that the merge of the two roads is different from the original geometry. After that, we update the roads with the new geometries and add the identifier of the road used to extend the geometry into the <code class="varname">path</code> attribute and the <code class="varname">DeletedRoads</code> table. After exiting the loop, the procedure finishes by removing unnecessary roads.
+			</p><p>
+The above procedure iterates 20 times for the largest segment that can be assembled, which is located in the ring-road around Brussels between two exits. It takes 15 minutes to execute in my laptop.
+				</p><pre class="programlisting">
+INFO:  Iteration 1
+INFO:  Extended 3431 roads
+INFO:  Iteration 2
+INFO:  Extended 1851 roads
+INFO:  Iteration 3
+INFO:  Extended 882 roads
+INFO:  Iteration 4
+INFO:  Extended 505 roads
+[...]
+INFO:  Iteration 17
+INFO:  Extended 3 roads
+INFO:  Iteration 18
+INFO:  Extended 2 roads
+INFO:  Iteration 19
+INFO:  Extended 1 roads
+INFO:  Iteration 20
+INFO:  Extended 0 roads
+</pre><p>
+			</p><p>
+				After we apply the above procedure to merge the roads, we are ready to create a new set of roads from which we can construct the graph.
+				</p><pre class="programlisting">
+CREATE TABLE Roads AS
+SELECT osm_id || path AS osm_id, admin_level, bridge, cutting, highway, junction, name,
+  oneway, operator, ref, route, surface, toll, tracktype, tunnel, width, geom
+FROM MergedRoads;
+
+CREATE INDEX Roads_geom_idx ON Roads USING GiST(geom);
+</pre><p>
+				Notice that now the attribute <code class="varname">osm_id</code> is an array of OSM identifiers (which are big integers), whereas in the previous section it was a single big integer.
+			</p><p>
+				We then proceed as we did in <a class="xref" href="ch02s11.html#create_graph" title="Creating the Graph">the section called “Creating the Graph”</a> to compute the set of nodes and the set of edges, which we will store now for comparison purposes into tables <code class="varname">Nodes1</code> and <code class="varname">Edges1</code>. We can issue the following queries to compare the two graphs we have obtained and the one obtained by osm2pgrouting .
+				</p><pre class="programlisting">
+SELECT count(*) FROM Ways;
+-- 83017
+SELECT count(*) FROM Edges;
+-- 81073
+SELECT count(*) FROM Edges1;
+-- 77986
+SELECT count(*) FROM Ways_vertices_pgr;
+-- 66832
+SELECT count(*) FROM Nodes;
+-- 45494
+SELECT count(*) FROM Nodes1;
+-- 42156
+</pre><p>
+				<a class="xref" href="ch02s11.html#node_comp2" title="Figure 2.9. Comparison of the nodes obtained by contracting the graph (in black), before contraction (in blue), and those obtained by osm2pgrouting (in red).">Figure 2.9, “Comparison of the nodes obtained by contracting the graph (in black), before contraction (in blue), and those obtained by osm2pgrouting (in red).”</a> shows the nodes for the three graphs, those obtained after contracting the graph are shown in black, those before contraction are shown in blue, and those obtained by osm2pgrouting are shown in red. The figure shows in particular how several segments of the ring-road around Brussels are merged together since the have the same road type, direction, and maximum speed, The figure also shows in read a road that was removed since it does not belong to the strongly connected components of the graph.
+			</p><div class="figure-float"><div class="figure"><a name="node_comp2"></a><p class="title"><b>Figure 2.9. Comparison of the nodes obtained by contracting the graph (in black), before contraction (in blue), and those obtained by osm2pgrouting (in red).</b></p><div class="figure-contents"><div class="mediaobject"><img src="images/node_comp2.png" alt="Comparison of the nodes obtained by contracting the graph (in black), before contraction (in blue), and those obtained by osm2pgrouting (in red)."></div></div></div><br class="figure-break"></div></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="ch02s10.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="ch02.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="ch03.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Changing the Simulation Scenario </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> Chapter 3. BerlinMOD Benchmark on MobilityDB</td></tr></table></div></body></html>
