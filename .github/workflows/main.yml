@@ -23,7 +23,7 @@ jobs:
       # generate the documentation files
       - name: Generate documentation
         run: |
-          cd docs
+          cd doc
           dblatex -s texstyle.sty -T native -t pdf -o mobilitydb-berlinmod.pdf mobilitydb-berlinmod.xml
           dbtoepub -o mobilitydb-berlinmod.epub mobilitydb-berlinmod.xml
           mkdir html
