@@ -20,22 +20,24 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y dblatex dbtoepub xsltproc
+
       # generate the documentation files
       - name: Generate documentation
         run: |
-          cd doc
+          cd docs
           dblatex -s texstyle.sty -T native -t pdf -o mobilitydb-berlinmod.pdf mobilitydb-berlinmod.xml
           dbtoepub -o mobilitydb-berlinmod.epub mobilitydb-berlinmod.xml
           mkdir html
           xsltproc --stringparam html.stylesheet "docbook.css" --stringparam chunker.output.encoding "UTF-8" --xinclude -o html/index.html /usr/share/xml/docbook/stylesheet/docbook-xsl/html/chunk.xsl mobilitydb-berlinmod.xml
           cp -r images docbook.css html/
           cp docbook.css html/
+          
       # store the documentation files
       - name: Upload output directory
         uses: actions/upload-artifact@v2
         with:
           name: doc-files
-          path: doc
+          path: docs
           retention-days: 1
 
 
@@ -55,7 +57,7 @@ jobs:
         uses: actions/download-artifact@v2
         with:
           name: doc-files
-          path: doc
+          path: docs
 
       # add, commit and push to gh-pages
       - name: Commit changes
@@ -63,8 +65,8 @@ jobs:
         with:
           message: 'Update docs'
           branch: gh-pages
-          add: '["doc/index.md", 
-            "doc/mobilitydb-berlinmod.pdf", 
-            "doc/mobilitydb-berlinmod.epub",
-            "doc/html/docbook.css", "doc/html/images/*",
-            "doc/html/*.html"]'
+          add: '["docs/index.md", 
+            "docs/mobilitydb-berlinmod.pdf", 
+            "docs/mobilitydb-berlinmod.epub",
+            "docs/html/docbook.css", "docs/html/images/*",
+            "docs/html/*.html"]'
