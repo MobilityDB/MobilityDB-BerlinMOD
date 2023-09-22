@@ -1,0 +1,152 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>Loading the Data in Partitioned Tables</title><link rel="stylesheet" type="text/css" href="docbook.css"><meta name="generator" content="DocBook XSL Stylesheets Vsnapshot"><link rel="home" href="index.html" title="BerlinMOD Benchmark on MobilityDB"><link rel="up" href="ch01.html" title="Chapter 1. MobilityDB Tutorial"><link rel="prev" href="ch01s02.html" title="Loading the Data"><link rel="next" href="ch01s04.html" title="Exploring the Data"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Loading the Data in Partitioned Tables</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="ch01s02.html">Prev</a> </td><th width="60%" align="center">Chapter 1. MobilityDB Tutorial</th><td width="20%" align="right"> <a accesskey="n" href="ch01s04.html">Next</a></td></tr></table><hr></div><div class="sect1"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="idm238"></a>Loading the Data in Partitioned Tables</h2></div></div></div><p>
+		PostgreSQL provides partitioning mechanisms so that large tables can be split in smaller physical tables. This may result in increased performance when querying and manipulating large tables. We will split the <code class="varname">Trips</code> table given in the previous section using list partitioning, where each partitition will contain all the trips that start at a particular date. For doing this, we use the procedure given next for automatically creating the partitions according to a date range.
+		</p><pre class="programlisting">
+CREATE OR REPLACE FUNCTION create_partitions_by_date(TableName TEXT, StartDate DATE,
+  EndDate DATE)
+RETURNS void AS $$
+DECLARE
+  d DATE;
+  PartitionName TEXT;
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.tables 
+    WHERE table_name = lower(TableName)) 
+  THEN
+    RAISE EXCEPTION 'Table % does not exist', TableName;
+  END IF;
+  IF StartDate &gt;= EndDate THEN
+    RAISE EXCEPTION 'The start date % must be before the end date %', StartDate, EndDate;
+  END IF;
+  d = StartDate;
+  WHILE d &lt;= EndDate 
+  LOOP
+    PartitionName = TableName || '_' || to_char(d, 'YYYY_MM_DD');
+    IF NOT EXISTS (
+      SELECT 1
+       FROM information_schema.tables 
+       WHERE  table_name = lower(PartitionName))
+    THEN
+      EXECUTE format('CREATE TABLE %s PARTITION OF %s FOR VALUES IN (''%s'');', 
+        PartitionName, TableName, to_char(d, 'YYYY-MM-DD'));
+      RAISE NOTICE 'Partition % has been created', PartitionName;
+    END IF;
+    d = d + '1 day'::interval;
+  END LOOP;
+  RETURN;
+END
+$$ LANGUAGE plpgsql;
+</pre><p>In order to partition table <code class="varname">Trips</code> by date we need to add an addition column <code class="varname">TripDate</code> to table <code class="varname">TripsInput</code>.
+			</p><pre class="programlisting">
+ALTER TABLE TripsInput ADD COLUMN TripDate DATE;
+UPDATE TripsInput T1 
+SET TripDate = T2.TripDate
+FROM (SELECT DISTINCT TripId, date_trunc('day', MIN(T) OVER (PARTITION BY TripId))
+AS TripDate FROM TripsInput) T2
+WHERE T1.TripId = T2.TripId;
+</pre><p>
+		Notice that the <code class="varname">UPDATE</code> statement above takes into account the fact that a trip may finish at a day later than the starting day.
+		</p><p>
+		The following statements create table <code class="varname">Trips</code> partitioned by date and the associated partitions.
+			</p><pre class="programlisting">
+DROP TABLE Trips CASCADE;
+CREATE TABLE Trips (
+  TripId integer,
+  TripDate date,
+  VehId integer NOT NULL REFERENCES Vehicles(VehId),
+  Trip tgeompoint NOT NULL,
+  Traj geometry,
+  PRIMARY KEY (TripId, TripDate)
+) PARTITION BY LIST(TripDate);
+
+SELECT create_partitions_by_date('Trips', (SELECT MIN(TripDate) FROM TripsInput), 
+(SELECT MAX(TripDate) FROM TripsInput));
+</pre><p>
+		</p><p>
+		To see the partitions that have been created automatically we can use the following statement.
+			</p><pre class="programlisting">
+SELECT I.inhrelid::regclass AS child
+FROM pg_inherits I
+WHERE i.inhparent = 'trips'::regclass;
+</pre><p>
+		In our case this would result in the following output.
+			</p><pre class="programlisting">
+trips_2020_06_01
+trips_2020_06_02
+trips_2020_06_03
+trips_2020_06_04
+trips_2020_06_05
+</pre><p>
+		</p><p>We modify the query that loads table <code class="varname">Trips</code> from the data in table <code class="varname">TripsInput</code> as follows.
+			</p><pre class="programlisting">
+INSERT INTO Trips
+SELECT TripId, TripDate, VehId, tgeompoint_seq(array_agg(tgeompoint_inst(
+  ST_Transform(ST_SetSRID(ST_MakePoint(PosX,PosY), 4326), 5676), T) ORDER BY T))
+FROM TripsInput
+GROUP BY TripId, TripDate, VehId;
+</pre><p>
+		</p><p>We can see how many trips are in each partition of the <code class="varname">TripsInput</code> as follows.
+			</p><pre class="programlisting">
+SELECT COUNT(*) FROM trips_2020_06_01;
+-- 423
+SELECT COUNT(*) FROM trips_2020_06_02;
+-- 411
+SELECT COUNT(*) FROM trips_2020_06_03;
+-- 415
+SELECT COUNT(*) FROM trips_2020_06_04;
+-- 419
+SELECT COUNT(*) FROM trips_2020_06_05;
+-- 4
+</pre><p>
+		Then, we can define the indexes and the views on the table <code class="varname">Trips</code> as shown in the previous section.
+		</p><p>
+		An important advantange of the partitioning mechanism in PostgreSQL is that the constraints and the indexes defined on the <code class="varname">Trips</code> table are propagated to the partitions as shown next.
+		</p><pre class="programlisting">
+INSERT INTO Trips VALUES (1, '2020-06-01', 10,
+  '[POINT(2389629.8979609837 5626986.483650829)@2020-06-02 08:00]');
+-- ERROR:  duplicate key value violates unique constraint "trips_2020_06_01_pkey"
+-- DETAIL:  Key (tripid, tripdate)=(1, 2020-06-01) already exists.
+</pre><p>
+			Similarly, queries on the <code class="varname">Trips</code> table are propagated to the partitions as shown next.
+		</p><pre class="programlisting">
+EXPLAIN SELECT COUNT(*) FROM Trips WHERE Trip &amp;&amp; period '[2020-06-02, 2020-06-03)';
+</pre><p>
+			If there is no index defined on the <code class="varname">Trip</code> column, the execution plan of the query is as follows:
+		</p><pre class="programlisting">
+Aggregate (cost=63.64..63.65 rows=1 width=8)
+-&gt; Append (cost=0.00..63.62 rows=5 width=0)
+   -&gt; Seq Scan on trips_2020_06_01 trips_1  (cost=0.00..11.29 rows=1 width=0)
+        Filter: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+   -&gt; Seq Scan on trips_2020_06_02 trips_2  (cost=0.00..11.14 rows=1 width=0)
+        Filter: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+   -&gt; Seq Scan on trips_2020_06_03 trips_3  (cost=0.00..11.19 rows=1 width=0)
+        Filter: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+   -&gt; Seq Scan on trips_2020_06_04 trips_4  (cost=0.00..10.24 rows=1 width=0)
+        Filter: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+   -&gt; Seq Scan on trips_2020_06_05 trips_5  (cost=0.00..19.75 rows=1 width=0)
+        Filter: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+</pre><p>
+			After defining an index on the <code class="varname">Trip</code> column as follows
+			</p><pre class="programlisting">
+CREATE INDEX Trips_Trip_gist_Idx ON Trips USING gist (Trip);
+</pre><p>
+			the execution plan of the query is as follows
+		</p><pre class="programlisting">
+Aggregate (cost=33.73..33.74 rows=1 width=8)
+-&gt; Append (cost=0.14..33.71 rows=5 width=0)
+   -&gt; Index Scan using trips_2020_06_01_trip_idx on trips_2020_06_01 trips_1
+      (cost=0.14..8.16 rows=1 width=0)
+        Index Cond: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+   -&gt; Index Scan using trips_2020_06_02_trip_idx on trips_2020_06_02 trips_2
+      (cost=0.14..8.16 rows=1 width=0)
+        Index Cond: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+   -&gt; Index Scan using trips_2020_06_03_trip_idx on trips_2020_06_03 trips_3
+      (cost=0.14..8.16 rows=1 width=0)
+        Index Cond: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+   -&gt; Index Scan using trips_2020_06_04_trip_idx on trips_2020_06_04 trips_4
+      (cost=0.14..8.16 rows=1 width=0)
+        Index Cond: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+   -&gt; Seq Scan on trips_2020_06_05 trips_5  (cost=0.00..1.05 rows=1 width=0)
+        Filter: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+</pre><p>
+		</p></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="ch01s02.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="ch01.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="ch01s04.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Loading the Data </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> Exploring the Data</td></tr></table></div></body></html>

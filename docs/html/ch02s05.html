@@ -1,0 +1,31 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>Exporting the Generated Data</title><link rel="stylesheet" type="text/css" href="docbook.css"><meta name="generator" content="DocBook XSL Stylesheets Vsnapshot"><link rel="home" href="index.html" title="BerlinMOD Benchmark on MobilityDB"><link rel="up" href="ch02.html" title="Chapter 2. Generating Realistic Trajectory Datasets"><link rel="prev" href="ch02s04.html" title="Quick Start"><link rel="next" href="ch02s06.html" title="Exploring the Generated Data"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Exporting the Generated Data</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="ch02s04.html">Prev</a> </td><th width="60%" align="center">Chapter 2. Generating Realistic Trajectory Datasets</th><td width="20%" align="right"> <a accesskey="n" href="ch02s06.html">Next</a></td></tr></table><hr></div><div class="sect1"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="datagen_exporting"></a>Exporting the Generated Data</h2></div></div></div><p>
+		The generated data can be exported, for example, in CSV format using the following queries.
+		</p><pre class="programlisting">
+COPY (SELECT InstantId, Instant FROM Instants ORDER BY InstantId)
+  TO '/home/mobilitydb/data/instants.csv' CSV HEADER DELIMITER ',';
+COPY (SELECT LicenceId, Licence, VehId FROM Licences ORDER BY LicenceId)
+  TO '/home/mobilitydb/data/licences.csv' CSV HEADER DELIMITER ',';
+COPY (SELECT PeriodId, lower(Period) AS StartP, upper(Period) AS EndP FROM Periods ORDER BY PeriodId)
+  TO '/home/mobilitydb/data/periods.csv' CSV HEADER DELIMITER ',';
+COPY (SELECT PointId, ST_X(Geom) AS PosX, ST_Y(Geom) AS PosY FROM Points ORDER BY PointId)
+  TO '/home/mobilitydb/data/points.csv' CSV HEADER DELIMITER ',';
+COPY (
+  SELECT RegionId, (dp).path[2] AS PointID, ST_X((dp).geom) AS PosX,
+    ST_Y((dp).geom) AS PosY
+  FROM (SELECT RegionId, ST_DumpPoints(ST_Transform(geom, 4326)) AS dp FROM Regions) AS T
+  ) TO '/home/mobilitydb/data/regions.csv' CSV HEADER DELIMITER ',';
+COPY (
+  WITH Temp1 AS (
+    SELECT TripId, VehId, unnest(instants(trip)) AS Inst FROM Trips ),
+  Temp2 AS (
+    SELECT TripId, VehId, ST_Transform(getValue(Inst),4326) AS Point,
+      getTimestamp(Inst) AS T FROM Temp1 )
+  SELECT TripId, VehId, ST_X(Point) AS PosX, ST_Y(Point) AS PosY, T
+  FROM Temp2
+  ORDER BY TripId, VehId, T
+  ) TO '/home/mobilitydb/data/trips.csv' CSV HEADER DELIMITER ',';
+COPY (SELECT VehId, Licence, Type, Model FROM SELECT Vehicles ORDER BY VehicleId)
+  TO '/home/mobilitydb/data/vehicles.csv' CSV HEADER DELIMITER ',';
+</pre><p>
+		Actually, the data we used in <a class="xref" href="ch01.html" title="Chapter 1. MobilityDB Tutorial">Chapter 1, <i>MobilityDB Tutorial</i></a> was exported by running the BerlinMOD generator with OSM data for Brussels with the scale factor 0.005. 
+		</p></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="ch02s04.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="ch02.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="ch02s06.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Quick Start </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> Exploring the Generated Data</td></tr></table></div></body></html>
