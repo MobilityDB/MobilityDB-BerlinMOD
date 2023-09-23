@@ -1,7 +1,7 @@
 BerlinMOD Benchmark for MobilityDB
 ==================================
 
-<img src="doc/images/mobilitydb-logo.svg" width="200" alt="MobilityDB Logo" />
+<img src="docs/images/mobilitydb-logo.svg" width="200" alt="MobilityDB Logo" />
 
 [MobilityDB](https://github.com/ULB-CoDE-WIT/MobilityDB) is an open source software program that adds support for temporal and spatio-temporal objects to the [PostgreSQL](https://www.postgresql.org/) database and its spatial extension [PostGIS](http://postgis.net/).
 
