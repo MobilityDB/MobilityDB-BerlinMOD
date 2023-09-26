@@ -1380,13 +1380,13 @@ BEGIN
   -- Random periods
 
   DROP TABLE IF EXISTS Periods;
-  CREATE TABLE Periods(periodId int PRIMARY KEY, BeginP TimestampTz, EndP TimestampTz, period period);
+  CREATE TABLE Periods(periodId int PRIMARY KEY, BeginP TimestampTz, EndP TimestampTz, period tstzspan);
   INSERT INTO Periods(periodId, period)
   WITH Instants AS (
     SELECT id, startDay + (random() * noDays) * interval '1 day' AS instant
     FROM generate_series(1, P_SAMPLE_SIZE) id
   )
-  SELECT id, Period(instant, instant + abs(random_gauss()) * interval '1 day',
+  SELECT id, span(instant, instant + abs(random_gauss()) * interval '1 day',
     true, true) AS period
   FROM Instants;
   UPDATE Periods
