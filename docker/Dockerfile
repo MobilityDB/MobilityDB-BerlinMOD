@@ -35,6 +35,7 @@ RUN apt-get update \
     libgsl-dev \
     libgslcblas0 \
     postgresql-server-dev-${PG_MAJOR} \
+    postgresql-$POSTGRES_VERSION-pgrouting \ 
   && rm -rf /var/lib/apt/lists/*
 
 # Install MobilityDB
