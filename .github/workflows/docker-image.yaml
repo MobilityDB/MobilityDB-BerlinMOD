@@ -50,7 +50,7 @@ jobs:
           context: .
           file: ./docker/Dockerfile
           push: true
-          tags: mobilitydb/mobilitydb:${{ matrix.psql }}-${{ matrix.postgis }}-1.0-BerlinMOD
+          tags: mobilitydb/mobilitydb:${{ matrix.psql }}-${{ matrix.postgis }}-1.1-BerlinMOD
           build-args: |
             POSTGRES_VERSION=${{ matrix.psql }}
             POSTGIS_VERSION=${{ matrix.postgis }}
