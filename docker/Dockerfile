@@ -52,6 +52,10 @@ RUN cd /usr/local/src/MobilityDB/build && \
     make -j$(nproc) && \
     make install
 
+RUN mkdir /BerlinMOD
+RUN cd /BerlinMOD && \
+    wget https://github.com/MobilityDB/MobilityDB-BerlinMOD/archive/master.tar.gz | tar -xz --strip=2 "MobilityDB-BerlinMOD-master/BerlinMOD"    
+
 RUN rm /docker-entrypoint-initdb.d/10_postgis.sh
 COPY ./docker/initdb-mobilitydb.sh /docker-entrypoint-initdb.d/mobilitydb.sh
 RUN chmod +x /docker-entrypoint-initdb.d/mobilitydb.sh
