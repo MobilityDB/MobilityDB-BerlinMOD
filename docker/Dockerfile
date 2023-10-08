@@ -8,7 +8,7 @@ LABEL maintainer="MobilityDB Project - https://github.com/MobilityDB/MobilityDB"
 ENV POSTGRES_DB=mobilitydb
 ENV POSTGRES_USER=docker
 ENV POSTGRES_PASSWORD=docker
-ENV MOBILITYDB_VERSION $MOBDB_VERSION
+ENV MOBILITYDB_VERSION 1.1
 
 # Fix the Release file expired problem
 RUN echo "Acquire::Check-Valid-Until \"false\";\nAcquire::Check-Date \"false\";" | cat > /etc/apt/apt.conf.d/10no--check-valid-until
@@ -23,6 +23,7 @@ RUN apt-get update \
     libproj-dev \
     g++ \
     wget \
+    unzip \
     autoconf \
     autotools-dev \
     libgeos-dev \
@@ -34,22 +35,26 @@ RUN apt-get update \
     libgsl-dev \
     libgslcblas0 \
     postgresql-server-dev-${PG_MAJOR} \
+    postgresql-15-pgrouting \ 
+    osm2pgrouting \
+    osm2pgsql \
   && rm -rf /var/lib/apt/lists/*
 
 # Install MobilityDB
-RUN wget -O MobilityDB.tar.gz "https://github.com/MobilityDB/MobilityDB/archive/v1.0.tar.gz" \
- && mkdir -p /usr/local/src/MobilityDB \
- && tar \
-        --extract \
-        --file MobilityDB.tar.gz \
-        --directory /usr/local/src/MobilityDB \
-        --strip-components 1 \
- && rm MobilityDB.tar.gz
-RUN mkdir /usr/local/src/MobilityDB/build
-RUN cd /usr/local/src/MobilityDB/build && \
+RUN git clone https://github.com/MobilityDB/MobilityDB.git -b develop /usr/local/src/MobilityDB && \
+    mkdir -p /usr/local/src/MobilityDB/build && \
+    cd /usr/local/src/MobilityDB/build && \
     cmake .. && \
     make -j$(nproc) && \
     make install
+
+# Download BerlinMOD Data
+RUN mkdir /BerlinMOD
+RUN cd /BerlinMOD && \
+    wget -O - https://github.com/MobilityDB/MobilityDB-BerlinMOD/archive/master.tar.gz | tar -xz --strip=2 "MobilityDB-BerlinMOD-master/BerlinMOD" && \
+    wget https://docs.mobilitydb.com/data/brussels_osm.zip; \
+    unzip brussels_osm.zip && \
+    rm -f brussels_osm.zip
 
 RUN rm /docker-entrypoint-initdb.d/10_postgis.sh
 COPY ./docker/initdb-mobilitydb.sh /docker-entrypoint-initdb.d/mobilitydb.sh

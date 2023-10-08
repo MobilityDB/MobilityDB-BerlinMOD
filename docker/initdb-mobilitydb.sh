@@ -8,4 +8,6 @@ set -e
 echo "Loading MobilityDB extension into mobilitydb"
 psql --user="$POSTGRES_USER" --dbname="mobilitydb" <<- 'EOSQL'
 	CREATE EXTENSION IF NOT EXISTS mobilitydb CASCADE;
+	create extension pgrouting;
+	create extension hstore;
 EOSQL
