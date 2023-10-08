@@ -8,7 +8,7 @@ LABEL maintainer="MobilityDB Project - https://github.com/MobilityDB/MobilityDB"
 ENV POSTGRES_DB=mobilitydb
 ENV POSTGRES_USER=docker
 ENV POSTGRES_PASSWORD=docker
-ENV MOBILITYDB_VERSION $MOBDB_VERSION
+ENV MOBILITYDB_VERSION 1.1
 
 # Fix the Release file expired problem
 RUN echo "Acquire::Check-Valid-Until \"false\";\nAcquire::Check-Date \"false\";" | cat > /etc/apt/apt.conf.d/10no--check-valid-until
@@ -52,7 +52,7 @@ RUN git clone https://github.com/MobilityDB/MobilityDB.git -b develop /usr/local
 RUN mkdir /BerlinMOD
 RUN cd /BerlinMOD && \
     wget -O - https://github.com/MobilityDB/MobilityDB-BerlinMOD/archive/master.tar.gz | tar -xz --strip=2 "MobilityDB-BerlinMOD-master/BerlinMOD" && \
-    wget - https://docs.mobilitydb.com/data/brussels_osm.zip | 
+    wget - https://docs.mobilitydb.com/data/brussels_osm.zip | \
     unzip brussels_osm.zip && \
     rm -f brussels_osm.zip
 
