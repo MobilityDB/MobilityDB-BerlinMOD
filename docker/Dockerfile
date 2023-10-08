@@ -52,7 +52,7 @@ RUN git clone https://github.com/MobilityDB/MobilityDB.git -b develop /usr/local
 RUN mkdir /BerlinMOD
 RUN cd /BerlinMOD && \
     wget -O - https://github.com/MobilityDB/MobilityDB-BerlinMOD/archive/master.tar.gz | tar -xz --strip=2 "MobilityDB-BerlinMOD-master/BerlinMOD" && \
-    wget -O - https://docs.mobilitydb.com/data/brussels_osm.zip && \
+    wget - https://docs.mobilitydb.com/data/brussels_osm.zip | 
     unzip brussels_osm.zip && \
     rm -f brussels_osm.zip
 
