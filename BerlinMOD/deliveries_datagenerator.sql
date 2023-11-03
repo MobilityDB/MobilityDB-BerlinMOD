@@ -48,10 +48,10 @@ functions are executed using the following tables
     primary key (deliveryId, seq)
 *  Deliveries(DeliveryId int primary key, VehicleId int, Day date, 
     noCustomers int, Trip tgeompoint, Trajectory geometry)
-*  QueryPoints(id int primary key, geom geometry)
-*  QueryRegions(id int primary key, geom geometry)
-*  QueryInstants(id int primary key, instant timestamptz)
-*  QueryPeriods(id int primary key, period)
+*  Points(id int primary key, geom geometry)
+*  Regions(id int primary key, geom geometry)
+*  Instants(id int primary key, instant timestamptz)
+*  Periods(id int primary key, period tstzspan)
 
 -----------------------------------------------------------------------------*/
 
@@ -433,11 +433,11 @@ BEGIN
   -- The number of rows these tables is determined by P_SAMPLE_SIZE
   -------------------------------------------------------------------------
 
-  RAISE INFO 'Creating the QueryPoints and QueryRegions tables';
+  RAISE INFO 'Creating the Points and Regions tables';
 
-  DROP TABLE IF EXISTS QueryPoints;
-  CREATE TABLE QueryPoints(id int PRIMARY KEY, geom geometry(Point));
-  INSERT INTO QueryPoints
+  DROP TABLE IF EXISTS Points CASCADE;
+  CREATE TABLE Points(id int PRIMARY KEY, geom geometry(Point));
+  INSERT INTO Points
   WITH Temp AS (
     SELECT id, random_int(1, noNodes) AS node
     FROM generate_series(1, P_SAMPLE_SIZE) id
@@ -448,9 +448,9 @@ BEGIN
 
   -- Random regions
 
-  DROP TABLE IF EXISTS QueryRegions;
-  CREATE TABLE QueryRegions(id int PRIMARY KEY, geom geometry(Polygon));
-  INSERT INTO QueryRegions
+  DROP TABLE IF EXISTS Regions CASCADE;
+  CREATE TABLE Regions(id int PRIMARY KEY, geom geometry(Polygon));
+  INSERT INTO Regions
   WITH Temp AS (
     SELECT id, random_int(1, noNodes) AS node
     FROM generate_series(1, P_SAMPLE_SIZE) id
@@ -461,24 +461,24 @@ BEGIN
 
   -- Random instants
 
-  RAISE INFO 'Creating the QueryInstants and QueryPeriods tables';
+  RAISE INFO 'Creating the Instants and Periods tables';
 
-  DROP TABLE IF EXISTS QueryInstants;
-  CREATE TABLE QueryInstants(id int PRIMARY KEY, instant timestamptz);
-  INSERT INTO QueryInstants
+  DROP TABLE IF EXISTS Instants CASCADE;
+  CREATE TABLE Instants(id int PRIMARY KEY, instant timestamptz);
+  INSERT INTO Instants
   SELECT id, startDay + (random() * noDays) * interval '1 day' AS instant
   FROM generate_series(1, P_SAMPLE_SIZE) id;
 
   -- Random periods
 
-  DROP TABLE IF EXISTS QueryPeriods;
-  CREATE TABLE QueryPeriods(id int PRIMARY KEY, period period);
-  INSERT INTO QueryPeriods
+  DROP TABLE IF EXISTS Periods CASCADE;
+  CREATE TABLE Periods(id int PRIMARY KEY, period tstzspan);
+  INSERT INTO Periods
   WITH Instants AS (
     SELECT id, startDay + (random() * noDays) * interval '1 day' AS instant
     FROM generate_series(1, P_SAMPLE_SIZE) id
   )
-  SELECT id, Period(instant, instant + abs(random_gauss()) * interval '1 day',
+  SELECT id, span(instant, instant + abs(random_gauss()) * interval '1 day',
     true, true) AS period
   FROM Instants;
 

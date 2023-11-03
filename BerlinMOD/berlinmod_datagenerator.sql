@@ -75,7 +75,7 @@ functions are executed using the following tables
 *  Points(pointId int, geom geometry)
 *  Regions(regionId int, geom geometry)
 *  Instants(instantId int, instant timestamptz)
-*  Periods(periodd int, period)
+*  Periods(period int, period)
 
 -----------------------------------------------------------------------------*/
 
@@ -1303,7 +1303,7 @@ BEGIN
 
   RAISE INFO 'Creating the Licences table';
 
-  DROP TABLE IF EXISTS Licences;
+  DROP TABLE IF EXISTS Licences CASCADE;
   CREATE TABLE Licences(licenceId int PRIMARY KEY, licence text, vehId int);
   INSERT INTO Licences(licenceId, licence, vehId)
   WITH Temp(licenceId, vehId) AS (
@@ -1326,7 +1326,7 @@ BEGIN
 
   RAISE INFO 'Creating the Points and Regions tables';
 
-  DROP TABLE IF EXISTS Points;
+  DROP TABLE IF EXISTS Points CASCADE;
   CREATE TABLE Points(pointId int PRIMARY KEY, PosX float, PosY float, geom geometry(Point));
   INSERT INTO Points(pointId, geom)
   WITH Temp(pointId, nodeId) AS (
@@ -1346,7 +1346,7 @@ BEGIN
 
   -- Random regions
 
-  DROP TABLE IF EXISTS Regions;
+  DROP TABLE IF EXISTS Regions CASCADE;
   CREATE TABLE Regions(regionId int PRIMARY KEY, geom geometry(Polygon));
   INSERT INTO Regions(regionId, geom)
   WITH Temp(regionId, nodeId) AS (
@@ -1366,7 +1366,7 @@ BEGIN
 
   RAISE INFO 'Creating the Instants and Periods tables';
 
-  DROP TABLE IF EXISTS Instants;
+  DROP TABLE IF EXISTS Instants CASCADE;
   CREATE TABLE Instants(instantId int PRIMARY KEY, instant timestamptz);
   INSERT INTO Instants(instantId, instant)
   SELECT id, startDay + (random() * noDays) * interval '1 day' AS instant
@@ -1379,7 +1379,7 @@ BEGIN
 
   -- Random periods
 
-  DROP TABLE IF EXISTS Periods;
+  DROP TABLE IF EXISTS Periods CASCADE;
   CREATE TABLE Periods(periodId int PRIMARY KEY, BeginP TimestampTz, EndP TimestampTz, period tstzspan);
   INSERT INTO Periods(periodId, period)
   WITH Instants AS (
