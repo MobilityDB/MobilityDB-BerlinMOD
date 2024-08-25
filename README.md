@@ -23,9 +23,9 @@ You can generate the benchmark documentation from the sources.
 
 In addition, pregenerated versions of them are available.
 
-*  In HTML format: https://docs.mobilitydb.com/MobilityDB-BerlinMOD/master/
-*  In PDF format: https://docs.mobilitydb.com/MobilityDB-BerlinMOD/master/mobilitydb-berlinmod.pdf
-* In EPUB format: https://docs.mobilitydb.com/MobilityDB-BerlinMOD/master/mobilitydb-berlinmod.epub
+*  In HTML format: https://mobilitydb.github.io/MobilityDB-BerlinMOD/html/index.html
+*  In PDF format: https://mobilitydb.github.io/MobilityDB-BerlinMOD/mobilitydb-berlinmod.pdf
+* In EPUB format: https://mobilitydb.github.io/MobilityDB-BerlinMOD/mobilitydb-berlinmod.epub
 
 Docker container
 -----------------
