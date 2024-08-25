@@ -114,13 +114,13 @@ psql -h localhost -p 5432 -U dbowner -d brussels -c 'CREATE EXTENSION MobilityDB
 psql -h localhost -p 5432 -U dbowner -d brussels -c 'CREATE EXTENSION pgRouting'
 # adds the pgRouting extension
 </programlisting>
-			For the moment, we will use the OSM map of Brussels. It is given in the data section of this workshop in the two files: <varname>brussels.osm, mapconfig_brussels.xml</varname>. In the next sections, we will explain how to use other maps. It has been downloaded using the Overpass API, hence it is by default in Spherical Mercator (SRID 3857), which is good for calculating distances. Next load the map and convert it into a routable network topology format suitable for pgRouting.
+			For the moment, we will use the OSM map of Brussels. It is given in the data section of this workshop in the two files: <varname>brussels.osm, mapconfig.xml</varname>. In the next sections, we will explain how to use other maps. It has been downloaded using the Overpass API, hence it is by default in Spherical Mercator (SRID 3857), which is good for calculating distances. Next load the map and convert it into a routable network topology format suitable for pgRouting.
 			<programlisting language="bash" xml:space="preserve">
 # in a console, go to the generatorHome then:
 osm2pgrouting -h localhost -p 5432 -U dbowner -W passwd -f brussels.osm --dbname brussels \
--c mapconfig_brussels.xml
+-c mapconfig.xml
 </programlisting>
-			The configuration file <varname>mapconfig_brussels.xml</varname> tells osm2pgrouting which are the roads that will be selected to build the road network as well as the speed limits of the different road types. During the conversion, osm2pgrouting transforms the data into WGS84 (SRID 4326), so we will need later to convert it back to SRID 3857.
+			The configuration file <varname>mapconfig.xml</varname> tells osm2pgrouting which are the roads that will be selected to build the road network as well as the speed limits of the different road types. During the conversion, osm2pgrouting transforms the data into WGS84 (SRID 4326), so we will need later to convert it back to SRID 3857.
 		</para>
 		<para>
 		<emphasis>Secondly, prepare the base data for the simulation.</emphasis> Now, the street network is ready in the database. The simulation scenario requires to sample home and work locations. To make it realistic, we want to load a map of the administrative regions of Brussels (called communes) and feed the simulator with real population and employment statistics in every commune.
@@ -438,12 +438,12 @@ INSERT INTO QueryInstants
 SELECT id, startDay + (random() * noDays) * interval '1 day' AS instant
 FROM generate_series(1, P_SAMPLE_SIZE) id;
 
-CREATE TABLE QueryPeriods(id int PRIMARY KEY, period period);
+CREATE TABLE QueryPeriods(id int PRIMARY KEY, period tstzspan);
 INSERT INTO QueryPeriods
 WITH Instants AS (
   SELECT id, startDay + (random() * noDays) * interval '1 day' AS instant
   FROM generate_series(1, P_SAMPLE_SIZE) id )
-SELECT id, Period(instant, instant + abs(random_gauss()) * interval '1 day',
+SELECT id, tstzspan(instant, instant + abs(random_gauss()) * interval '1 day',
   true, true) AS period
 FROM Instants;
 </programlisting>
@@ -825,8 +825,7 @@ CREATE EXTENSION pgRouting;
 			<programlisting language="bash" xml:space="preserve">
 CITY="barcelona"
 BBOX="2.042084,41.267743,2.258720,41.445043"
-wget --progress=dot:mega -O "$CITY.osm" 
-"http://www.overpass-api.de/api/xapi?*[bbox=${BBOX}][@meta]"
+wget -O "$CITY.osm" "http://www.overpass-api.de/api/xapi?*[bbox=${BBOX}][@meta]"
 </programlisting>
 
 			We can optionally reduce the size of the OSM file as follows
@@ -836,7 +835,7 @@ user=\"[^\"]+\"//g" barcelona.osm -i.org
 </programlisting>
 			Finally, we load the map and convert it into a routable format suitable for pgRouting as follows.
 			<programlisting language="bash" xml:space="preserve">
-osm2pgrouting -f barcelona.osm --dbname barcelona -c mapconfig_brussels.xml
+osm2pgrouting -f barcelona.osm --dbname barcelona -c mapconfig.xml
 </programlisting>
 		</para>
 	</sect1>
