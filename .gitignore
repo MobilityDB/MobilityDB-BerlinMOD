@@ -1,0 +1,6 @@
+# Ignore some common data file paths and extensions
+data/
+*.osm
+*.csv
+*.tar
+*.zip
