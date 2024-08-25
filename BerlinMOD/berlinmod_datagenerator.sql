@@ -345,27 +345,28 @@ DECLARE
   result step[];
 BEGIN
   IF pathMode = 'Fastest Path' THEN
-    query_pgr = 'SELECT id, sourceNode, targetNode, cost_s AS cost, reverse_cost_s as reverse_cost FROM RoadSegments';
+    query_pgr = 'SELECT segmentid as id, sourceNode as source, targetNode as target, cost_s AS cost, '
+      'reverse_cost_s as reverse_cost FROM RoadSegments';
   ELSE
-    query_pgr = 'SELECT id, sourceNode, targetNode, length_m AS cost, '
-      'length_m * sign(reverse_cost_s) as reverse_cost FROM RoadSegments';
+    query_pgr = 'SELECT segmentid as id, sourceNode as source, targetNode as target, segmentlength AS cost, '
+      'segmentlength * sign(reverse_cost_s) as reverse_cost FROM RoadSegments';
   END IF;
   WITH Temp1 AS (
-    SELECT P.seqNo, P.node, P.edge
+    SELECT P.seq, P.node, P.edge
     FROM pgr_dijkstra(query_pgr, sourceN, targetN, true) P
   ),
   Temp2 AS (
-    SELECT T.seqNo,
+    SELECT T.seq,
       -- adjusting directionality
       CASE
-        WHEN T.node = E.sourceNode THEN E.geom
-        ELSE ST_Reverse(geom)
+        WHEN T.node = E.sourceNode THEN E.SegmentGeo
+        ELSE ST_Reverse(SegmentGeo)
       END AS geom,
-      maxspeed_forward AS maxSpeed, berlinmod_roadCategory(tag_id) AS category
+      maxspeedfwd AS maxSpeed, berlinmod_roadCategory(tag_id) AS category
     FROM Temp1 T, RoadSegments E
-    WHERE edge IS NOT NULL AND E.id = T.edge
+    WHERE edge IS NOT NULL AND E.segmentid = T.edge
   )
-  SELECT array_agg((geom, maxSpeed, category)::step ORDER BY seqNo) INTO result
+  SELECT array_agg((geom, maxSpeed, category)::step ORDER BY seq) INTO result
   FROM Temp2;
   RETURN result;
 END;
