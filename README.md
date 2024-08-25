@@ -30,7 +30,7 @@ In addition, pregenerated versions of them are available.
 Docker container
 -----------------
 
-The dependencies and scripts of the MobilityDB-BerlinMOD Project are available in a Docker container running PostgreSQL-12, PostGIS-2.5 and MobilityDB-develop.
+The dependencies and scripts of the MobilityDB-BerlinMOD Project are available in a Docker container running PostgreSQL-15, PostGIS-2.5 and MobilityDB-develop.
 
 *  Pull the prebuilt image from the [Docker Hub Registry](https://hub.docker.com/r/mobilitydb/mobilitydb).
 
@@ -42,15 +42,12 @@ The dependencies and scripts of the MobilityDB-BerlinMOD Project are available i
         
  *  Run the Docker container.
 
-        docker run --name "mobilitydb" -d -p 5432 -v mobilitydb_data:/var/lib/postgresql mobilitydb/mobilitydb:15-3.4-1.1-BerlinMOD 
+        docker run --name mobilitydb -e POSTGRES_PASSWORD=mysecretpassword \
+        -p 25432:5432 -v mobilitydb_data:/var/lib/postgresql -d mobilitydb/mobilitydb:15-3.4-1.1-BerlinMOD 
         
- *  Enter into the Docker container.
+ *  Connect to the database  (db=postgres,username=postgres,pw=_mysecretpassword_).
 
-        docker exec -it mobilitydb bash
-        
- *  Connect to the database  (username=docker,db=mobilitydb).
-
-        psql -U docker -d mobilitydb 
+        psql -h localhost -p 25432 -U postgres 
 
  *  BerlinMOD scripts are available in the BerlinMOD directory inside the container.
         
