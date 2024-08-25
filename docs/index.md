@@ -1,6 +1,7 @@
 
-<img src="https://MobilityDB.github.io/MobilityDB-workshop/html/images/mobilitydb-logo.png"
+<img src="html/images/mobilitydb-logo.png"
      alt="MobilityDB icon"
+     width=250
      style="float: center; margin-right: 10px;" />
      
 -----------------------------------------------
