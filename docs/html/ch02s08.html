@@ -11,8 +11,7 @@ CREATE EXTENSION pgRouting;
 			</p><pre class="programlisting">
 CITY="barcelona"
 BBOX="2.042084,41.267743,2.258720,41.445043"
-wget --progress=dot:mega -O "$CITY.osm" 
-"http://www.overpass-api.de/api/xapi?*[bbox=${BBOX}][@meta]"
+wget -O "$CITY.osm" "http://www.overpass-api.de/api/xapi?*[bbox=${BBOX}][@meta]"
 </pre><p>
 
 			We can optionally reduce the size of the OSM file as follows
@@ -22,6 +21,6 @@ user=\"[^\"]+\"//g" barcelona.osm -i.org
 </pre><p>
 			Finally, we load the map and convert it into a routable format suitable for pgRouting as follows.
 			</p><pre class="programlisting">
-osm2pgrouting -f barcelona.osm --dbname barcelona -c mapconfig_brussels.xml
+osm2pgrouting -f barcelona.osm --dbname barcelona -c mapconfig.xml
 </pre><p>
 		</p></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="ch02s07.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="ch02.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="ch02s09.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Understanding the Generation Process </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> Tuning the Generator Parameters</td></tr></table></div></body></html>

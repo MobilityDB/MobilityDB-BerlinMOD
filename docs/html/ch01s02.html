@@ -22,7 +22,7 @@ CREATE TABLE Periods (
   PeriodId integer PRIMARY KEY,
   Tstart TimestampTz NOT NULL,
   Tend TimestampTz NOT NULL,
-  Period period
+  Period tstzspan
   );
 CREATE TABLE Points (
   PointId integer PRIMARY KEY,
@@ -75,7 +75,7 @@ COPY Instants(InstantId, Instant) FROM '/home/mobilitydb/data/instants.csv'
 COPY Periods(PeriodId, Tstart, Tend) FROM '/home/mobilitydb/data/periods.csv' 
   DELIMITER ',' CSV HEADER;
 UPDATE Periods
-SET Period = period(Tstart, Tend);
+SET Period = span(Tstart, Tend);
 COPY Points(PointId, PosX, PosY) FROM '/home/mobilitydb/data/points.csv' 
   DELIMITER ',' CSV HEADER;
 UPDATE Points

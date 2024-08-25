@@ -109,22 +109,22 @@ INSERT INTO Trips VALUES (1, '2020-06-01', 10,
 </pre><p>
 			Similarly, queries on the <code class="varname">Trips</code> table are propagated to the partitions as shown next.
 		</p><pre class="programlisting">
-EXPLAIN SELECT COUNT(*) FROM Trips WHERE Trip &amp;&amp; period '[2020-06-02, 2020-06-03)';
+EXPLAIN SELECT COUNT(*) FROM Trips WHERE Trip &amp;&amp; tstzspan '[2020-06-02, 2020-06-03)';
 </pre><p>
 			If there is no index defined on the <code class="varname">Trip</code> column, the execution plan of the query is as follows:
 		</p><pre class="programlisting">
 Aggregate (cost=63.64..63.65 rows=1 width=8)
 -&gt; Append (cost=0.00..63.62 rows=5 width=0)
    -&gt; Seq Scan on trips_2020_06_01 trips_1  (cost=0.00..11.29 rows=1 width=0)
-        Filter: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+        Filter: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::tstzspan)
    -&gt; Seq Scan on trips_2020_06_02 trips_2  (cost=0.00..11.14 rows=1 width=0)
-        Filter: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+        Filter: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::tstzspan)
    -&gt; Seq Scan on trips_2020_06_03 trips_3  (cost=0.00..11.19 rows=1 width=0)
-        Filter: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+        Filter: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::tstzspan)
    -&gt; Seq Scan on trips_2020_06_04 trips_4  (cost=0.00..10.24 rows=1 width=0)
-        Filter: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+        Filter: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::tstzspan)
    -&gt; Seq Scan on trips_2020_06_05 trips_5  (cost=0.00..19.75 rows=1 width=0)
-        Filter: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+        Filter: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::tstzspan)
 </pre><p>
 			After defining an index on the <code class="varname">Trip</code> column as follows
 			</p><pre class="programlisting">
@@ -136,17 +136,17 @@ Aggregate (cost=33.73..33.74 rows=1 width=8)
 -&gt; Append (cost=0.14..33.71 rows=5 width=0)
    -&gt; Index Scan using trips_2020_06_01_trip_idx on trips_2020_06_01 trips_1
       (cost=0.14..8.16 rows=1 width=0)
-        Index Cond: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+        Index Cond: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::tstzspan)
    -&gt; Index Scan using trips_2020_06_02_trip_idx on trips_2020_06_02 trips_2
       (cost=0.14..8.16 rows=1 width=0)
-        Index Cond: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+        Index Cond: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::tstzspan)
    -&gt; Index Scan using trips_2020_06_03_trip_idx on trips_2020_06_03 trips_3
       (cost=0.14..8.16 rows=1 width=0)
-        Index Cond: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+        Index Cond: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::tstzspan)
    -&gt; Index Scan using trips_2020_06_04_trip_idx on trips_2020_06_04 trips_4
       (cost=0.14..8.16 rows=1 width=0)
-        Index Cond: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+        Index Cond: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::tstzspan)
    -&gt; Seq Scan on trips_2020_06_05 trips_5  (cost=0.00..1.05 rows=1 width=0)
-        Filter: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::period)
+        Filter: (trip &amp;&amp; '[2020-06-02 00:00:00+02, 2020-06-03 00:00:00+02)'::tstzspan)
 </pre><p>
 		</p></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="ch01s02.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="ch01.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="ch01s04.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Loading the Data </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> Exploring the Data</td></tr></table></div></body></html>

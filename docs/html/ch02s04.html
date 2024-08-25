@@ -17,13 +17,13 @@ psql -h localhost -p 5432 -U dbowner -d brussels -c 'CREATE EXTENSION MobilityDB
 psql -h localhost -p 5432 -U dbowner -d brussels -c 'CREATE EXTENSION pgRouting'
 # adds the pgRouting extension
 </pre><p>
-			For the moment, we will use the OSM map of Brussels. It is given in the data section of this workshop in the two files: <code class="varname">brussels.osm, mapconfig_brussels.xml</code>. In the next sections, we will explain how to use other maps. It has been downloaded using the Overpass API, hence it is by default in Spherical Mercator (SRID 3857), which is good for calculating distances. Next load the map and convert it into a routable network topology format suitable for pgRouting.
+			For the moment, we will use the OSM map of Brussels. It is given in the data section of this workshop in the two files: <code class="varname">brussels.osm, mapconfig.xml</code>. In the next sections, we will explain how to use other maps. It has been downloaded using the Overpass API, hence it is by default in Spherical Mercator (SRID 3857), which is good for calculating distances. Next load the map and convert it into a routable network topology format suitable for pgRouting.
 			</p><pre class="programlisting">
 # in a console, go to the generatorHome then:
 osm2pgrouting -h localhost -p 5432 -U dbowner -W passwd -f brussels.osm --dbname brussels \
--c mapconfig_brussels.xml
+-c mapconfig.xml
 </pre><p>
-			The configuration file <code class="varname">mapconfig_brussels.xml</code> tells osm2pgrouting which are the roads that will be selected to build the road network as well as the speed limits of the different road types. During the conversion, osm2pgrouting transforms the data into WGS84 (SRID 4326), so we will need later to convert it back to SRID 3857.
+			The configuration file <code class="varname">mapconfig.xml</code> tells osm2pgrouting which are the roads that will be selected to build the road network as well as the speed limits of the different road types. During the conversion, osm2pgrouting transforms the data into WGS84 (SRID 4326), so we will need later to convert it back to SRID 3857.
 		</p><p>
 		<span class="emphasis"><em>Secondly, prepare the base data for the simulation.</em></span> Now, the street network is ready in the database. The simulation scenario requires to sample home and work locations. To make it realistic, we want to load a map of the administrative regions of Brussels (called communes) and feed the simulator with real population and employment statistics in every commune.
 		</p><p>
