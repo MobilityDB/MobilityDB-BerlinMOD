@@ -59,7 +59,7 @@ BEGIN
   TO ''%sregions.csv'' DELIMITER '','' CSV HEADER', fullpath);
 
   RAISE INFO 'Exporting table Vehicles';
-  EXECUTE format('COPY (SELECT VehicleId, Licence, VehType, Model FROM Vehicles ORDER BY VehicleId)
+  EXECUTE format('COPY (SELECT VehicleId, Licence, VehicleType, Model FROM Vehicles ORDER BY VehicleId)
   TO ''%svehicles.csv'' DELIMITER '','' CSV HEADER', fullpath);
 
   RAISE INFO 'Exporting table Licences';
@@ -67,8 +67,10 @@ BEGIN
   TO ''%slicences.csv'' DELIMITER '','' CSV HEADER', fullpath);
 
   RAISE INFO 'Exporting table Municipalities';
-  EXECUTE format('COPY (SELECT MunicipalityId, MunicipalityName, Population, PercPop, PopDensityKm2, NoEnterp,
-    PercEnterp, ST_AsEWKT(MunicipalityGeo) AS MunicipalityGeo FROM Municipalities ORDER BY MunicipalityId)
+  EXECUTE format('COPY (SELECT MunicipalityId, MunicipalityName, Population,
+    PercPop, PopDensityKm2, NoEnterp, PercEnterp, 
+    ST_AsEWKT(MunicipalityGeo) AS MunicipalityGeo
+    FROM Municipalities ORDER BY MunicipalityId)
   TO ''%smunicipalities.csv'' DELIMITER '','' CSV HEADER', fullpath);
 
   RAISE INFO 'Exporting table RoadSegments';

@@ -46,11 +46,9 @@ BEGIN
   CREATE TABLE Periods
   (
     PeriodId integer PRIMARY KEY,
-    StartP timestamptz,
-    EndP timestamptz,
-    Period period
+    Period tstzspan
   );
-  EXECUTE format('COPY Periods(PeriodId, StartP, EndP) FROM ''%speriods.csv'' DELIMITER '','' CSV HEADER', fullpath);
+  EXECUTE format('COPY Periods(PeriodId, Period) FROM ''%speriods.csv'' DELIMITER '','' CSV HEADER', fullpath);
   UPDATE Periods
   SET Period = period(StartP,EndP);
 
@@ -81,16 +79,16 @@ BEGIN
     PointId integer PRIMARY KEY,
     PosX double precision,
     PosY double precision,
-    geom geometry(Point,5676)
+    Geom geometry(Point,5676)
   );
   EXECUTE format('COPY Points(PointId, PosX, PosY) FROM ''%spoints.csv'' DELIMITER '','' CSV HEADER', fullpath);
   UPDATE Points
-  SET geom = ST_Transform(ST_SetSRID(ST_MakePoint(PosX, PosY),4326),5676);
+  SET Geom = ST_Transform(ST_SetSRID(ST_MakePoint(PosX, PosY),4326),5676);
 
   IF gist THEN
-    CREATE INDEX Points_geom_gist_idx ON Points USING gist(geom);
+    CREATE INDEX Points_geom_gist_idx ON Points USING gist(Geom);
   ELSE
-    CREATE INDEX Points_geom_spgist_idx ON Points USING spgist(geom);
+    CREATE INDEX Points_geom_spgist_idx ON Points USING spgist(Geom);
   END IF;
   
   /* There are NO duplicate points in Points
@@ -100,8 +98,8 @@ BEGIN
   P1.PosX = P2.PosX AND P1.PosY = P2.PosY;
   */
 
-  CREATE VIEW Points1 (PointId, PosX, PosY, geom) AS
-  SELECT PointId, PosX, PosY, geom
+  CREATE VIEW Points1 (PointId, PosX, PosY, Geom) AS
+  SELECT PointId, PosX, PosY, Geom
   FROM Points
   LIMIT 10;
 
@@ -123,7 +121,7 @@ BEGIN
   CREATE TABLE Regions
   (
     RegionId integer PRIMARY KEY,
-    geom Geometry(Polygon,5676)
+    Geom Geometry(Polygon,5676)
   );
   INSERT INTO Regions(RegionId, Geom)
   SELECT RegionId, ST_MakePolygon(ST_MakeLine(array_agg(
@@ -132,13 +130,13 @@ BEGIN
   GROUP BY RegionId;
 
   IF gist THEN
-    CREATE INDEX Regions_geom_gist_idx ON Regions USING gist (geom);
+    CREATE INDEX Regions_geom_gist_idx ON Regions USING gist (Geom);
   ELSE
-    CREATE INDEX Regions_geom_spgist_idx ON Regions USING spgist (geom);
+    CREATE INDEX Regions_geom_spgist_idx ON Regions USING spgist (Geom);
   END IF;
 
-  CREATE VIEW Regions1 (RegionId, geom) AS
-  SELECT RegionId, geom
+  CREATE VIEW Regions1 (RegionId, Geom) AS
+  SELECT RegionId, Geom
   FROM Regions
   LIMIT 10;
 
@@ -148,12 +146,12 @@ BEGIN
   DROP TABLE IF EXISTS Vehicles CASCADE;
   CREATE TABLE Vehicles
   (
-    VehId integer PRIMARY KEY,
+    VehicleId integer PRIMARY KEY,
     Licence varchar(32),
     Type varchar(32),
     Model varchar(32)
   );
-  EXECUTE format('COPY Vehicles(VehId, Licence, Type, Model) FROM ''%svehicles.csv'' DELIMITER '','' CSV HEADER', fullpath);
+  EXECUTE format('COPY Vehicles(VehicleId, Licence, Type, Model) FROM ''%svehicles.csv'' DELIMITER '','' CSV HEADER', fullpath);
   
 --------------------------------------------------------------
 
@@ -163,12 +161,12 @@ BEGIN
   (
     LicenceId integer PRIMARY KEY,
     Licence text,
-    VehId integer,
-    FOREIGN KEY (VehId) REFERENCES Vehicles(VehId)
+    VehicleId integer,
+    FOREIGN KEY (VehicleId) REFERENCES Vehicles(VehicleId)
   );
-  EXECUTE format('COPY Licences(LicenceId, Licence, VehId) FROM ''%slicences.csv'' DELIMITER '','' CSV HEADER', fullpath);
+  EXECUTE format('COPY Licences(LicenceId, Licence, VehicleId) FROM ''%slicences.csv'' DELIMITER '','' CSV HEADER', fullpath);
 
-  CREATE INDEX Licences_VehId_idx ON Licences USING btree (VehId);
+  CREATE INDEX Licences_VehId_idx ON Licences USING btree (VehicleId);
 
   /* There are duplicate licences in Licences, e.g., in SF 0.005
   SELECT COUNT(*)
@@ -176,13 +174,13 @@ BEGIN
   WHERE L1.LicenceId < L2.LicenceId AND L1.Licence = L2.Licence;
   */
 
-  CREATE VIEW Licences1 (LicenceId, Licence, VehId) AS
-  SELECT LicenceId, Licence, VehId
+  CREATE VIEW Licences1 (LicenceId, Licence, VehicleId) AS
+  SELECT LicenceId, Licence, VehicleId
   FROM Licences
   LIMIT 10;
 
-  CREATE VIEW Licences2 (LicenceId, Licence, VehId) AS
-  SELECT LicenceId, Licence, VehId
+  CREATE VIEW Licences2 (LicenceId, Licence, VehicleId) AS
+  SELECT LicenceId, Licence, VehicleId
   FROM Licences
   LIMIT 10 OFFSET 10;
 
@@ -193,35 +191,35 @@ BEGIN
   CREATE TABLE TripsInput
   (
     TripId integer,
-    VehId integer,
+    VehicleId integer,
     t timestamptz,
     PosX double precision,
     PosY double precision,
-    trip tgeompoint,
-    traj geometry(LineString),
-    UNIQUE (VehId, T),
-    FOREIGN KEY (VehId) REFERENCES Vehicles(VehId)
+    Trip tgeompoint,
+    UNIQUE (VehicleId, T),
+    FOREIGN KEY (VehicleId) REFERENCES Vehicles(VehicleId)
   );
-  EXECUTE format('COPY TripsInput(TripId, VehId, PosX, PosY, T) FROM ''%strips.csv'' DELIMITER '','' CSV HEADER', fullpath);
+  EXECUTE format('COPY TripsInput(TripId, VehicleId, PosX, PosY, T) FROM ''%strips.csv'' DELIMITER '','' CSV HEADER', fullpath);
 
   DROP TABLE IF EXISTS Trips CASCADE;
   CREATE TABLE Trips
   (
     TripId integer PRIMARY KEY,
-    VehId integer NOT NULL,
+    VehicleId integer NOT NULL,
     Trip tgeompoint NOT NULL,
-    Traj geometry,
-    FOREIGN KEY (VehId) REFERENCES Vehicles(VehId) 
+    Trajectory geometry,
+    FOREIGN KEY (VehicleId) REFERENCES Vehicles(VehicleId) 
   );
-  INSERT INTO Trips(TripId, VehId, Trip)
-  SELECT TripId, VehId, tgeompoint_seq(array_agg(tgeompoint_inst(
+  
+  INSERT INTO Trips(TripId, VehicleId, Trip)
+  SELECT TripId, VehicleId, tgeompoint_seq(array_agg(tgeompoint_inst(
     ST_Transform(ST_SetSRID(ST_MakePoint(PosX, PosY), 4326), 5676), T) ORDER BY T))
   FROM TripsInput
-  GROUP BY VehId, TripId;
+  GROUP BY VehicleId, TripId;
   UPDATE Trips
-  SET Traj = trajectory(Trip);
+  SET Trajectory = trajectory(Trip);
 
-  CREATE INDEX Trips_VehId_idx ON Trips USING btree(VehId);
+  CREATE INDEX Trips_VehId_idx ON Trips USING btree(VehicleId);
 
   IF gist THEN
     CREATE INDEX Trips_gist_idx ON Trips USING gist(trip);
@@ -240,11 +238,11 @@ BEGIN
    
   DROP TABLE IF EXISTS TripsGeo3DM;
   CREATE TABLE TripsGeo3DM AS
-  SELECT VehId, TripId, Trip::geometry AS Trip
+  SELECT VehicleId, TripId, Trip::geometry AS Trip
   FROM Trips;
 
-  CREATE INDEX TripsGeo3DM_VehId_idx ON TripsGeo3DM USING btree (VehId);
-  CREATE UNIQUE INDEX TripsGeo3DM_pkey_idx ON TripsGeo3DM USING btree (VehId, TripId);
+  CREATE INDEX TripsGeo3DM_VehId_idx ON TripsGeo3DM USING btree (VehicleId);
+  CREATE UNIQUE INDEX TripsGeo3DM_pkey_idx ON TripsGeo3DM USING btree (VehicleId, TripId);
   CREATE INDEX TripsGeo3DM_spatial_idx ON TripsGeo3DM USING gist (Trip);
 */
 -------------------------------------------------------------------------------
