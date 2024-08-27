@@ -1269,7 +1269,7 @@ BEGIN
   -- inserting duplicates in the table, the query sent to the pgr_dijkstra
   -- function MUST use 'SELECT DISTINCT ...'
 
-  RAISE INFO 'Creating the Destinations table';
+  RAISE INFO 'Creating table Destinations';
   DROP TABLE IF EXISTS Destinations CASCADE;
   CREATE TABLE Destinations(VehicleId int, SourceNode bigint, TargetNode bigint,
     PRIMARY KEY (VehicleId, SourceNode, TargetNode));
@@ -1277,7 +1277,7 @@ BEGIN
   -- Create a relation with all vehicles, their home and work node and the
   -- number of neighbourhood nodes
 
-  RAISE INFO 'Creating the VehicleNodes, Vehicles, and Neighbourhoods tables';
+  RAISE INFO 'Creating tables VehicleNodes, Vehicles, and Neighbourhoods';
   DROP TABLE IF EXISTS VehicleNodes CASCADE;
   CREATE TABLE VehicleNodes(VehicleId int PRIMARY KEY, HomeNode bigint NOT NULL,
     WorkNode bigint NOT NULL, NoNeighbours int);
@@ -1333,7 +1333,7 @@ BEGIN
   -- The number of rows these tables is determined by P_SAMPLE_SIZE
   -------------------------------------------------------------------------
 
-  RAISE INFO 'Creating the Licences table';
+  RAISE INFO 'Creating table Licences';
 
   DROP TABLE IF EXISTS Licences CASCADE;
   CREATE TABLE Licences(LicenceId int PRIMARY KEY, Licence text, 
@@ -1358,7 +1358,7 @@ BEGIN
   FROM Licences
   LIMIT 10 OFFSET 10;
 
-  RAISE INFO 'Creating the Points and Regions tables';
+  RAISE INFO 'Creating tables Points and Regions';
 
   -- Random points
   DROP TABLE IF EXISTS Points CASCADE;
@@ -1412,7 +1412,7 @@ BEGIN
   LIMIT 10;
 
   -- Random instants
-  RAISE INFO 'Creating the Instants and Periods tables';
+  RAISE INFO 'Creating tables Instants and Periods';
   DROP TABLE IF EXISTS Instants CASCADE;
   CREATE TABLE Instants(InstantId int PRIMARY KEY, Instant timestamptz);
   INSERT INTO Instants(InstantId, Instant)
@@ -1460,7 +1460,7 @@ BEGIN
   -- and is 2 for afternoon trips.
   -------------------------------------------------------------------------
 
-  RAISE INFO 'Creating the LeisureTrips table';
+  RAISE INFO 'Creating table LeisureTrips';
   DROP TABLE IF EXISTS LeisureTrips CASCADE;
   CREATE TABLE LeisureTrips(VehicleId int, StartDate date, TripNo int,
     SeqNo int, SourceNode bigint, TargetNode bigint,
@@ -1550,7 +1550,7 @@ BEGIN
   -------------------------------------------------------------------------
 
   IF messages = 'minimal' THEN
-    RAISE INFO 'Creating the Paths table';
+    RAISE INFO 'Creating table Paths';
   ELSE
     RAISE INFO 'Creation of the Paths table started at %', clock_timestamp();
   END IF;

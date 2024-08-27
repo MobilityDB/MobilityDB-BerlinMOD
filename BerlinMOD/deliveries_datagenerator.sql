@@ -26,7 +26,7 @@ patterns or modify the sampling of positions.
 
 The database must contain the following input relations:
 
-*  Nodes and RoadSegments are the tables defining the road network graph.
+* Nodes and RoadSegments are the tables defining the road network graph.
   These tables are typically obtained by osm2pgrouting from OSM data.
   The description of these tables is given in the file
   berlinmod_datagenerator.sql
@@ -45,7 +45,7 @@ functions are executed using the following tables
 *  Deliveries(DeliveryId int primary key, VehicleId int, StartDate date,
      NoCustomers int, Trip tgeompoint, Trajectory geometry)
 *  Segments(DeliveryId int, SegNo int, SourceWHId bigint, SourceCustId bigint, 
-     TargetWHId bigint, TargetCustId bigint, trip tgeompoint,
+     TargetWHId bigint, TargetCustId bigint, Trip tgeompoint,
      Trajectory geometry, SourceGeom geometry, primary key (DeliveryId, SegNo))
 *  Points(PointId int primary key, Geom geometry)
 *  Regions(RegionId int primary key, Geom geometry)
@@ -57,10 +57,10 @@ In addition the following work tables are created
 *  Trips(VehicleId int, StartDate date, SegNo int, SourceNode bigint, 
      TargetNode bigint, SourceWHId int, TargetWHId int, SourceCustId int, 
      TargetCustId int, primary key (VehicleId, StartDate, SegNo))
-*  Destinations(id serial, SourceNode bigint, target bigint)
-*  Paths(SegNo int, path_seq int, StartNode bigint, EndNode bigint,
-     NodeId bigint, Edge bigint, Geom geometry, Speed float, Category int,
-     primary key (SourceNode, end_vid, path_seq));
+*  Destinations(DestId serial, SourceNode bigint, target bigint)
+*  Paths(StartNode bigint, EndNode bigint, SegNo int, 
+     NodeId bigint, EdgeId bigint, Geom geometry, Speed float, Category int,
+     primary key (StartNode, EndNode, path_seq));
 
 -----------------------------------------------------------------------------*/
 
@@ -111,7 +111,7 @@ DECLARE
   -- Number of vehicles for showing heartbeat messages when message is 'minimal'
   P_DELIVERIES_NO_VEHICLES int = 100;
 BEGIN
-  RAISE INFO 'Creating the Deliveries and Segments tables';
+  RAISE INFO 'Creating tables Deliveries and Segments';
   DROP TABLE IF EXISTS Deliveries;
   CREATE TABLE Deliveries(DeliveryId int PRIMARY KEY, VehicleId int,
     StartDate date, NoCustomers int, Trip tgeompoint, Trajectory geometry);
@@ -161,7 +161,7 @@ BEGIN
           -- Get the path
           SELECT array_agg((Geom, speed, category) ORDER BY SeqNo) INTO path
           FROM Paths
-          WHERE StartNode = srcNode AND EndNode = trgtNode AND Edge > 0;
+          WHERE StartNode = srcNode AND EndNode = trgtNode AND EdgeId > 0;
           -- In exceptional circumstances, depending on the input graph, it may
           -- be the case that pgrouting does not find a connecting path between
           -- two nodes. Instead of stopping the generation process, the error
@@ -254,7 +254,7 @@ BEGIN
   WHILE true LOOP
     custId = random_int(1, NoCustomers);
     -- Get the customer node
-    SELECT c.Node INTO result
+    SELECT c.NodeId INTO result
     FROM Customers c
     WHERE c.CustomerId = custId;
     IF result != ALL(prevNodes) THEN
@@ -459,13 +459,13 @@ BEGIN
   -------------------------------------------------------------------------
 
   -- Create a relation with all warehouses
-  RAISE INFO 'Creating the Warehouses table';
+  RAISE INFO 'Creating table Warehouses';
   DROP TABLE IF EXISTS Warehouses;
-  CREATE TABLE Warehouses(WarehouseId int PRIMARY KEY, Node bigint,
+  CREATE TABLE Warehouses(WarehouseId int PRIMARY KEY, NodeId bigint,
     WarehouseGeo geometry(Point));
   FOR warehId IN 1..noWarehouses LOOP
     -- Create a warehouse located at that a random node
-    INSERT INTO Warehouses(WarehouseId, Node, WarehouseGeo)
+    INSERT INTO Warehouses(WarehouseId, NodeId, WarehouseGeo)
     SELECT warehId, NodeId, Geom
     FROM Nodes n
     ORDER BY NodeId LIMIT 1 OFFSET random_int(1, noNodes) - 1;
@@ -505,7 +505,7 @@ BEGIN
 
   -- Create a relation with all vehicles and the associated warehouse
   -- Warehouses are associated to vehicles in a round-robin way
-  RAISE INFO 'Creating the Vehicles table';
+  RAISE INFO 'Creating table Vehicles';
   DROP TABLE IF EXISTS Vehicles;
   CREATE TABLE Vehicles(VehicleId int PRIMARY KEY, Licence text, MakeYear int,
     brandId int, classId int, WarehouseId int);
@@ -525,13 +525,13 @@ BEGIN
   END LOOP;
 
   -- Create a relation with all customers
-  RAISE INFO 'Creating the Customers table';
+  RAISE INFO 'Creating table Customers';
   DROP TABLE IF EXISTS Customers;
-  CREATE TABLE Customers(CustomerId int PRIMARY KEY, node bigint, 
+  CREATE TABLE Customers(CustomerId int PRIMARY KEY, NodeId bigint, 
     CustomerGeo geometry(Point), MunicipalityId int);
   FOR custId IN 1..NoCustomers LOOP
     -- Create a customer located at that a random node
-    INSERT INTO Customers(CustomerId, Node, CustomerGeo)
+    INSERT INTO Customers(CustomerId, NodeId, CustomerGeo)
     SELECT custId, NodeId, Geom
     FROM Nodes n
     ORDER BY NodeId LIMIT 1 OFFSET random_int(1, noNodes) - 1;
@@ -555,7 +555,7 @@ BEGIN
   -------------------------------------------------------------------------
 
   -- Random points
-  RAISE INFO 'Creating the Points and Regions tables';
+  RAISE INFO 'Creating tables Points and Regions';
   DROP TABLE IF EXISTS Points CASCADE;
   CREATE TABLE Points(PointId int PRIMARY KEY, Geom geometry(Point));
   INSERT INTO Points
@@ -597,7 +597,7 @@ BEGIN
   END IF;
 
   -- Random instants
-  RAISE INFO 'Creating the Instants and Periods tables';
+  RAISE INFO 'Creating tables Instants and Periods';
   DROP TABLE IF EXISTS Instants CASCADE;
   CREATE TABLE Instants(InstantId int PRIMARY KEY, Instant timestamptz);
   INSERT INTO Instants
@@ -636,14 +636,14 @@ BEGIN
   -- are inserting duplicates in the table, the query sent to the pgr_dijkstra
   -- function MUST use 'SELECT DISTINCT ...'
 
-  RAISE INFO 'Creating the Trips and Destinations tables';
+  RAISE INFO 'Creating tables Trips and Destinations';
   DROP TABLE IF EXISTS Trips;
   CREATE TABLE Trips(VehicleId int, StartDate date, SegNo int,
     SourceNode bigint, TargetNode bigint,
     SourceWHId int, TargetWHId int, SourceCustId int, TargetCustId int,
     PRIMARY KEY (VehicleId, StartDate, SegNo));
   DROP TABLE IF EXISTS Destinations;
-  CREATE TABLE Destinations(id serial PRIMARY KEY, SourceNode bigint,
+  CREATE TABLE Destinations(DestId serial PRIMARY KEY, SourceNode bigint,
     TargetNode bigint);
   -- Loop for every vehicle
   FOR vehId IN 1..noVehicles LOOP
@@ -651,7 +651,7 @@ BEGIN
       RAISE INFO '-- Vehicles %', vehId;
     END IF;
     -- Get the warehouse node
-    SELECT w.WarehouseId, w.node INTO warehId, warehNode
+    SELECT w.WarehouseId, w.NodeId INTO warehId, warehNode
     FROM Vehicles v, Warehouses w
     WHERE v.VehicleId = vehId AND v.WarehouseId = w.WarehouseId;
     day = startDay;
@@ -676,7 +676,7 @@ BEGIN
             trgtNode = deliveries_selectCustNode(vehId, NoCustomers, prevNodes);
             SELECT c.CustomerId INTO custId
             FROM Customers c
-            WHERE c.node = trgtNode;
+            WHERE c.NodeId = trgtNode;
             prevNodes = prevNodes || trgtNode;
             trgtCust = custId; trgtWH = NULL; 
           ELSE
@@ -723,11 +723,11 @@ BEGIN
   -- Call pgRouting to generate the paths
   -------------------------------------------------------------------------
 
-  RAISE INFO 'Creating the Paths table';
+  RAISE INFO 'Creating table Paths';
   DROP TABLE IF EXISTS Paths;
   CREATE TABLE Paths(
     -- The following attributes are generated by pgRouting
-    StartNode bigint, EndNode bigint, SeqNo int, Node bigint, Edge bigint,
+    StartNode bigint, EndNode bigint, SeqNo int, NodeId bigint, EdgeId bigint,
     -- The following attributes are filled in the subsequent update
     Geom geometry NOT NULL, Speed float NOT NULL, Category int NOT NULL,
     PRIMARY KEY (StartNode, EndNode, SeqNo));
@@ -767,21 +767,21 @@ BEGIN
         RAISE INFO '  Call number % started at %', i, clock_timestamp();
       END IF;
     END IF;
-    INSERT INTO Paths(StartNode, EndNode, SeqNo, Node, Edge, Geom, Speed,
+    INSERT INTO Paths(StartNode, EndNode, SeqNo, NodeId, EdgeId, Geom, Speed,
       Category)
-    WITH Temp(StartNode, EndNode, SeqNo, Node, Edge) AS (
+    WITH Temp(StartNode, EndNode, SeqNo, NodeId, EdgeId) AS (
       SELECT start_vid, end_vid, path_seq, node, edge
       FROM pgr_dijkstra(query1_pgr, query2_pgr, true)
       WHERE edge > 0 )
-    SELECT StartNode, EndNode, SeqNo, Node, Edge,
+    SELECT StartNode, EndNode, SeqNo, NodeId, EdgeId,
       -- adjusting directionality
       CASE
-        WHEN t.Node = r.SourceNode THEN r.SegmentGeo
+        WHEN t.NodeId = r.SourceNode THEN r.SegmentGeo
         ELSE ST_Reverse(r.SegmentGeo)
       END AS Geom, r.MaxSpeedFwd AS Speed,
       berlinmod_roadCategory(r.TagId) AS Category
     FROM Temp t, RoadSegments r
-    WHERE r.SegmentId = t.Edge;
+    WHERE r.SegmentId = t.EdgeId;
     IF messages = 'medium' OR messages = 'verbose' THEN
       IF noCalls = 1 THEN
         RAISE INFO '  Call ended at %', clock_timestamp();
@@ -832,7 +832,7 @@ BEGIN
   END IF;
 
   -- Create a Date dimension table for OLAP querying
-  RAISE INFO 'Creating the Date table';
+  RAISE INFO 'Creating table Date';
   DROP TABLE IF EXISTS Date;
   CREATE TABLE Date(DateId serial PRIMARY KEY, Date date NOT NULL UNIQUE,
     WeekNo int, MonthNo int, MonthName text, Quarter int, Year int);

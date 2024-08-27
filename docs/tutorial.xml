@@ -28,10 +28,10 @@ cd MobilityDB-BerlinMOD/BerlinMOD
 		<para>
 		We explain now how to explore this tutorial using a Docker image that contains MobilityDB and all its dependencies (including PostgreSQL and PostGIS). The container has a default database called <varname>mobilitydb</varname> with the MobilityDB extension installed where <varname>user = pw = docker</varname>. This presupposes that you have installed Docker into your computer. In that case, you can run the following command.
 			<programlisting language="bash" xml:space="preserve">
-docker pull codewit/mobilitydb
+docker pull mobilitydb/mobilitydb
 docker volume create mobilitydb_data
 docker run --name "mobilitydb" -d -p 25432:5432 -v mobilitydb_data:/var/lib/postgresql 
-codewit/mobilitydb
+mobilitydb/mobilitydb
 </programlisting>
 			In the above commands
 			<itemizedlist>
@@ -50,7 +50,7 @@ codewit/mobilitydb
 				<listitem><para><varname>-v mobilitydb_data:/var/lib/postgresql</varname> tells the container filesystem to mount the <varname>mobilitydb_data</varname> volume that we have just created to the path /var/lib/postgresql. This means that any database objects that the container saves or creates (by default in <varname>/var/lib/postgresql</varname>) will instead be persisted in the <varname>mobilitydb_data</varname> directory, which is stored in the host. This options ensures that your data will not be lost when the container is removed. </para>
 				</listitem>
 
-				<listitem><para><varname>codewit/mobilitydb</varname> tells Docker to pull the docker image with that name from Docker Hub.</para>
+				<listitem><para><varname>mobilitydb/mobilitydb</varname> tells Docker to pull the docker image with that name from Docker Hub.</para>
 				</listitem>
 			</itemizedlist>
 		</para>
