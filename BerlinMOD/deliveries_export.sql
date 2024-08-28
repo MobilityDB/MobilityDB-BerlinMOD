@@ -86,17 +86,6 @@ BEGIN
     FROM Warehouses ORDER BY WarehouseId)
     TO ''%swarehouses.csv'' DELIMITER '','' CSV HEADER', fullpath);
 
-  RAISE INFO 'Exporting table Deliveries transformed into DeliveriesInput';
-  EXECUTE format('COPY (
-    WITH Instants(DeliveryId, VehicleId, StartDate, NoCustomers, Inst) AS (
-      SELECT DeliveryId, VehicleId, StartDate, NoCustomers, unnest(instants(Trip))
-      FROM Deliveries )
-    SELECT DeliveryId, VehicleId, StartDate, NoCustomers, getValue(Inst) AS Point, 
-      getTimestamp(Inst) AS T
-    FROM Instants
-    ORDER BY DeliveryId, VehicleId, StartDate, T )
-    TO ''%sdeliveriesinput.csv'' DELIMITER '','' CSV HEADER', fullpath);
-
   RAISE INFO 'Exporting table Segments transformed into SegmentsInput';
   EXECUTE format('COPY (
     WITH Instants(DeliveryId, SegNo, SourceWhId, SourceCustId, TargetWhId,
@@ -109,6 +98,12 @@ BEGIN
     FROM Instants
     ORDER BY DeliveryId, SegNo, T ) 
   TO ''%ssegmentsinput.csv'' DELIMITER '','' CSV HEADER', fullpath);
+
+  RAISE INFO 'Exporting table Deliveries without the trips';
+  EXECUTE format('COPY (
+    SELECT DeliveryId, VehicleId, StartDate, NoCustomers FROM Deliveries
+    ORDER BY DeliveryId, VehicleId, StartDate )
+    TO ''%sdeliveries.csv'' DELIMITER '','' CSV HEADER', fullpath);
 
 --------------------------------------------------------------
 
