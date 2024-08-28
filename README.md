@@ -58,6 +58,7 @@ The generator has two scenarios, the original one from BerlinMOD, and another on
 
 BerlinMOD synthetic data using OSM data from Brussels.
 
+|--------------|:--------:|:----:|:-----:|:----:|:----:|
 | Scale Factor | Vehicles | Days | Trips | File | Size |
 |--------------|---------:|-----:|------:|-----:|-----:|
 | SF 0.1 |   632 | 11 |  18,910 | [brussels_sf0.1.zip](https://docs.mobilitydb.com/pub/brussels_sf0.1.zip) | 5.5 MB |
