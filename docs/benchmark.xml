@@ -487,7 +487,7 @@ WHERE t1.VehicleId = l1.VehicleId AND t2.VehicleId = l2.VehicleId AND
   t2.Trip &amp;&amp; stbox(r.Geom, p.Period) AND
   ST_Intersects(trajectory(atTime(t1.Trip, p.Period)), r.Geom) AND
   ST_Intersects(trajectory(atTime(t2.Trip, p.Period)), r.Geom) AND
-  tIntersects(atTime(t1.Trip, p.Period), atTime(t2.Trip, p.Period)) %= FALSE
+  aDisjoint(atTime(t1.Trip, p.Period), atTime(t2.Trip, p.Period))
 ORDER BY PeriodId, RegionId, Licence1, Licence2;
 </programlisting>
 			</listitem>

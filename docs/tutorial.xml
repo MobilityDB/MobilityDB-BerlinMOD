@@ -35,7 +35,7 @@ mobilitydb/mobilitydb
 </programlisting>
 			In the above commands
 			<itemizedlist>
-				<listitem><para><varname>docker pull</varname> downloads the Docker image of <varname>mobilitydb</varname>. If the image has been downloaded before, this checks whether a more recent image has been published in the docker repository, and downloads it. It is better to call this command every time, to ensures that you have the latest most up-to-date version of this image.</para></listitem>
+				<listitem><para><varname>docker pull</varname> downloads the Docker image of <varname>mobilitydb</varname>. If the image has been downloaded before, this checks whether a more recent image has been published in the docker repository, and downloads it. It is better to call this command every time, to ensure that you have the most up-to-date version of this image.</para></listitem>
 
 				<listitem><para><varname>docker volume create mobilitydb_data</varname> creates a volume container on the host, that we will use to persist the PostgreSQL database files outside of the MobilityDB container. You need to run this command only once, during the first use of the image</para>
 				</listitem>
@@ -47,7 +47,7 @@ mobilitydb/mobilitydb
 				<listitem><para><varname>-p 25432:5432</varname> maps TCP port 5432 in the container to port 25432 on the Docker host (to prevent potential conflicts with any local database instance you may have). This is required because the PostgreSQL database server in the container listens for connections on port 5432 by default.</para>
 				</listitem>
 
-				<listitem><para><varname>-v mobilitydb_data:/var/lib/postgresql</varname> tells the container filesystem to mount the <varname>mobilitydb_data</varname> volume that we have just created to the path /var/lib/postgresql. This means that any database objects that the container saves or creates (by default in <varname>/var/lib/postgresql</varname>) will instead be persisted in the <varname>mobilitydb_data</varname> directory, which is stored in the host. This options ensures that your data will not be lost when the container is removed. </para>
+				<listitem><para><varname>-v mobilitydb_data:/var/lib/postgresql</varname> tells the container filesystem to mount the <varname>mobilitydb_data</varname> volume that we have just created to the path <varname>/var/lib/postgresql</varname>. This means that any database objects that the container saves or creates (by default in <varname>/var/lib/postgresql</varname>) will instead be persisted in the <varname>mobilitydb_data</varname> directory, which is stored in the host. This options ensures that your data will not be lost when the container is removed. </para>
 				</listitem>
 
 				<listitem><para><varname>mobilitydb/mobilitydb</varname> tells Docker to pull the docker image with that name from Docker Hub.</para>

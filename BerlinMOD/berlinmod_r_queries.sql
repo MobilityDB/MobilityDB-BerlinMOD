@@ -10,11 +10,8 @@
  * Example of usage:
  *     <Create the function>
  *     SELECT berlinmod_R_queries(1, true);
- * It is supposed that the BerlinMOD data with WGS84 coordinates in CSV format 
- * http://dna.fernuni-hagen.de/secondo/BerlinMOD/BerlinMOD.html  
- * has been previously loaded using projected (2D) coordinates with SRID 5676
- * https://epsg.io/5676
- * For loading the data see the companion file 'berlinmod_load.sql'
+ * It is supposed that the BerlinMOD data in CSV format has been previously
+ * loaded. For loading the data see the companion file 'berlinmod_load.sql'
  *****************************************************************************/
 
 DROP FUNCTION IF EXISTS berlinmod_R_queries;
@@ -30,14 +27,14 @@ DECLARE
   Duration interval;
   TotalDuration interval = 0;
   NumberRows bigint;
-  Experiment_Id int;
+  ExperimentId int;
 BEGIN
-FOR Experiment_Id IN 1..times
+FOR ExperimentId IN 1..times
 LOOP
   SET log_error_verbosity to terse;
 
   CREATE TABLE IF NOT EXISTS execution_tests_explain (
-    Experiment_Id int,
+    ExperimentId int,
     Query char(5),
     StartTime timestamp,
     PlanningTime float,
@@ -66,13 +63,16 @@ LOOP
   Duration := make_interval(secs := PlanningTime + ExecutionTime);
   NumberRows := (J->0->'Plan'->>'Actual Rows')::bigint;
   IF detailed THEN
-    RAISE INFO 'Query: %, Start Time: %, Planning Time: % milisecs, Execution Time: % secs, Total Duration: %, Number of Rows: %', 
-    trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows;
+    RAISE INFO 'Query: %, Start Time: %, Planning Time: % milisecs, '
+      'Execution Time: % secs, Total Duration: %, Number of Rows: %', 
+      trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows;
   ELSE
-    RAISE INFO 'Query: %, Total Duration: %, Number of Rows: %', trim(Query), Duration, NumberRows;
+    RAISE INFO 'Query: %, Total Duration: %, Number of Rows: %', trim(Query),
+      Duration, NumberRows;
   END IF;
   INSERT INTO execution_tests_explain
-  VALUES (Experiment_Id, trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows, J);
+  VALUES (ExperimentId, trim(Query), StartTime, PlanningTime, ExecutionTime,
+    Duration, NumberRows, J);
   TotalDuration = TotalDuration + Duration;
 
   -------------------------------------------------------------------------------
@@ -93,13 +93,16 @@ LOOP
   Duration := make_interval(secs := PlanningTime + ExecutionTime);
   NumberRows := (J->0->'Plan'->>'Actual Rows')::bigint;
   IF detailed THEN
-    RAISE INFO 'Query: %, Start Time: %, Planning Time: % milisecs, Execution Time: % secs, Total Duration: %, Number of Rows: %', 
-    trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows;
+    RAISE INFO 'Query: %, Start Time: %, Planning Time: % milisecs, '
+      'Execution Time: % secs, Total Duration: %, Number of Rows: %', 
+      trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows;
   ELSE
-    RAISE INFO 'Query: %, Total Duration: %, Number of Rows: %', trim(Query), Duration, NumberRows;
+    RAISE INFO 'Query: %, Total Duration: %, Number of Rows: %', trim(Query),
+      Duration, NumberRows;
   END IF;
   INSERT INTO execution_tests_explain
-  VALUES (Experiment_Id, trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows, J);
+  VALUES (ExperimentId, trim(Query), StartTime, PlanningTime, ExecutionTime,
+    Duration, NumberRows, J);
   TotalDuration = TotalDuration + Duration;
 
   -------------------------------------------------------------------------------
@@ -136,13 +139,16 @@ LOOP
   Duration := make_interval(secs := PlanningTime + ExecutionTime);
   NumberRows := (J->0->'Plan'->>'Actual Rows')::bigint;
   IF detailed THEN
-    RAISE INFO 'Query: %, Start Time: %, Planning Time: % milisecs, Execution Time: % secs, Total Duration: %, Number of Rows: %', 
-    trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows;
+    RAISE INFO 'Query: %, Start Time: %, Planning Time: % milisecs, '
+      'Execution Time: % secs, Total Duration: %, Number of Rows: %', 
+      trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows;
   ELSE
-    RAISE INFO 'Query: %, Total Duration: %, Number of Rows: %', trim(Query), Duration, NumberRows;
+    RAISE INFO 'Query: %, Total Duration: %, Number of Rows: %', trim(Query),
+      Duration, NumberRows;
   END IF;
   INSERT INTO execution_tests_explain
-  VALUES (Experiment_Id, trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows, J);
+  VALUES (ExperimentId, trim(Query), StartTime, PlanningTime, ExecutionTime,
+    Duration, NumberRows, J);
   TotalDuration = TotalDuration + Duration;
 
   -------------------------------------------------------------------------------
@@ -165,13 +171,16 @@ LOOP
   Duration := make_interval(secs := PlanningTime + ExecutionTime);
   NumberRows := (J->0->'Plan'->>'Actual Rows')::bigint;
   IF detailed THEN
-    RAISE INFO 'Query: %, Start Time: %, Planning Time: % milisecs, Execution Time: % secs, Total Duration: %, Number of Rows: %', 
-    trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows;
+    RAISE INFO 'Query: %, Start Time: %, Planning Time: % milisecs, '
+      'Execution Time: % secs, Total Duration: %, Number of Rows: %', 
+      trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows;
   ELSE
-    RAISE INFO 'Query: %, Total Duration: %, Number of Rows: %', trim(Query), Duration, NumberRows;
+    RAISE INFO 'Query: %, Total Duration: %, Number of Rows: %', trim(Query),
+      Duration, NumberRows;
   END IF;
   INSERT INTO execution_tests_explain
-  VALUES (Experiment_Id, trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows, J);
+  VALUES (ExperimentId, trim(Query), StartTime, PlanningTime, ExecutionTime,
+    Duration, NumberRows, J);
   TotalDuration = TotalDuration + Duration;
 
   -------------------------------------------------------------------------------
@@ -213,13 +222,16 @@ LOOP
   Duration := make_interval(secs := PlanningTime + ExecutionTime);
   NumberRows := (J->0->'Plan'->>'Actual Rows')::bigint;
   IF detailed THEN
-    RAISE INFO 'Query: %, Start Time: %, Planning Time: % milisecs, Execution Time: % secs, Total Duration: %, Number of Rows: %', 
-    trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows;
+    RAISE INFO 'Query: %, Start Time: %, Planning Time: % milisecs, '
+      'Execution Time: % secs, Total Duration: %, Number of Rows: %', 
+      trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows;
   ELSE
-    RAISE INFO 'Query: %, Total Duration: %, Number of Rows: %', trim(Query), Duration, NumberRows;
+    RAISE INFO 'Query: %, Total Duration: %, Number of Rows: %', trim(Query),
+      Duration, NumberRows;
   END IF;
   INSERT INTO execution_tests_explain
-  VALUES (Experiment_Id, trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows, J);
+  VALUES (ExperimentId, trim(Query), StartTime, PlanningTime, ExecutionTime,
+    Duration, NumberRows, J);
   TotalDuration = TotalDuration + Duration;
 
   -------------------------------------------------------------------------------
@@ -260,13 +272,16 @@ LOOP
   Duration := make_interval(secs := PlanningTime + ExecutionTime);
   NumberRows := (J->0->'Plan'->>'Actual Rows')::bigint;
   IF detailed THEN
-    RAISE INFO 'Query: %, Start Time: %, Planning Time: % milisecs, Execution Time: % secs, Total Duration: %, Number of Rows: %', 
-    trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows;
+    RAISE INFO 'Query: %, Start Time: %, Planning Time: % milisecs, '
+      'Execution Time: % secs, Total Duration: %, Number of Rows: %', 
+      trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows;
   ELSE
-    RAISE INFO 'Query: %, Total Duration: %, Number of Rows: %', trim(Query), Duration, NumberRows;
+    RAISE INFO 'Query: %, Total Duration: %, Number of Rows: %', trim(Query),
+      Duration, NumberRows;
   END IF;
   INSERT INTO execution_tests_explain
-  VALUES (Experiment_Id, trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows, J);
+  VALUES (ExperimentId, trim(Query), StartTime, PlanningTime, ExecutionTime,
+    Duration, NumberRows, J);
   TotalDuration = TotalDuration + Duration;
   --set enable_indexscan = on;
   --set enable_seqscan =on;
@@ -301,13 +316,16 @@ LOOP
   Duration := make_interval(secs := PlanningTime + ExecutionTime);
   NumberRows := (J->0->'Plan'->>'Actual Rows')::bigint;
   IF detailed THEN
-    RAISE INFO 'Query: %, Start Time: %, Planning Time: % milisecs, Execution Time: % secs, Total Duration: %, Number of Rows: %', 
-    trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows;
+    RAISE INFO 'Query: %, Start Time: %, Planning Time: % milisecs, '
+      'Execution Time: % secs, Total Duration: %, Number of Rows: %', 
+      trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows;
   ELSE
-    RAISE INFO 'Query: %, Total Duration: %, Number of Rows: %', trim(Query), Duration, NumberRows;
+    RAISE INFO 'Query: %, Total Duration: %, Number of Rows: %', trim(Query),
+      Duration, NumberRows;
   END IF;
   INSERT INTO execution_tests_explain
-  VALUES (Experiment_Id, trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows, J);
+  VALUES (ExperimentId, trim(Query), StartTime, PlanningTime, ExecutionTime,
+    Duration, NumberRows, J);
   TotalDuration = TotalDuration + Duration;
 
   -------------------------------------------------------------------------------
@@ -332,13 +350,16 @@ LOOP
   Duration := make_interval(secs := PlanningTime + ExecutionTime);
   NumberRows := (J->0->'Plan'->>'Actual Rows')::bigint;
   IF detailed THEN
-    RAISE INFO 'Query: %, Start Time: %, Planning Time: % milisecs, Execution Time: % secs, Total Duration: %, Number of Rows: %', 
-    trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows;
+    RAISE INFO 'Query: %, Start Time: %, Planning Time: % milisecs, '
+      'Execution Time: % secs, Total Duration: %, Number of Rows: %', 
+      trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows;
   ELSE
-    RAISE INFO 'Query: %, Total Duration: %, Number of Rows: %', trim(Query), Duration, NumberRows;
+    RAISE INFO 'Query: %, Total Duration: %, Number of Rows: %', trim(Query),
+      Duration, NumberRows;
   END IF;
   INSERT INTO execution_tests_explain
-  VALUES (Experiment_Id, trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows, J);
+  VALUES (ExperimentId, trim(Query), StartTime, PlanningTime, ExecutionTime,
+    Duration, NumberRows, J);
   TotalDuration = TotalDuration + Duration;
 
   -------------------------------------------------------------------------------
@@ -366,13 +387,16 @@ LOOP
   Duration := make_interval(secs := PlanningTime + ExecutionTime);
   NumberRows := (J->0->'Plan'->>'Actual Rows')::bigint;
   IF detailed THEN
-    RAISE INFO 'Query: %, Start Time: %, Planning Time: % milisecs, Execution Time: % secs, Total Duration: %, Number of Rows: %', 
-    trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows;
+    RAISE INFO 'Query: %, Start Time: %, Planning Time: % milisecs, '
+      'Execution Time: % secs, Total Duration: %, Number of Rows: %', 
+      trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows;
   ELSE
-    RAISE INFO 'Query: %, Total Duration: %, Number of Rows: %', trim(Query), Duration, NumberRows;
+    RAISE INFO 'Query: %, Total Duration: %, Number of Rows: %', trim(Query),
+      Duration, NumberRows;
   END IF;
   INSERT INTO execution_tests_explain
-  VALUES (Experiment_Id, trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows, J);
+  VALUES (ExperimentId, trim(Query), StartTime, PlanningTime, ExecutionTime,
+    Duration, NumberRows, J);
   TotalDuration = TotalDuration + Duration;
 
   -------------------------------------------------------------------------------
@@ -410,13 +434,16 @@ LOOP
   Duration := make_interval(secs := PlanningTime + ExecutionTime);
   NumberRows := (J->0->'Plan'->>'Actual Rows')::bigint;
   IF detailed THEN
-    RAISE INFO 'Query: %, Start Time: %, Planning Time: % milisecs, Execution Time: % secs, Total Duration: %, Number of Rows: %', 
-    trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows;
+    RAISE INFO 'Query: %, Start Time: %, Planning Time: % milisecs, '
+      'Execution Time: % secs, Total Duration: %, Number of Rows: %', 
+      trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows;
   ELSE
-    RAISE INFO 'Query: %, Total Duration: %, Number of Rows: %', trim(Query), Duration, NumberRows;
+    RAISE INFO 'Query: %, Total Duration: %, Number of Rows: %', trim(Query),
+      Duration, NumberRows;
   END IF;
   INSERT INTO execution_tests_explain
-  VALUES (Experiment_Id, trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows, J);
+  VALUES (ExperimentId, trim(Query), StartTime, PlanningTime, ExecutionTime,
+    Duration, NumberRows, J);
   TotalDuration = TotalDuration + Duration;
 
   -------------------------------------------------------------------------------
@@ -442,13 +469,16 @@ LOOP
   Duration := make_interval(secs := PlanningTime + ExecutionTime);
   NumberRows := (J->0->'Plan'->>'Actual Rows')::bigint;
   IF detailed THEN
-    RAISE INFO 'Query: %, Start Time: %, Planning Time: % milisecs, Execution Time: % secs, Total Duration: %, Number of Rows: %', 
-    trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows;
+    RAISE INFO 'Query: %, Start Time: %, Planning Time: % milisecs, '
+      'Execution Time: % secs, Total Duration: %, Number of Rows: %', 
+      trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows;
   ELSE
-    RAISE INFO 'Query: %, Total Duration: %, Number of Rows: %', trim(Query), Duration, NumberRows;
+    RAISE INFO 'Query: %, Total Duration: %, Number of Rows: %', trim(Query),
+      Duration, NumberRows;
   END IF;
   INSERT INTO execution_tests_explain
-  VALUES (Experiment_Id, trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows, J);
+  VALUES (ExperimentId, trim(Query), StartTime, PlanningTime, ExecutionTime,
+    Duration, NumberRows, J);
   TotalDuration = TotalDuration + Duration;
   --set enable_seqscan =on;
 
@@ -478,13 +508,16 @@ LOOP
   Duration := make_interval(secs := PlanningTime + ExecutionTime);
   NumberRows := (J->0->'Plan'->>'Actual Rows')::bigint;
   IF detailed THEN
-    RAISE INFO 'Query: %, Start Time: %, Planning Time: % milisecs, Execution Time: % secs, Total Duration: %, Number of Rows: %', 
-    trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows;
+    RAISE INFO 'Query: %, Start Time: %, Planning Time: % milisecs, '
+      'Execution Time: % secs, Total Duration: %, Number of Rows: %', 
+      trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows;
   ELSE
-    RAISE INFO 'Query: %, Total Duration: %, Number of Rows: %', trim(Query), Duration, NumberRows;
+    RAISE INFO 'Query: %, Total Duration: %, Number of Rows: %', trim(Query),
+      Duration, NumberRows;
   END IF;
   INSERT INTO execution_tests_explain
-  VALUES (Experiment_Id, trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows, J);
+  VALUES (ExperimentId, trim(Query), StartTime, PlanningTime, ExecutionTime,
+    Duration, NumberRows, J);
   TotalDuration = TotalDuration + Duration;
 
   -------------------------------------------------------------------------------
@@ -523,13 +556,16 @@ LOOP
   Duration := make_interval(secs := PlanningTime + ExecutionTime);
   NumberRows := (J->0->'Plan'->>'Actual Rows')::bigint;
   IF detailed THEN
-    RAISE INFO 'Query: %, Start Time: %, Planning Time: % milisecs, Execution Time: % secs, Total Duration: %, Number of Rows: %', 
-    trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows;
+    RAISE INFO 'Query: %, Start Time: %, Planning Time: % milisecs, '
+      'Execution Time: % secs, Total Duration: %, Number of Rows: %', 
+      trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows;
   ELSE
-    RAISE INFO 'Query: %, Total Duration: %, Number of Rows: %', trim(Query), Duration, NumberRows;
+    RAISE INFO 'Query: %, Total Duration: %, Number of Rows: %', trim(Query),
+      Duration, NumberRows;
   END IF;
   INSERT INTO execution_tests_explain
-  VALUES (Experiment_Id, trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows, J);
+  VALUES (ExperimentId, trim(Query), StartTime, PlanningTime, ExecutionTime,
+    Duration, NumberRows, J);
   TotalDuration = TotalDuration + Duration;
   --set enable_seqscan =on;  
 
@@ -566,13 +602,16 @@ LOOP
   Duration := make_interval(secs := PlanningTime + ExecutionTime);
   NumberRows := (J->0->'Plan'->>'Actual Rows')::bigint;
   IF detailed THEN
-    RAISE INFO 'Query: %, Start Time: %, Planning Time: % milisecs, Execution Time: % secs, Total Duration: %, Number of Rows: %', 
-    trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows;
+    RAISE INFO 'Query: %, Start Time: %, Planning Time: % milisecs, '
+      'Execution Time: % secs, Total Duration: %, Number of Rows: %', 
+      trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows;
   ELSE
-    RAISE INFO 'Query: %, Total Duration: %, Number of Rows: %', trim(Query), Duration, NumberRows;
+    RAISE INFO 'Query: %, Total Duration: %, Number of Rows: %', trim(Query),
+      Duration, NumberRows;
   END IF;
   INSERT INTO execution_tests_explain
-  VALUES (Experiment_Id, trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows, J);
+  VALUES (ExperimentId, trim(Query), StartTime, PlanningTime, ExecutionTime,
+    Duration, NumberRows, J);
   TotalDuration = TotalDuration + Duration;
   --set enable_seqscan =on;
 
@@ -611,13 +650,16 @@ LOOP
   Duration := make_interval(secs := PlanningTime + ExecutionTime);
   NumberRows := (J->0->'Plan'->>'Actual Rows')::bigint;
   IF detailed THEN
-    RAISE INFO 'Query: %, Start Time: %, Planning Time: % milisecs, Execution Time: % secs, Total Duration: %, Number of Rows: %', 
-    trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows;
+    RAISE INFO 'Query: %, Start Time: %, Planning Time: % milisecs, '
+      'Execution Time: % secs, Total Duration: %, Number of Rows: %', 
+      trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows;
   ELSE
-    RAISE INFO 'Query: %, Total Duration: %, Number of Rows: %', trim(Query), Duration, NumberRows;
+    RAISE INFO 'Query: %, Total Duration: %, Number of Rows: %', trim(Query),
+      Duration, NumberRows;
   END IF;
   INSERT INTO execution_tests_explain
-  VALUES (Experiment_Id, trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows, J);
+  VALUES (ExperimentId, trim(Query), StartTime, PlanningTime, ExecutionTime,
+    Duration, NumberRows, J);
   TotalDuration = TotalDuration + Duration;
   --set enable_seqscan =on;  
 
@@ -649,13 +691,16 @@ LOOP
   Duration := make_interval(secs := PlanningTime + ExecutionTime);
   NumberRows := (J->0->'Plan'->>'Actual Rows')::bigint;
   IF detailed THEN
-    RAISE INFO 'Query: %, Start Time: %, Planning Time: % milisecs, Execution Time: % secs, Total Duration: %, Number of Rows: %', 
-    trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows;
+    RAISE INFO 'Query: %, Start Time: %, Planning Time: % milisecs, '
+      'Execution Time: % secs, Total Duration: %, Number of Rows: %', 
+      trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows;
   ELSE
-    RAISE INFO 'Query: %, Total Duration: %, Number of Rows: %', trim(Query), Duration, NumberRows;
+    RAISE INFO 'Query: %, Total Duration: %, Number of Rows: %', trim(Query),
+      Duration, NumberRows;
   END IF;
   INSERT INTO execution_tests_explain
-  VALUES (Experiment_Id, trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows, J);
+  VALUES (ExperimentId, trim(Query), StartTime, PlanningTime, ExecutionTime,
+    Duration, NumberRows, J);
   TotalDuration = TotalDuration + Duration;
 
   -------------------------------------------------------------------------------
@@ -681,13 +726,16 @@ LOOP
   Duration := make_interval(secs := PlanningTime + ExecutionTime);
   NumberRows := (J->0->'Plan'->>'Actual Rows')::bigint;
   IF detailed THEN
-    RAISE INFO 'Query: %, Start Time: %, Planning Time: % milisecs, Execution Time: % secs, Total Duration: %, Number of Rows: %', 
-    trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows;
+    RAISE INFO 'Query: %, Start Time: %, Planning Time: % milisecs, '
+      'Execution Time: % secs, Total Duration: %, Number of Rows: %', 
+      trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows;
   ELSE
-    RAISE INFO 'Query: %, Total Duration: %, Number of Rows: %', trim(Query), Duration, NumberRows;
+    RAISE INFO 'Query: %, Total Duration: %, Number of Rows: %', trim(Query),
+      Duration, NumberRows;
   END IF;
   INSERT INTO execution_tests_explain
-  VALUES (Experiment_Id, trim(Query), StartTime, PlanningTime, ExecutionTime, Duration, NumberRows, J);
+  VALUES (ExperimentId, trim(Query), StartTime, PlanningTime, ExecutionTime,
+    Duration, NumberRows, J);
   TotalDuration = TotalDuration + Duration;
 
 END LOOP;

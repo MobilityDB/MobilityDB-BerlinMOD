@@ -113,7 +113,8 @@ DECLARE
 BEGIN
   RAISE INFO 'Creating tables Deliveries and Segments';
   DROP TABLE IF EXISTS Deliveries;
-  CREATE TABLE Deliveries(DeliveryId int PRIMARY KEY, VehicleId int,
+  CREATE TABLE Deliveries(DeliveryId int PRIMARY KEY, 
+    VehicleId int REFERENCES Vehicles(VehicleId),
     StartDate date, NoCustomers int, Trip tgeompoint, Trajectory geometry);
   DROP TABLE IF EXISTS Segments;
   CREATE TABLE Segments(DeliveryId int, SegNo int, 
@@ -462,7 +463,8 @@ BEGIN
   RAISE INFO 'Creating table Warehouses';
   DROP TABLE IF EXISTS Warehouses;
   CREATE TABLE Warehouses(WarehouseId int PRIMARY KEY, NodeId bigint,
-    WarehouseGeo geometry(Point));
+    WarehouseGeo geometry(Point), 
+    MunicipalityId int REFERENCES Municipalities(MunicipalityId));
   FOR warehId IN 1..noWarehouses LOOP
     -- Create a warehouse located at that a random node
     INSERT INTO Warehouses(WarehouseId, NodeId, WarehouseGeo)
@@ -470,6 +472,9 @@ BEGIN
     FROM Nodes n
     ORDER BY NodeId LIMIT 1 OFFSET random_int(1, noNodes) - 1;
   END LOOP;
+  UPDATE Warehouses w SET MunicipalityId = (
+    SELECT MunicipalityId FROM Municipalities m
+    WHERE ST_Intersects(m.MunicipalityGeo, w.WarehouseGeo) LIMIT 1 );
 
   RAISE NOTICE 'Creating indexes on table Warehouses';
   IF lower(indexType) = 'gist' THEN
@@ -528,7 +533,8 @@ BEGIN
   RAISE INFO 'Creating table Customers';
   DROP TABLE IF EXISTS Customers;
   CREATE TABLE Customers(CustomerId int PRIMARY KEY, NodeId bigint, 
-    CustomerGeo geometry(Point), MunicipalityId int);
+    CustomerGeo geometry(Point),
+    MunicipalityId int REFERENCES Municipalities(MunicipalityId));
   FOR custId IN 1..NoCustomers LOOP
     -- Create a customer located at that a random node
     INSERT INTO Customers(CustomerId, NodeId, CustomerGeo)
@@ -627,6 +633,21 @@ BEGIN
       USING spgist(Period);
   END IF;
 
+  -- Create a Date dimension table for OLAP querying
+  RAISE INFO 'Creating table Date';
+  DROP TABLE IF EXISTS Date;
+  CREATE TABLE Date(DateId serial PRIMARY KEY, Date date NOT NULL UNIQUE,
+    WeekNo int, MonthNo int, MonthName text, Quarter int, Year int);
+  INSERT INTO Date (Date)
+  SELECT generate_series(startDay, startDay + interval '1 year',
+    interval '1 day');
+  UPDATE Date SET
+    WeekNo = EXTRACT(week FROM Date),
+    MonthNo = EXTRACT(month FROM Date),
+    MonthName = TO_CHAR(Date, 'Month'),
+    Quarter = EXTRACT(quarter FROM Date),
+    Year = EXTRACT(year FROM Date);
+
   -------------------------------------------------------------------------
   -- Generate the deliveries
   -------------------------------------------------------------------------
@@ -638,8 +659,8 @@ BEGIN
 
   RAISE INFO 'Creating tables Trips and Destinations';
   DROP TABLE IF EXISTS Trips;
-  CREATE TABLE Trips(VehicleId int, StartDate date, SegNo int,
-    SourceNode bigint, TargetNode bigint,
+  CREATE TABLE Trips(VehicleId int, StartDate date REFERENCES Date(Date), 
+    SegNo int, SourceNode bigint, TargetNode bigint,
     SourceWHId int, TargetWHId int, SourceCustId int, TargetCustId int,
     PRIMARY KEY (VehicleId, StartDate, SegNo));
   DROP TABLE IF EXISTS Destinations;
@@ -758,7 +779,8 @@ BEGIN
 
   startPgr = clock_timestamp();
   FOR i IN 1..noCalls LOOP
-    query2_pgr = format('SELECT DISTINCT SourceNode AS source, TargetNode AS target FROM Destinations ORDER BY SourceNode, TargetNode LIMIT %s OFFSET %s',
+    query2_pgr = format('SELECT DISTINCT SourceNode AS source, TargetNode AS target '
+      'FROM Destinations ORDER BY SourceNode, TargetNode LIMIT %s OFFSET %s',
       P_PGROUTING_BATCH_SIZE, (i - 1) * P_PGROUTING_BATCH_SIZE);
     IF messages = 'medium' OR messages = 'verbose' THEN
       IF noCalls = 1 THEN
@@ -830,23 +852,6 @@ BEGIN
     CREATE INDEX IF NOT EXISTS Segments_trajectory_spgist_idx ON Segments
       USING spgist(trajectory);
   END IF;
-
-  -- Create a Date dimension table for OLAP querying
-  RAISE INFO 'Creating table Date';
-  DROP TABLE IF EXISTS Date;
-  CREATE TABLE Date(DateId serial PRIMARY KEY, Date date NOT NULL UNIQUE,
-    WeekNo int, MonthNo int, MonthName text, Quarter int, Year int);
-  INSERT INTO Date (Date)
-  WITH DateRange(MinDate, MaxDate) AS (
-    SELECT MIN(StartDate), MAX(StartDate) FROM Deliveries )
-  SELECT generate_series(MinDate, MaxDate, interval '1 day')
-  FROM DateRange;
-  UPDATE Date SET
-    WeekNo = EXTRACT(week FROM Date),
-    MonthNo = EXTRACT(month FROM Date),
-    MonthName = TO_CHAR(Date, 'Month'),
-    Quarter = EXTRACT(quarter FROM Date),
-    Year = EXTRACT(year FROM Date);
 
   -------------------------------------------------------------------------
   -- Print generation summary
