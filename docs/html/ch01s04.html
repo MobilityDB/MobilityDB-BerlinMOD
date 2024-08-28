@@ -1,8 +1,8 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>Exploring the Data</title><link rel="stylesheet" type="text/css" href="docbook.css"><meta name="generator" content="DocBook XSL Stylesheets Vsnapshot"><link rel="home" href="index.html" title="BerlinMOD Benchmark on MobilityDB"><link rel="up" href="ch01.html" title="Chapter 1. MobilityDB Tutorial"><link rel="prev" href="ch01s03.html" title="Loading the Data in Partitioned Tables"><link rel="next" href="ch01s05.html" title="Querying the Data"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Exploring the Data</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="ch01s03.html">Prev</a> </td><th width="60%" align="center">Chapter 1. MobilityDB Tutorial</th><td width="20%" align="right"> <a accesskey="n" href="ch01s05.html">Next</a></td></tr></table><hr></div><div class="sect1"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="idm275"></a>Exploring the Data</h2></div></div></div><p>In order to visualize the data with traditional tools such as <a class="ulink" href="https://qgis.org/" target="_top">QGIS</a> we add to table <code class="varname">Trip</code> a column <code class="varname">Traj</code> of type <code class="varname">geometry</code> containing the trajectory of the trips.
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>Exploring the Data</title><link rel="stylesheet" type="text/css" href="docbook.css"><meta name="generator" content="DocBook XSL Stylesheets Vsnapshot"><link rel="home" href="index.html" title="BerlinMOD Benchmark on MobilityDB"><link rel="up" href="ch01.html" title="Chapter 1. MobilityDB Tutorial"><link rel="prev" href="ch01s03.html" title="Loading the Data in Partitioned Tables"><link rel="next" href="ch01s05.html" title="Querying the Data"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Exploring the Data</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="ch01s03.html">Prev</a> </td><th width="60%" align="center">Chapter 1. MobilityDB Tutorial</th><td width="20%" align="right"> <a accesskey="n" href="ch01s05.html">Next</a></td></tr></table><hr></div><div class="sect1"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="idm276"></a>Exploring the Data</h2></div></div></div><p>In order to visualize the data with traditional tools such as <a class="ulink" href="https://qgis.org/" target="_top">QGIS</a> we add to table <code class="varname">Trip</code> a column <code class="varname">Trajectory</code> of type <code class="varname">geometry</code> containing the trajectory of the trips.
 			</p><pre class="programlisting">
-ALTER TABLE Trips ADD COLUMN traj geometry;
+ALTER TABLE Trips ADD COLUMN Trajectory geometry;
 UPDATE Trips
-SET Traj = trajectory(Trip);
+SET Trajectory = trajectory(Trip);
 </pre><p>
 		The visualization of the trajectories in QGIS is given in <a class="xref" href="ch01s04.html#berlinmod_visualization" title="Figure 1.2. Visualization of the trips in QGIS. The streets are shown in blue, the trips are shown in black, the home nodes in black and the work nodes in red.">Figure 1.2, “Visualization of the trips in QGIS. The streets are shown in blue, the trips are shown in black, the home nodes in black and the work nodes in red.”</a>. As we will explain in <a class="xref" href="ch02.html" title="Chapter 2. Generating Realistic Trajectory Datasets">Chapter 2, <i>Generating Realistic Trajectory Datasets</i></a> this synthetic dataset models people using their car for going from home to work in the morning, from work to home in the afternoon, as well as doing some additional leisure trips at evenings or weekends.
 		</p><div class="figure-float"><div class="figure"><a name="berlinmod_visualization"></a><p class="title"><b>Figure 1.2. Visualization of the trips in QGIS. The streets are shown in blue, the trips are shown in black, the home nodes in black and the work nodes in red.</b></p><div class="figure-contents"><div class="mediaobject"><img src="images/berlinmod1.png" alt="Visualization of the trips in QGIS. The streets are shown in blue, the trips are shown in black, the home nodes in black and the work nodes in red."></div><div class="mediaobject"><img src="images/berlinmod2.png" alt="Visualization of the trips in QGIS. The streets are shown in blue, the trips are shown in black, the home nodes in black and the work nodes in red."></div></div></div><br class="figure-break"></div><p>
@@ -10,17 +10,17 @@ SET Traj = trajectory(Trip);
 			</p><pre class="programlisting">
 SELECT count(*) FROM Trips;
 -- 1672
-SELECT count(*) FROM Trips WHERE GeometryType(Traj) = 'POINT';
+SELECT count(*) FROM Trips WHERE GeometryType(Trajectory) = 'POINT';
 -- 0
-SELECT count(*) FROM Trips WHERE GeometryType(Traj) = 'LINESTRING';
+SELECT count(*) FROM Trips WHERE GeometryType(Trajectory) = 'LINESTRING';
 -- 1672
 </pre><p>
 		We can also determine the spatiotemporal extent of the data using the following query.
 			</p><pre class="programlisting">
 SELECT extent(Trip) from Trips;
--- SRID=3857;STBOX XT(((469715.0960907607,6577078.768286072),
---    (500997.56505993055,6607214.0038881665)),
---    [2020-06-01 08:01:16.984+02, 2020-06-05 01:40:04.281127+02])
+/* SRID=3857;STBOX XT(((469715.0960907607,6577078.768286072),
+    (500997.56505993055,6607214.0038881665)),
+    [2020-06-01 08:01:16.984+02, 2020-06-05 01:40:04.281127+02]) */
 </pre><p>
 		</p><p>
 		We continue investigating the data set by computing the maximum number of concurrent trips over the whole period
@@ -52,31 +52,31 @@ FROM Trips ORDER BY duration;
 		</p><p>
 		The following query produces a histogram of trip length.
 			</p><pre class="programlisting">
-WITH buckets (bucketNo, bucketRange) AS (
+WITH Bins(BinNo, BinRange) AS (
   SELECT 1, floatspan '[0, 1)' UNION
   SELECT 2, floatspan '[1, 2)' UNION
   SELECT 3, floatspan '[2, 5)' UNION
   SELECT 4, floatspan '[5, 10)' UNION
   SELECT 5, floatspan '[10, 50)' UNION
   SELECT 6, floatspan '[50, 100)' ),
-histogram AS (
-  SELECT bucketNo, bucketRange, count(TripId) as freq
-  FROM buckets left outer join trips on length(trip) / 1e3 &lt;@ bucketRange
-  GROUP BY bucketNo, bucketRange
-  ORDER BY bucketNo, bucketRange )
-SELECT bucketNo, bucketRange, freq,
-  repeat('■', ( freq::float / max(freq) OVER () * 30 )::int ) AS bar
-FROM histogram;
+Histogram AS (
+  SELECT BinNo, BinRange, COUNT(TripId) AS Freq
+  FROM Bins LEFT OUTER JOIN Trips ON length(trip) / 1e3 &lt;@ BinRange
+  GROUP BY BinNo, BinRange
+  ORDER BY BinNo, BinRange )
+SELECT BinNo, BinRange, Freq,
+  repeat('■', ( Freq::float / MAX(Freq) OVER () * 30 )::int ) AS bar
+FROM Histogram;
 </pre><p>
 			The result of the above query is given next. 
 			</p><pre class="programlisting">
- bucketno | bucketrange | freq |              bar
-----------+-------------+------+--------------------------------
-        1 | [0, 1)      |   41 | ■
-        2 | [1, 2)      |   91 | ■■■
-        3 | [2, 5)      |  329 | ■■■■■■■■■■■
-        4 | [5, 10)     |  294 | ■■■■■■■■■■
-        5 | [10, 50)    |  909 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
-        6 | [50, 100)   |    8 |
+ BinNo | BinRange  | Freq |              bar
+-------+-----------+------+--------------------------------
+     1 | [0, 1)    |   41 | ■
+     2 | [1, 2)    |   91 | ■■■
+     3 | [2, 5)    |  329 | ■■■■■■■■■■■
+     4 | [5, 10)   |  294 | ■■■■■■■■■■
+     5 | [10, 50)  |  909 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+     6 | [50, 100) |    8 |
 </pre><p>
 		</p></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="ch01s03.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="ch01.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="ch01s05.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Loading the Data in Partitioned Tables </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> Querying the Data</td></tr></table></div></body></html>

@@ -30,19 +30,19 @@ INFO:  Start day = 2020-06-01, Path mode = Fastest Path, Disturb data = f
 			We start by generating the <code class="varname">Warehouses</code> table. Each warehouse is located at a random node of the network.
 			</p><pre class="programlisting">
 DROP TABLE IF EXISTS Warehouses;
-CREATE TABLE Warehouses(warehouseId int, nodeId bigint, geom geometry(Point));
+CREATE TABLE Warehouses(WarehouseId int, NodeId bigint, Geom geometry(Point));
 FOR i IN 1..noWarehouses LOOP
-  INSERT INTO Warehouses(warehouseId, nodeId, geom)
-  SELECT i, id, geom
-  FROM Nodes N
+  INSERT INTO Warehouses(WarehouseId, NodeId, Geom)
+  SELECT i, id, Geom
+  FROM Nodes n
   ORDER BY id LIMIT 1 OFFSET random_int(1, noNodes);
 END LOOP;
 </pre><p>
 			We create a table <code class="varname">Vehicles</code> with all vehicles and the associated warehouse. Warehouses are associated to vehicles in a round-robin way.
 			</p><pre class="programlisting">
 DROP TABLE IF EXISTS Vehicles;
-CREATE TABLE Vehicles(vehicleId int PRIMARY KEY, licence text, type text, brand text,
-  warehouse int);
+CREATE TABLE Vehicles(VehicleId int PRIMARY KEY, Licence text, VehicleType text, 
+  Brand text, WarehouseId int);
 FOR i IN 1..noVehicles LOOP
   licence = berlinmod_createLicence(i);
   type = VEHICLETYPES[random_int(1, NOVEHICLETYPES)];
@@ -55,16 +55,16 @@ END LOOP;
 			We create next the <code class="varname">Trips</code> and <code class="varname">Destinations</code> tables that contain, respectively, the list of source and destination nodes composing the delivery trip of a vehicle for a day, and the list of source and destination nodes for all vehicles.
 			</p><pre class="programlisting">
 DROP TABLE IF EXISTS Trips;
-CREATE TABLE Trips(vehicle int, day date, seq int, source bigint, target bigint,
-  PRIMARY KEY (vehicle, day, seq));
+CREATE TABLE Trips(VehicleId int, day date, seq int, source bigint, target bigint,
+  PRIMARY KEY (VehicleId, day, seq));
 DROP TABLE IF EXISTS Destinations;
 CREATE TABLE Destinations(id serial PRIMARY KEY, source bigint, target bigint);
 -- Loop for every vehicle
 FOR i IN 1..noVehicles LOOP
   -- Get the warehouse node 
-  SELECT W.node INTO warehouseNode
-  FROM Vehicles V, Warehouses W
-  WHERE V.vehicleId = i AND V.warehouse = W.warehouseId;
+  SELECT w.node INTO warehouseNode
+  FROM Vehicles v, Warehouses w
+  WHERE v.vehicleId = i AND v.warehouse = w.WarehouseId;
   day = startDay;
   -- Loop for every generation day
   FOR j IN 1..noDays LOOP
@@ -85,7 +85,7 @@ FOR i IN 1..noVehicles LOOP
           RAISE EXCEPTION '    Destination node cannot be NULL';
         END IF;
         IF sourceNode = targetNode THEN
-          RAISE EXCEPTION '    Source and destination nodes must be different, node: %', sourceNode;
+          RAISE EXCEPTION '    SourceNode and destination nodes must be different, node: %', sourceNode;
         END IF;
         -- Keep the start and end nodes of each subtrip
         INSERT INTO Segments VALUES (i, day, k, sourceNode, targetNode);
@@ -105,7 +105,7 @@ DROP TABLE IF EXISTS Paths;
 CREATE TABLE Paths(seq int, path_seq int, start_vid bigint, end_vid bigint,
   node bigint, edge bigint, cost float, agg_cost float,
   -- These attributes are filled in the subsequent update
-  geom geometry, speed float, category int);
+  Geom geometry, speed float, category int);
 -- Select query sent to pgRouting
 IF pathMode = 'Fastest Path' THEN
   query1_pgr = 'SELECT id, source, target, cost_s AS cost, '
@@ -115,7 +115,7 @@ ELSE
     'length_m * sign(reverse_cost_s) as reverse_cost FROM edges';
 END IF;
 -- Get the total number of paths and number of calls to pgRouting
-SELECT COUNT(*) INTO noPaths FROM (SELECT DISTINCT source, target FROM Destinations) AS T;
+SELECT COUNT(*) INTO noPaths FROM (SELECT DISTINCT source, target FROM Destinations) AS t;
 noCalls = ceiling(noPaths / P_PGROUTING_BATCH_SIZE::float);
 FOR i IN 1..noCalls LOOP
   query2_pgr = format('SELECT DISTINCT source, target FROM Destinations '
@@ -126,23 +126,23 @@ FOR i IN 1..noCalls LOOP
 END LOOP;
 UPDATE Paths SET
   -- adjusting directionality
-  geom = CASE WHEN node = E.source THEN E.geom ELSE ST_Reverse(E.geom) END,
+  Geom = CASE WHEN node = e.source THEN e.Geom ELSE ST_Reverse(e.Geom) END,
   speed = maxspeed_forward,
   category = berlinmod_roadCategory(tag_id)
-FROM Edges E WHERE E.id = edge;
+FROM Edges e WHERE e.id = edge;
 </pre><p>
 			After creating the <code class="varname">Paths</code> table, we set the query to be sent to pgRouting depending on whether we have want to compute the fastest or the shortest paths between two nodes. The generator uses the parameter <code class="varname">P_PGROUTING_BATCH_SIZE</code> to determine the maximum number of paths we compute in a single call to pgRouting. This parameter is set to 10,000 by default. Indeed, there is limit in the number of paths that pgRouting can compute in a single call and this depends in the available memory of the computer. Therefore, we need to determine the number of calls to pgRouting and compute the paths by calling the function <code class="varname">pgr_dijkstra</code>. Finally, we need to adjust the directionality of the geometry of the edges depending on which direction a trip traverses the edges, and set the speed and the category of the edges.
 		</p><p>
 			We explain how to generate the trips for a number of vehicles and a number of days starting at a given day. 
 			</p><pre class="programlisting">
 DROP TABLE IF EXISTS Deliveries;
-CREATE TABLE Deliveries(deliveryId int PRIMARY KEY, Vehicle int, Day date, noCustomers int,
+CREATE TABLE Deliveries(DeliveryId int PRIMARY KEY, VehicleId int, Day date, noCustomers int,
   Trip tgeompoint, Trajectory geometry);
 DROP TABLE IF EXISTS Segments;
-CREATE TABLE Segments(deliveryId int, seq int, source bigint, target bigint, 
-  trip tgeompoint,
+CREATE TABLE Segments(DeliveryId int, seq int, source bigint, target bigint, 
+  Trip tgeompoint,
   -- These columns are used for visualization purposes
-  trajectory geometry, sourceGeom geometry, PRIMARY KEY (deliveryId, seq));
+  trajectory geometry, sourceGeom geometry, PRIMARY KEY (DeliveryId, seq));
 delivId = 1;
 aDay = startDay;
 FOR i IN 1..noDays LOOP
@@ -155,23 +155,23 @@ FOR i IN 1..noDays LOOP
       -- Get the number of segments (number of destinations + 1)
       SELECT count(*) INTO noSegments
       FROM Trips
-      WHERE vehicle = j AND day = aDay;
+      WHERE VehicleId = j AND day = aDay;
       FOR k IN 1..noSegments LOOP
         -- Get the source and destination nodes of the segment
         SELECT source, target INTO sourceNode, targetNode
         FROM Trips
-        WHERE vehicle = j AND day = aDay AND seq = k;
+        WHERE VehicleId = j AND day = aDay AND seq = k;
         -- Get the path
-        SELECT array_agg((geom, speed, category) ORDER BY path_seq) INTO path
-        FROM Paths P
+        SELECT array_agg((Geom, speed, category) ORDER BY path_seq) INTO Path
+        FROM Paths p
         WHERE start_vid = sourceNode AND end_vid = targetNode AND edge &gt; 0;
-        IF path IS NULL THEN
+        IF Path IS NULL THEN
           RAISE EXCEPTION 'The path of a trip cannot be NULL. '
-            'Source node: %, target node: %, k: %, noSegments: %', sourceNode, 
+            'SourceNode node: %, target node: %, k: %, noSegments: %', sourceNode, 
               targetNode, k, noSegments;
         END IF;
         startTime = t;
-        trip = create_trip(path, t, disturbData, messages);
+        trip = create_trip(Path, t, disturbData, messages);
         IF trip IS NULL THEN
           RAISE EXCEPTION 'A trip cannot be NULL';
         END IF;
@@ -184,12 +184,12 @@ FOR i IN 1..noDays LOOP
           trip = appendInstant(trip, tgeompoint_inst(endValue(trip), t));
         END IF;
         alltrips = alltrips || trip;
-        SELECT geom INTO sourceGeom FROM Nodes WHERE id = sourceNode;
-        INSERT INTO Segments(deliveryId, seq, source, target, trip, trajectory, sourceGeom)
+        SELECT Geom INTO sourceGeom FROM Nodes WHERE id = sourceNode;
+        INSERT INTO Segments(DeliveryId, SeqNo, Source, target, trip, trajectory, sourceGeom)
           VALUES (delivId, k, sourceNode, targetNode, trip, trajectory(trip), sourceGeom);
       END LOOP;
       trip = merge(alltrips);
-      INSERT INTO Deliveries(deliveryId, vehicle, day, noCustomers, trip, trajectory)
+      INSERT INTO Deliveries(DeliveryId, VehicleId, day, noCustomers, trip, trajectory)
         VALUES (delivId, j, aDay, noSegments - 1, trip, trajectory(trip));
       delivId = delivId + 1;
       alltrips = '{}';
@@ -198,7 +198,7 @@ FOR i IN 1..noDays LOOP
   aDay = aDay + interval '1 day';
 END LOOP;
 </pre><p>
-			We start by creating the tables <code class="varname">Deliveries</code> and <code class="varname">Segments</code>. Then, the procedure simply loops for each day (excepted Sundays) and for each vehicle and generates the deliveries. For this, we first set the start time of a delivery trip by adding to 7 am a random non-zero duration of 120 minutes using a uniform distribution. Then, for every couple of source and destination nodes in a segment, we call the function <code class="varname">create_trip</code> that we have seen previously to generate the trip. We add a delivery time between 10 and 60 minutes using a bounded Gaussian distribution before starting the trip to the next customer or the return trip to the warehouse and then insert the trip into the <code class="varname">Segments</code> table.
+			We start by creating the tables <code class="varname">Deliveries</code> and <code class="varname">Segments</code>. Then, the procedure simply loops for each day (excepted Sundays) and for each vehicle and generates the deliveries. For this, we first set the start time of a delivery trip by adding to 7 am a random non-zero duration of 120 minutes using a uniform distribution. Then, for every couple of source and destination nodes in a segment, we call the function <code class="varname">create_trip</code> that we have seen previously to generate the Trip. We add a delivery time between 10 and 60 minutes using a bounded Gaussian distribution before starting the trip to the next customer or the return trip to the warehouse and then insert the trip into the <code class="varname">Segments</code> table.
 		</p><p>
 			<a class="xref" href="ch02s10.html#deliveries1" title="Figure 2.6. Visualization of the data generated for the deliveries scenario. The road network is shown with blue lines, the warehouses are shown with a red star, the routes taken by the deliveries are shown with black lines, and the location of the customers with black points.">Figure 2.6, “Visualization of the data generated for the deliveries scenario. The road network is shown with blue lines, the warehouses are shown with a red star, the routes taken by the deliveries are shown with black lines, and the location of the customers with black points.”</a> and <a class="xref" href="ch02s10.html#deliveries2" title="Figure 2.7. Visualization of the deliveries of one vehicle during one day. A delivery trip starts and ends at a warehouse and make the deliveries to several customers, four in this case.">Figure 2.7, “Visualization of the deliveries of one vehicle during one day. A delivery trip starts and ends at a warehouse and make the deliveries to several customers, four in this case.”</a> show visualizations of the data generated for the deliveries scenario.
 		</p><div class="figure-float"><div class="figure"><a name="deliveries1"></a><p class="title"><b>Figure 2.6. Visualization of the data generated for the deliveries scenario. The road network is shown with blue lines, the warehouses are shown with a red star, the routes taken by the deliveries are shown with black lines, and the location of the customers with black points.</b></p><div class="figure-contents"><div class="mediaobject"><img src="images/deliveries1.png" alt="Visualization of the data generated for the deliveries scenario. The road network is shown with blue lines, the warehouses are shown with a red star, the routes taken by the deliveries are shown with black lines, and the location of the customers with black points."></div><div class="mediaobject"><img src="images/deliveries2.png" alt="Visualization of the data generated for the deliveries scenario. The road network is shown with blue lines, the warehouses are shown with a red star, the routes taken by the deliveries are shown with black lines, and the location of the customers with black points."></div></div></div><br class="figure-break"></div><div class="figure-float"><div class="figure"><a name="deliveries2"></a><p class="title"><b>Figure 2.7. Visualization of the deliveries of one vehicle during one day. A delivery trip starts and ends at a warehouse and make the deliveries to several customers, four in this case.</b></p><div class="figure-contents"><div class="mediaobject"><img src="images/deliveries3.png" alt="Visualization of the deliveries of one vehicle during one day. A delivery trip starts and ends at a warehouse and make the deliveries to several customers, four in this case."></div></div></div><br class="figure-break"></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="ch02s09.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="ch02.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="ch02s11.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Tuning the Generator Parameters </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> Creating a Graph from Input Data</td></tr></table></div></body></html>

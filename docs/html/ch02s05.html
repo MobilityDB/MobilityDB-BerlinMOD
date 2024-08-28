@@ -3,28 +3,30 @@
 		</p><pre class="programlisting">
 COPY (SELECT InstantId, Instant FROM Instants ORDER BY InstantId)
   TO '/home/mobilitydb/data/instants.csv' CSV HEADER DELIMITER ',';
-COPY (SELECT LicenceId, Licence, VehId FROM Licences ORDER BY LicenceId)
+COPY (SELECT LicenceId, Licence, VehicleId FROM Licences ORDER BY LicenceId)
   TO '/home/mobilitydb/data/licences.csv' CSV HEADER DELIMITER ',';
-COPY (SELECT PeriodId, lower(Period) AS StartP, upper(Period) AS EndP FROM Periods ORDER BY PeriodId)
+COPY (SELECT PeriodId, lower(Period) AS StartP, upper(Period) AS EndP FROM Periods
+    ORDER BY PeriodId)
   TO '/home/mobilitydb/data/periods.csv' CSV HEADER DELIMITER ',';
 COPY (SELECT PointId, ST_X(Geom) AS PosX, ST_Y(Geom) AS PosY FROM Points ORDER BY PointId)
   TO '/home/mobilitydb/data/points.csv' CSV HEADER DELIMITER ',';
 COPY (
-  SELECT RegionId, (dp).path[2] AS PointID, ST_X((dp).geom) AS PosX,
-    ST_Y((dp).geom) AS PosY
-  FROM (SELECT RegionId, ST_DumpPoints(ST_Transform(geom, 4326)) AS dp FROM Regions) AS T
+  SELECT RegionId, (dp).Path[2] AS PointID, ST_X((dp).Geom) AS PosX,
+    ST_Y((dp).Geom) AS PosY
+  FROM (SELECT RegionId, ST_DumpPoints(ST_Transform(Geom, 4326)) AS dp FROM Regions) AS t
   ) TO '/home/mobilitydb/data/regions.csv' CSV HEADER DELIMITER ',';
 COPY (
   WITH Temp1 AS (
-    SELECT TripId, VehId, unnest(instants(trip)) AS Inst FROM Trips ),
+    SELECT TripId, VehicleId, unnest(instants(Trip)) AS Inst FROM Trips ),
   Temp2 AS (
-    SELECT TripId, VehId, ST_Transform(getValue(Inst),4326) AS Point,
-      getTimestamp(Inst) AS T FROM Temp1 )
-  SELECT TripId, VehId, ST_X(Point) AS PosX, ST_Y(Point) AS PosY, T
+    SELECT TripId, VehicleId, ST_Transform(getValue(Inst),4326) AS Point,
+      getTimestamp(Inst) AS t FROM Temp1 )
+  SELECT TripId, VehicleId, ST_X(Point) AS PosX, ST_Y(Point) AS PosY, t
   FROM Temp2
-  ORDER BY TripId, VehId, T
+  ORDER BY TripId, VehicleId, t
   ) TO '/home/mobilitydb/data/trips.csv' CSV HEADER DELIMITER ',';
-COPY (SELECT VehId, Licence, Type, Model FROM SELECT Vehicles ORDER BY VehicleId)
+COPY (SELECT VehicleId, Licence, VehicleType, Model FROM SELECT Vehicles 
+    ORDER BY VehicleId)
   TO '/home/mobilitydb/data/vehicles.csv' CSV HEADER DELIMITER ',';
 </pre><p>
 		Actually, the data we used in <a class="xref" href="ch01.html" title="Chapter 1. MobilityDB Tutorial">Chapter 1, <i>MobilityDB Tutorial</i></a> was exported by running the BerlinMOD generator with OSM data for Brussels with the scale factor 0.005. 

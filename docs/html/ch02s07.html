@@ -3,18 +3,20 @@
 		</p><p>
 			We start by creating a first set of tables for containing the generated data as follows.
 			</p><pre class="programlisting">
-CREATE TABLE Vehicle(id int PRIMARY KEY, home bigint NOT NULL, work bigint NOT NULL,
-  noNeighbours int);
-CREATE TABLE Destinations(vehicle int, source bigint, target bigint,
-  PRIMARY KEY (vehicle, source, target));
-CREATE TABLE Licences(vehicle int PRIMARY KEY, licence text, type text, model text);
-CREATE TABLE Neighbourhood(vehicle int, seq int, node bigint NOT NULL,
-  PRIMARY KEY (vehicle, seq));
+CREATE TABLE VehicleNodes(VehicleId int PRIMARY KEY, HomeNode bigint NOT NULL,
+  WorkNode bigint NOT NULL, NoNeighbours int);
+CREATE TABLE Vehicles(VehicleId int PRIMARY KEY, Licence text,
+  VehicleType text, Model text);
+CREATE TABLE Destinations(VehicleId int, SourceNode bigint, TargetNode bigint,
+  PRIMARY KEY (VehicleId, SourceNode, TargetNode));
+CREATE TABLE Licences(VehicleId int PRIMARY KEY, Licence text, VehicleType text);
+CREATE TABLE Neighbourhoods(VehicleId int, SeqNo int, Node bigint NOT NULL,
+  PRIMARY KEY (VehicleId, SeqNo));
 
 -- Get the number of nodes
 SELECT COUNT(*) INTO noNodes FROM Nodes;
 
-FOR i IN 1..noVehicles LOOP
+FOR vehId IN 1..noVehicles LOOP
 -- Fill the Vehicles table
 IF nodeChoice = 'Network Based' THEN
   homeNode = random_int(1, noNodes);
@@ -26,84 +28,85 @@ END IF;
 IF homeNode IS NULL OR workNode IS NULL THEN
   RAISE EXCEPTION '    The home and the work nodes cannot be NULL';
 END IF;
-INSERT INTO Vehicle VALUES (i, homeNode, workNode);
+INSERT INTO Vehicles VALUES (vehId, homeNode, workNode);
 
 -- Fill the Destinations table
-INSERT INTO Destinations(vehicle, source, target) VALUES
-  (i, homeNode, workNode), (i, workNode, homeNode);
+INSERT INTO Destinations(VehicleId, SourceNode, TargetNode) VALUES
+  (vehId, homeNode, workNode), (vehId, workNode, homeNode);
 
 -- Fill the Licences table
-licence = berlinmod_createLicence(i);
+licence = berlinmod_createLicence(vehId);
 type = berlinmod_vehicleType();
 model = berlinmod_vehicleModel();
-INSERT INTO Licences VALUES (i, licence, type, model);
+INSERT INTO Licences VALUES (vehId, licence, type, model);
 
--- Fill the Neighbourhood table
-INSERT INTO Neighbourhood
+-- Fill the Neighbourhoods table
+INSERT INTO Neighbourhoods
 WITH Temp AS (
-  SELECT i AS vehicle, N2.id AS node
-  FROM Nodes N1, Nodes N2
-  WHERE N1.id = homeNode AND N1.id &lt;&gt; N2.id AND
-    ST_DWithin(N1.geom, N2.geom, P_NEIGHBOURHOOD_RADIUS) )
-SELECT i, ROW_NUMBER() OVER () as seq, node
+  SELECT vehId AS VehicleId, n2.NodeId AS Node
+  FROM Nodes n1, Nodes n2
+  WHERE n1.NodeId = homeNode AND n1.NodeId &lt;&gt; n2.NodeId AND
+    ST_DWithin(n1.Geom, n2.Geom, P_NEIGHBOURHOOD_RADIUS) )
+SELECT vehId, ROW_NUMBER() OVER () AS SeqNo, Node
 FROM Temp;
 END LOOP;
 
-CREATE UNIQUE INDEX Vehicle_id_idx ON Vehicle USING BTREE(id);
-CREATE UNIQUE INDEX Neighbourhood_pkey_idx ON Neighbourhood USING BTREE(vehicle, seq);
+CREATE UNIQUE INDEX Vehicles_VehicleId_idx ON Vehicles USING BTREE(VehicleId);
+CREATE UNIQUE INDEX Neighbourhoods_pkey_idx ON Neighbourhoods USING BTREE(VehicleId, SeqNo);
 
-UPDATE Vehicle V
-SET noNeighbours = (SELECT COUNT(*) FROM Neighbourhood N WHERE N.vehicle = V.id);
+UPDATE Vehicles v
+SET NoNeighbours = (SELECT COUNT(*) FROM Neighbourhoods n WHERE n.VehicleId = v.VehicleId);
 </pre><p>
-			We start by storing in the <code class="varname">Vehicles</code> table the home and the work node of each vehicle. Depending on the value of the variable <code class="varname">nodeChoice</code>, we chose these nodes either with a uniform distribution among all nodes in the network or we call specific functions that take into account population and employment statistics in the area covered by the generation. We then keep track in the <code class="varname">Destinations</code> table of the two trips to and from work and we store in the <code class="varname">Licences</code> table information describing the vehicle. Finally, we compute in the <code class="varname">Neighbourhood</code> table the set of nodes that are within a given distance of the home node of every vehicle. This distance is stated by the parameter <code class="varname">P_NEIGHBOURHOOD_RADIUS</code>, which is set by default to 3 Km.
+			We start by storing in the <code class="varname">Vehicles</code> table the home and the work node of each vehicle. Depending on the value of the variable <code class="varname">nodeChoice</code>, we chose these nodes either with a uniform distribution among all nodes in the network or we call specific functions that take into account population and employment statistics in the area covered by the generation. We then keep track in the <code class="varname">Destinations</code> table of the two trips to and from work and we store in the <code class="varname">Licences</code> table information describing the vehicle. Finally, we compute in the <code class="varname">Neighbourhoods</code> table the set of nodes that are within a given distance of the home node of every vehicle. This distance is stated by the parameter <code class="varname">P_NEIGHBOURHOOD_RADIUS</code>, which is set by default to 3 Km.
 		</p><p>
 			We create now auxiliary tables containing benchmarking data. The number of rows these tables is determined by the parameter <code class="varname">P_SAMPLE_SIZE</code>, which is set by default to 100. These tables are used by the BerlinMOD benchmark to assess the performance of various types of queries.
 			</p><pre class="programlisting">
-CREATE TABLE QueryPoints(id int PRIMARY KEY, geom geometry(Point));
-INSERT INTO QueryPoints
+CREATE TABLE Points(PointId int PRIMARY KEY, Geom geometry(Point));
+INSERT INTO Points
 WITH Temp AS (
-  SELECT id, random_int(1, noNodes) AS node
-  FROM generate_series(1, P_SAMPLE_SIZE) id )
-SELECT T.id, N.geom
-FROM Temp T, Nodes N
-WHERE T.node = N.id;
+  SELECT PointId, random_int(1, noNodes) AS Node
+  FROM generate_series(1, P_SAMPLE_SIZE) PointId )
+SELECT t.PointId, n.Geom
+FROM Temp t, Nodes n
+WHERE t.Node = n.PointId;
 
-CREATE TABLE QueryRegions(id int PRIMARY KEY, geom geometry(Polygon));
-INSERT INTO QueryRegions
+CREATE TABLE Regions(RegionId int PRIMARY KEY, Geom geometry(Polygon));
+INSERT INTO Regions
 WITH Temp AS (
-  SELECT id, random_int(1, noNodes) AS node
-  FROM generate_series(1, P_SAMPLE_SIZE) id )
-SELECT T.id, ST_Buffer(N.geom, random_int(1, 997) + 3.0, random_int(0, 25)) AS geom
-FROM Temp T, Nodes N
-WHERE T.node = N.id;
+  SELECT RegionId, random_int(1, noNodes) AS Node
+  FROM generate_series(1, P_SAMPLE_SIZE) RegionId )
+SELECT t.RegionId, ST_Buffer(n.Geom, random_int(1, 997) + 3.0, random_int(0, 25)) AS Geom
+FROM Temp t, Nodes n
+WHERE t.Node = n.RegionId;
 
-CREATE TABLE QueryInstants(id int PRIMARY KEY, instant timestamptz);
-INSERT INTO QueryInstants
-SELECT id, startDay + (random() * noDays) * interval '1 day' AS instant
-FROM generate_series(1, P_SAMPLE_SIZE) id;
+CREATE TABLE Instants(InstantId int PRIMARY KEY, Instant timestamptz);
+INSERT INTO Instants
+SELECT InstantId, startDay + (random() * noDays) * interval '1 day' AS Instant
+FROM generate_series(1, P_SAMPLE_SIZE) InstantId;
 
-CREATE TABLE QueryPeriods(id int PRIMARY KEY, period tstzspan);
-INSERT INTO QueryPeriods
-WITH Instants AS (
-  SELECT id, startDay + (random() * noDays) * interval '1 day' AS instant
-  FROM generate_series(1, P_SAMPLE_SIZE) id )
-SELECT id, tstzspan(instant, instant + abs(random_gauss()) * interval '1 day',
-  true, true) AS period
-FROM Instants;
+CREATE TABLE Periods(PeriodId int PRIMARY KEY, period tstzspan);
+INSERT INTO Periods
+WITH Temp AS (
+  SELECT PeriodId, startDay + (random() * noDays) * interval '1 day' AS Instant
+  FROM generate_series(1, P_SAMPLE_SIZE) PeriodId )
+SELECT PeriodId, span(instant, instant + abs(random_gauss()) * interval '1 day',
+  true, true) AS Period
+FROM Temp;
 </pre><p>
 		</p><p>
 			We generate now the leisure trips. There is at most one leisure trip in the evening of a week day and at most two leisure trips each day of the weekend, one in the morning and another one in the afternoon. Each leisure trip is composed of 1 to 3 destinations. The leisure trip starts and ends at the home node and visits successively these destinations. In our implementation, the various subtrips from a source to a destination node of a leisure trip are encoded independently, contrary to what is done in Secondo where a leisure trip is encoded as a single trip and stops are added between successive destinations.
 			</p><pre class="programlisting">
-CREATE TABLE LeisureTrip(vehicle int, day date, tripNo int, seq int, source bigint,
-  target bigint, PRIMARY KEY (vehicle, day, tripNo, seq));
+CREATE TABLE LeisureTrip(VehicleId int, StartDate date, TripNo int, SeqNo int, 
+  SourceNode bigint, TargetNode bigint, 
+  PRIMARY KEY (VehicleId, StartDate, TripNo, SeqNo));
 -- Loop for every vehicle
-FOR i IN 1..noVehicles LOOP
+FOR vehId IN 1..noVehicles LOOP
 -- Get home node and number of neighbour nodes
-SELECT home, noNeighbours INTO homeNode, noNeigh
-FROM Vehicle V WHERE V.id = i;
+SELECT home, NoNeighbours INTO homeNode, noNeigh
+FROM Vehicles v WHERE v.VehicleId = i;
 day = startDay;
 -- Loop for every generation day
-FOR j IN 1..noDays LOOP
+FOR dayNo IN 1..noDays LOOP
   weekday = date_part('dow', day);
   -- Generate leisure trips (if any)
   -- 1: Monday, 5: Friday
@@ -113,7 +116,7 @@ FOR j IN 1..noDays LOOP
     noLeisTrips = 2;
   END IF;
   -- Loop for every leisure trip in a day (1 or 2)
-  FOR k IN 1..noLeisTrips LOOP
+  FOR leis IN 1..noLeisTrips LOOP
     -- Generate a leisure trip with a 40% probability
     IF random() &lt;= 0.4 THEN
       -- Select a number of destinations between 1 and 3
@@ -124,9 +127,9 @@ FOR j IN 1..noDays LOOP
       ELSE
         noDest = 3;
       END IF;
-      sourceNode = homeNode;
-      FOR m IN 1..noDest + 1 LOOP
-        IF m &lt;= noDest THEN
+      sourceN = homeN;
+      FOR dest IN 1..noDest + 1 LOOP
+        IF dest &lt;= noDest THEN
           targetNode = berlinmod_selectDestNode(i, noNeigh, noNodes);
         ELSE
           targetNode = homeNode;
@@ -135,9 +138,9 @@ FOR j IN 1..noDays LOOP
           RAISE EXCEPTION '    Destination node cannot be NULL';
         END IF;
         INSERT INTO LeisureTrip VALUES
-          (i, day, k, m, sourceNode, targetNode);
-        INSERT INTO Destinations(vehicle, source, target) VALUES
-          (i, sourceNode, targetNode) ON CONFLICT DO NOTHING;
+          (vehId, day, leis, dest, sourceN, targetN);
+        INSERT INTO Destinations(VehicleId, SourceNode, TargetNode) VALUES
+          (vehId, sourceNode, targetNode) ON CONFLICT DO NOTHING;
         sourceNode = targetNode;
       END LOOP;
     END IF;
@@ -146,7 +149,7 @@ FOR j IN 1..noDays LOOP
 END LOOP;
 END LOOP;
 
-CREATE INDEX Destinations_vehicle_idx ON Destinations USING BTREE(vehicle);
+CREATE INDEX Destinations_vehicle_idx ON Destinations USING BTREE(VehicleId);
 </pre><p>
 			For each vehicle and each day, we determine the number of potential leisure trips depending on whether it is a week or weekend day. A leisure trip is generated with a probability of 40% and is composed of 1 to 3 destinations. These destinations are chosen so that 80% of the destinations are from the neighbourhood of the vehicle and 20% are from the complete graph. The information about the composition of the leisure trips is then added to the <code class="varname">LeisureTrip</code> and <code class="varname">Destinations</code> tables.
 		</p><p>
@@ -158,8 +161,8 @@ CREATE TABLE Paths(
   -- The following attributes are generated by pgRouting
   start_vid bigint, end_vid bigint, seq int, node bigint, edge bigint,
   -- The following attributes are filled from the Edges table
-  geom geometry NOT NULL, speed float NOT NULL, category int NOT NULL,
-  PRIMARY KEY (vehicle, start_vid, end_vid, seq));
+  Geom geometry NOT NULL, speed float NOT NULL, category int NOT NULL,
+  PRIMARY KEY (VehicleId, start_vid, end_vid, seq));
 
 -- Select query sent to pgRouting
 IF pathMode = 'Fastest Path' THEN
@@ -170,38 +173,38 @@ query1_pgr = 'SELECT id, source, target, length_m AS cost,'
   'length_m * sign(reverse_cost_s) as reverse_cost FROM edges';
 END IF;
 -- Get the total number of paths and number of calls to pgRouting
-SELECT COUNT(*) INTO noPaths FROM (SELECT DISTINCT source, target FROM Destinations) AS T;
+SELECT COUNT(*) INTO noPaths FROM (SELECT DISTINCT source, target FROM Destinations) AS t;
 noCalls = ceiling(noPaths / P_PGROUTING_BATCH_SIZE::float);
 
 FOR i IN 1..noCalls LOOP
 query2_pgr = format('SELECT DISTINCT source, target FROM Destinations '
   'ORDER BY source, target LIMIT %s OFFSET %s',
   P_PGROUTING_BATCH_SIZE, (i - 1) * P_PGROUTING_BATCH_SIZE);
-INSERT INTO Paths(vehicle, start_vid, end_vid, seq, node, edge, geom, speed, category)
+INSERT INTO Paths(VehicleId, start_vid, end_vid, seq, node, edge, Geom, speed, category)
 WITH Temp AS (
   SELECT start_vid, end_vid, path_seq, node, edge
   FROM pgr_dijkstra(query1_pgr, query2_pgr, true)
   WHERE edge &gt; 0 )
-SELECT D.vehicle, start_vid, end_vid, path_seq, node, edge,
+SELECT d.VehicleId, start_vid, end_vid, path_seq, node, edge,
   -- adjusting direction of the edge traversed
   CASE
-    WHEN T.node = E.source THEN E.geom
-    ELSE ST_Reverse(E.geom)
-  END AS geom, E.maxspeed_forward AS speed,
-  berlinmod_roadCategory(E.tag_id) AS category
-FROM Destinations D, Temp T, Edges E
-WHERE D.source = T.start_vid AND D.target = T.end_vid AND E.id = T.edge;
+    WHEN t.node = e.source THEN e.Geom
+    ELSE ST_Reverse(e.Geom)
+  END AS Geom, e.maxspeed_forward AS speed,
+  berlinmod_roadCategory(e.tag_id) AS category
+FROM Destinations d, Temp t, Edges e
+WHERE d.source = t.start_vid AND d.target = t.end_vid AND e.id = t.edge;
 END LOOP;
 
 CREATE INDEX Paths_vehicle_start_vid_end_vid_idx ON Paths USING
-BTREE(vehicle, start_vid, end_vid);
+BTREE(VehicleId, start_vid, end_vid);
 </pre><p>
 			The variable <code class="varname">pathMode</code> determines whether pgRouting computes either the fastest or the shortest path from a source to a destination node. Then, we determine the number of calls to pgRouting. Indeed, depending on the available memory of the computer, there is a limit in the number of paths to be computed by pgRouting in a single call. The paths are stored in the <code class="varname">Paths</code> table. In addition to the columns generated by pgRouting, we add the geometry (adjusting the direction if necessary), the maximum speed, and the category of the edge. The BerlinMOD data generator considers three road categories: side road, main road, and freeway. The OSM road types are mapped to one of these categories in the function <code class="varname">berlinmod_roadCategory</code>.
 		</p><p>
 			We are now ready to generate the trips.
 			</p><pre class="programlisting">
 DROP TYPE IF EXISTS step CASCADE;
-CREATE TYPE step as (linestring geometry, maxspeed float, category int);
+CREATE TYPE step AS (linestring geometry, maxspeed float, category int);
 
 CREATE FUNCTION berlinmod_createTrips(noVehicles int, noDays int, startDay date,
   disturbData boolean)
@@ -210,17 +213,17 @@ DECLARE
   /* Declaration of variables and parameters ... */
 BEGIN
   DROP TABLE IF EXISTS Trips;
-  CREATE TABLE Trips(vehicle int, day date, seq int, source bigint, target bigint,
-    trip tgeompoint, trajectory geometry, PRIMARY KEY (vehicle, day, seq));
+  CREATE TABLE Trips(VehicleId int, day date, seq int, source bigint, target bigint,
+    Trip tgeompoint, trajectory geometry, PRIMARY KEY (VehicleId, day, seq));
   -- Loop for each vehicle
   FOR i IN 1..noVehicles LOOP
     -- Get home -&gt; work and work -&gt; home paths
     SELECT home, work INTO homeNode, workNode
-    FROM Vehicle V WHERE V.id = i;
-    SELECT array_agg((geom, speed, category)::step ORDER BY seq) INTO homework
-    FROM Paths WHERE vehicle = i AND start_vid = homeNode AND end_vid = workNode;
-    SELECT array_agg((geom, speed, category)::step ORDER BY seq) INTO workhome
-    FROM Paths WHERE vehicle = i AND start_vid = workNode AND end_vid = homeNode;
+    FROM Vehicles v WHERE v.VehicleId = i;
+    SELECT array_agg((Geom, speed, category)::step ORDER BY seq) INTO homework
+    FROM Paths WHERE VehicleId = i AND start_vid = homeNode AND end_vid = workNode;
+    SELECT array_agg((Geom, speed, category)::step ORDER BY seq) INTO workhome
+    FROM Paths WHERE VehicleId = i AND start_vid = workNode AND end_vid = homeNode;
     d = startDay;
     -- Loop for each generation day
     FOR j IN 1..noDays LOOP
@@ -239,7 +242,7 @@ BEGIN
       -- Get the number of leisure trips
       SELECT COUNT(DISTINCT tripNo) INTO noLeisTrip
       FROM LeisureTrip L
-      WHERE L.vehicle = i AND L.day = d;
+      WHERE L.VehicleId = i AND L.day = d;
       -- Loop for each leisure trip (0, 1, or 2)
       FOR k IN 1..noLeisTrip LOOP
         IF weekday BETWEEN 1 AND 5 THEN
@@ -251,7 +254,7 @@ BEGIN
             leisNo = k;
           ELSE
             SELECT tripNo INTO leisNo FROM LeisureTrip L
-            WHERE L.vehicle = i AND L.day = d LIMIT 1;
+            WHERE L.VehicleId = i AND L.day = d LIMIT 1;
           END IF;
           -- Determine the start time
           IF leisNo = 1 THEN
@@ -263,17 +266,17 @@ BEGIN
         -- Get the number of subtrips (number of destinations + 1)
         SELECT count(*) INTO noSubtrips
         FROM LeisureTrip L
-        WHERE L.vehicle = i AND L.tripNo = leisNo AND L.day = d;
+        WHERE L.VehicleId = i AND L.tripNo = leisNo AND L.day = d;
         FOR m IN 1..noSubtrips LOOP
           -- Get the source and destination nodes of the subtrip
           SELECT source, target INTO sourceNode, targetNode
           FROM LeisureTrip L
-          WHERE L.vehicle = i AND L.day = d AND L.tripNo = leisNo AND L.seq = m;
+          WHERE L.VehicleId = i AND L.day = d AND L.tripNo = leisNo AND L.seq = m;
           -- Get the path
-          SELECT array_agg((geom, speed, category)::step ORDER BY seq) INTO path
-          FROM Paths P
-          WHERE vehicle = i AND start_vid = sourceNode AND end_vid = targetNode;
-          trip = createTrip(path, t, disturbData);
+          SELECT array_agg((Geom, speed, category)::step ORDER BY seq) INTO Path
+          FROM Paths p
+          WHERE VehicleId = i AND start_vid = sourceNode AND end_vid = targetNode;
+          trip = createTrip(Path, t, disturbData);
           tripSeq = tripSeq + 1;
           INSERT INTO Trips VALUES
             (i, d, tripSeq, sourceNode, targetNode, trip, trajectory(trip));
@@ -308,7 +311,7 @@ BEGIN
     linestring = (edges[i]).linestring; maxSpeedEdge = (edges[i]).maxSpeed;
     category = (edges[i]).category;
     -- Determine the number of segments
-    SELECT array_agg(geom ORDER BY path) INTO points
+    SELECT array_agg(Geom ORDER BY Path) INTO points
     FROM ST_DumpPoints(linestring);
     noSegs = array_length(points, 1) - 1;
     -- Loop for every segment

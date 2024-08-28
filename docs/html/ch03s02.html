@@ -1,9 +1,9 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>Loading the Data in Partitioned Tables</title><link rel="stylesheet" type="text/css" href="docbook.css"><meta name="generator" content="DocBook XSL Stylesheets Vsnapshot"><link rel="home" href="index.html" title="BerlinMOD Benchmark on MobilityDB"><link rel="up" href="ch03.html" title="Chapter 3. BerlinMOD Benchmark on MobilityDB"><link rel="prev" href="ch03.html" title="Chapter 3. BerlinMOD Benchmark on MobilityDB"><link rel="next" href="ch03s03.html" title="BerlinMOD/R Queries"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Loading the Data in Partitioned Tables</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="ch03.html">Prev</a> </td><th width="60%" align="center">Chapter 3. BerlinMOD Benchmark on MobilityDB</th><td width="20%" align="right"> <a accesskey="n" href="ch03s03.html">Next</a></td></tr></table><hr></div><div class="sect1"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="idm972"></a>Loading the Data in Partitioned Tables</h2></div></div></div><p>As we discussed in <a class="xref" href="ch01.html" title="Chapter 1. MobilityDB Tutorial">Chapter 1, <i>MobilityDB Tutorial</i></a>, partioning allows one to split a large table into smaller physical pieces. We show next how to modify the scripts given in the previous section to take advantage of partioning. We will partition the <code class="varname">Trips</code> table by date using list partitioning, where each partitition will contain all the trips that start at a particular date. We will use the procedure <code class="varname">create_partitions_by_date</code> shown in <a class="xref" href="ch01.html" title="Chapter 1. MobilityDB Tutorial">Chapter 1, <i>MobilityDB Tutorial</i></a> for automatically creating the partitions according to the date range of the corresponding scale factor.
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>Loading the Data in Partitioned Tables</title><link rel="stylesheet" type="text/css" href="docbook.css"><meta name="generator" content="DocBook XSL Stylesheets Vsnapshot"><link rel="home" href="index.html" title="BerlinMOD Benchmark on MobilityDB"><link rel="up" href="ch03.html" title="Chapter 3. BerlinMOD Benchmark on MobilityDB"><link rel="prev" href="ch03.html" title="Chapter 3. BerlinMOD Benchmark on MobilityDB"><link rel="next" href="ch03s03.html" title="BerlinMOD/r Queries"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Loading the Data in Partitioned Tables</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="ch03.html">Prev</a> </td><th width="60%" align="center">Chapter 3. BerlinMOD Benchmark on MobilityDB</th><td width="20%" align="right"> <a accesskey="n" href="ch03s03.html">Next</a></td></tr></table><hr></div><div class="sect1"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="idm973"></a>Loading the Data in Partitioned Tables</h2></div></div></div><p>As we discussed in <a class="xref" href="ch01.html" title="Chapter 1. MobilityDB Tutorial">Chapter 1, <i>MobilityDB Tutorial</i></a>, partioning allows one to split a large table into smaller physical pieces. We show next how to modify the scripts given in the previous section to take advantage of partioning. We will partition the <code class="varname">Trips</code> table by date using list partitioning, where each partitition will contain all the trips that start at a particular date. We will use the procedure <code class="varname">create_partitions_by_date</code> shown in <a class="xref" href="ch01.html" title="Chapter 1. MobilityDB Tutorial">Chapter 1, <i>MobilityDB Tutorial</i></a> for automatically creating the partitions according to the date range of the corresponding scale factor.
 		</p><pre class="programlisting">
 [...]
 DROP TABLE IF EXISTS TripsInput CASCADE;
 CREATE TABLE TripsInput (
-  VehId integer,
+  VehicleId integer,
   TripId integer,
   TripDate date,
   TStart timestamp without time zone,
@@ -13,42 +13,42 @@ CREATE TABLE TripsInput (
   XEnd double precision,
   YEnd double precision,
   Geom geometry(LineString) );
-EXECUTE format('COPY TripsInput(VehId, TripId, TStart, TEnd, XStart, YStart, XEnd, YEnd) 
+EXECUTE format('COPY TripsInput(VehicleId, TripId, TStart, TEnd, XStart, YStart, XEnd, YEnd) 
 FROM ''%strips.csv'' DELIMITER  '','' CSV HEADER', fullpath);
 UPDATE TripsInput
 SET Geom = ST_Transform(ST_SetSRID(ST_MakeLine(ARRAY[ST_MakePoint(XStart, YStart),
   ST_MakePoint(XEnd, YEnd)]), 4326), 5676);
-UPDATE TripsInput T1 
-SET TripDate = T2.TripDate
+UPDATE TripsInput t1 
+SET TripDate = t2.TripDate
 FROM (SELECT DISTINCT TripId, date_trunc('day', MIN(TStart) OVER 
-  (PARTITION BY TripId)) AS TripDate FROM TripsInput) T2
-WHERE T1.TripId = T2.TripId;
+  (PARTITION BY TripId)) AS TripDate FROM TripsInput) t2
+WHERE t1.TripId = t2.TripId;
 [...]
 DROP TABLE IF EXISTS Trips CASCADE;
 CREATE TABLE Trips (
-  VehId integer NOT NULL,
+  VehicleId integer NOT NULL,
   TripId integer NOT NULL,
   TripDate date,
   Trip tgeompoint,
   Traj geometry,
-  PRIMARY KEY (VehId, TripId, TripDate),
-  FOREIGN KEY (VehId) REFERENCES Vehicles (VehId) 
+  PRIMARY KEY (VehicleId, TripId, TripDate),
+  FOREIGN KEY (VehicleId) REFERENCES Vehicles (VehicleId) 
 ) PARTITION BY LIST(TripDate);
 
 -- Create the partitions 
 SELECT MIN(TripDate), MAX(TripDate) INTO mindate, maxdate FROM TripsInputInstants;
 PERFORM create_partitions_by_date('Trips', mindate, maxdate);
 
-INSERT INTO Trips(VehId, TripId, TripDate, Trip)
-SELECT VehId, TripId, TripDate, tgeompoint_seq(array_agg(inst ORDER BY TStart))
+INSERT INTO Trips(VehicleId, TripId, TripDate, Trip)
+SELECT VehicleId, TripId, TripDate, tgeompoint_seq(array_agg(inst ORDER BY TStart))
 FROM TripsInputInstants
-GROUP BY VehId, TripId, TripDate;
+GROUP BY VehicleId, TripId, TripDate;
 UPDATE Trips
 SET Traj = trajectory(Trip);
 
-CREATE INDEX Trips_VehId_idx ON Trips USING btree(VehId);
-CREATE UNIQUE INDEX Trips_pkey_idx ON Trips USING btree(VehId, TripId, TripDate);
+CREATE INDEX Trips_VehId_idx ON Trips USING btree(VehicleId);
+CREATE UNIQUE INDEX Trips_pkey_idx ON Trips USING btree(VehicleId, TripId, TripDate);
 CREATE INDEX Trips_gist_idx ON Trips USING gist(trip);
 [...]
 		</pre><p>With respect to the script given in the previous section, we need to add an additional column <code class="varname">TripDate</code> to the tables <code class="varname">TripsInput</code>, <code class="varname">TripsInputInstants</code> (not shown), and <code class="varname">Trips</code> that will be used for partitioning.
-		</p></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="ch03.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="ch03.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="ch03s03.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Chapter 3. BerlinMOD Benchmark on MobilityDB </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> BerlinMOD/R Queries</td></tr></table></div></body></html>
+		</p></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="ch03.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="ch03.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="ch03s03.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Chapter 3. BerlinMOD Benchmark on MobilityDB </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> BerlinMOD/r Queries</td></tr></table></div></body></html>

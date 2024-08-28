@@ -1,14 +1,14 @@
 <html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>Exploring the Generated Data</title><link rel="stylesheet" type="text/css" href="docbook.css"><meta name="generator" content="DocBook XSL Stylesheets Vsnapshot"><link rel="home" href="index.html" title="BerlinMOD Benchmark on MobilityDB"><link rel="up" href="ch02.html" title="Chapter 2. Generating Realistic Trajectory Datasets"><link rel="prev" href="ch02s05.html" title="Exporting the Generated Data"><link rel="next" href="ch02s07.html" title="Understanding the Generation Process"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Exploring the Generated Data</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="ch02s05.html">Prev</a> </td><th width="60%" align="center">Chapter 2. Generating Realistic Trajectory Datasets</th><td width="20%" align="right"> <a accesskey="n" href="ch02s07.html">Next</a></td></tr></table><hr></div><div class="sect1"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="datagen_exploring"></a>Exploring the Generated Data</h2></div></div></div><p>
 		Now use a PostgreSQL client such as psql or pgAdmin to explore the properties of the generated trajectories. We start by obtaining some statistics about the number, the total duration, and the total length in Km of the trips.
 			</p><pre class="programlisting">
-SELECT COUNT(*), SUM(timespan(Trip)), SUM(length(Trip)) / 1e3
+SELECT COUNT(*), SUM(duration(Trip)), SUM(length(Trip)) / 1e3
 FROM Trips;
 -- 1686  "618:34:23.478239"  20546.31859281626
 </pre><p>
 		</p><p>
 		We continue by further analyzing the duration of all the trips
 			</p><pre class="programlisting">
-SELECT MIN(timespan(Trip)), MAX(timespan(Trip)), AVG(timespan(Trip))
+SELECT MIN(duration(Trip)), MAX(duration(Trip)), AVG(duration(Trip))
 FROM Trips;
 -- "00:00:29.091033"  "01:13:21.225514"  "00:22:02.365486"
 </pre><p>
@@ -16,15 +16,15 @@ FROM Trips;
 			</p><pre class="programlisting">
 SELECT
   CASE
-    WHEN T.source = V.home AND date_part('dow', T.day) BETWEEN 1 AND 5 AND
-      date_part('hour', startTimestamp(trip)) &lt; 12 THEN 'home_work'
-    WHEN T.source = V.work AND date_part('dow', T.day) BETWEEN 1 AND 5 AND
-      date_part('hour', startTimestamp(trip)) &gt; 12  THEN 'work_home'
-    WHEN date_part('dow', T.day) BETWEEN 1 AND 5 THEN 'leisure_weekday'
+    WHEN t.SourceNode = v.Home AND date_part('dow', t.day) BETWEEN 1 AND 5 AND
+      date_part('hour', startTimestamp(Trip)) &lt; 12 THEN 'home_work'
+    WHEN t.SourceNode = v.Work AND date_part('dow', t.day) BETWEEN 1 AND 5 AND
+      date_part('hour', startTimestamp(Trip)) &gt; 12  THEN 'work_home'
+    WHEN date_part('dow', t.day) BETWEEN 1 AND 5 THEN 'leisure_weekday'
     ELSE 'leisure_weekend'
-  END AS TripType, COUNT(*), MIN(timespan(Trip)), MAX(timespan(Trip)), AVG(timespan(Trip))
-FROM Trips T, Vehicle V
-WHERE T.vehicle = V.id
+  END AS TripType, COUNT(*), MIN(duration(Trip)), MAX(duration(Trip)), AVG(duration(Trip))
+FROM Trips t, Vehicles v
+WHERE t.VehicleId = v.VehicleId
 GROUP BY TripType;
 -- "leisure_weekday"    558    "00:00:29.091033"  "00:57:30.195709"  "00:10:59.118318"
 -- "work_home"          564    "00:02:04.159342"  "01:13:21.225514"  "00:27:33.424924"
@@ -40,8 +40,8 @@ FROM Trips;
 </pre><p>
 			As can be seen the longest trip is more than 56 Km long. Let's visualize one of these long trips.
 			</p><pre class="programlisting">
-SELECT vehicle, seq, source, target, round(length(Trip)::numeric / 1e3, 3),
-  startTimestamp(Trip), timespan(Trip)
+SELECT VehicleId, SeqNo, source, target, round(length(Trip)::numeric / 1e3, 3),
+  startTimestamp(Trip), duration(Trip)
 FROM Trips
 WHERE length(Trip) &gt; 50000 LIMIT 1;
 -- 90  1  23078  11985  53.766  "2020-06-01 08:46:55.487+02"  "01:10:10.549413"
@@ -50,8 +50,8 @@ WHERE length(Trip) &gt; 50000 LIMIT 1;
 		</p><div class="figure-float"><div class="figure"><a name="longest"></a><p class="title"><b>Figure 2.1. Visualization of a long trip.</b></p><div class="figure-contents"><div class="mediaobject"><img src="images/longest.png" alt="Visualization of a long trip."></div></div></div><br class="figure-break"></div><p>
 			We can obtain some statistics about the average speed in Km/h of all the trips as follows.
 			</p><pre class="programlisting">
-SELECT MIN(twavg(speed(Trip))) * 3.6, MAX(twavg(speed(Trip))) * 3.6,
-  AVG(twavg(speed(Trip))) * 3.6
+SELECT MIN(twAvg(speed(Trip))) * 3.6, MAX(twAvg(speed(Trip))) * 3.6,
+  AVG(twAvg(speed(Trip))) * 3.6
 FROM Trips;
 -- 14.211962789552468  53.31779380411017  31.32438581663778
 </pre><p>
@@ -59,20 +59,20 @@ FROM Trips;
 			A possible visualization that we could envision is to use gradients to show how the edges of the network are used by the trips. We start by determining how many trips traversed each of the edges of the network as follows.
 			</p><pre class="programlisting">
 CREATE TABLE HeatMap AS
-SELECT E.id, E.geom, count(*)
-FROM Edges E, Trips T
-WHERE st_intersects(E.geom, T.trajectory)
-GROUP BY E.id, E.geom;
+SELECT e.id, e.Geom, COUNT(*)
+FROM Edges e, Trips t
+WHERE ST_Intersects(e.Geom, t.trajectory)
+GROUP BY e.id, e.Geom;
 </pre><p>
 			This is an expensive query since it took 42 min in my laptop. In order to display unused edges in our visualization we need to add them to the table with a count of 0.
 			</p><pre class="programlisting">
 INSERT INTO HeatMap
-SELECT E.id, E.geom, 0 FROM Edges E WHERE E.id NOT IN (
+SELECT e.id, e.Geom, 0 FROM Edges e WHERE e.id NOT IN (
   SELECT id FROM HeatMap );
 </pre><p>
-			We need some basic statistics about the attribute <code class="varname">count</code> in order to define the gradients.
+			We need some basic statistics about the attribute <code class="varname">COUNT</code> in order to define the gradients.
 			</p><pre class="programlisting">
-SELECT min(count), max(count), round(avg(count),3), round(stddev(count),3) FROM HeatMap;
+SELECT MIN(count), MAX(COUNT), round(AVG(COUNT), 3), round(STDDEV(COUNT), 3) FROM HeatMap;
 -- 0 204 4.856 12.994
 </pre><p>
 			Although the maximum value is 204, the average and the standard deviation are, respectively, around 5 and 13.
@@ -87,19 +87,19 @@ ramp_color('RdGy', scale_linear(count, 0, 10, 0, 1))
 			</p><pre class="programlisting">
 DROP TABLE IF EXISTS EdgeSpeed;
 CREATE TABLE EdgeSpeed AS
-SELECT P.edge, twavg(speed(atGeometry(T.trip, ST_Buffer(P.geom, 0.1)))) * 3.6 AS twavg
-FROM Trips T, Paths P
-WHERE T.source = P.start_vid AND T.target = P.end_vid AND P.edge &gt; 0
-ORDER BY P.edge;
+SELECT p.edge, twAvg(speed(atGeometry(t.Trip, ST_Buffer(p.Geom, 0.1)))) * 3.6 AS twAvg
+FROM Trips t, Paths p
+WHERE t.source = p.start_vid AND t.target = p.end_vid AND p.edge &gt; 0
+ORDER BY p.edge;
 </pre><p>
 			This is an even more expensive query than the previous one since it took more than 2 hours in my laptop. Given a trip and an edge, the query restricts the trip to the geometry of the edge and computes the time-weighted average of the speed. Notice that the <code class="varname">ST_Buffer</code> is used to cope with the floating-point precision. After that we can compute the speed map as follows.
 			</p><pre class="programlisting">
 CREATE TABLE SpeedMap AS
 WITH Temp AS (
-  SELECT edge, avg(twavg) FROM EdgeSpeed GROUP BY edge )
-SELECT id, maxspeed_forward AS maxspeed, geom, avg, avg / maxspeed_forward AS perc
-FROM Edges E, Temp T
-WHERE E.id = T.edge;
+  SELECT edge, avg(twAvg) FROM EdgeSpeed GROUP BY edge )
+SELECT id, maxspeed_forward AS maxspeed, Geom, avg, avg / maxspeed_forward AS perc
+FROM Edges e, Temp t
+WHERE e.id = t.edge;
 </pre><p>
 			<a class="xref" href="ch02s06.html#speedmap" title="Figure 2.4. Visualization of the edges of the graph according to the speed of trips that traversed the edges.">Figure 2.4, “Visualization of the edges of the graph according to the speed of trips that traversed the edges.”</a> shows the visualization of the speed map without and with the base map.
 		</p><div class="figure-float"><div class="figure"><a name="speedmap"></a><p class="title"><b>Figure 2.4. Visualization of the edges of the graph according to the speed of trips that traversed the edges.</b></p><div class="figure-contents"><div class="mediaobject"><img src="images/speedmap1.png" alt="Visualization of the edges of the graph according to the speed of trips that traversed the edges."></div><div class="mediaobject"><img src="images/speedmap2.png" alt="Visualization of the edges of the graph according to the speed of trips that traversed the edges."></div></div></div><br class="figure-break"></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="ch02s05.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="ch02.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="ch02s07.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Exporting the Generated Data </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> Understanding the Generation Process</td></tr></table></div></body></html>

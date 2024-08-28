@@ -1,4 +1,4 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>Loading the Data in Partitioned Tables</title><link rel="stylesheet" type="text/css" href="docbook.css"><meta name="generator" content="DocBook XSL Stylesheets Vsnapshot"><link rel="home" href="index.html" title="BerlinMOD Benchmark on MobilityDB"><link rel="up" href="ch01.html" title="Chapter 1. MobilityDB Tutorial"><link rel="prev" href="ch01s02.html" title="Loading the Data"><link rel="next" href="ch01s04.html" title="Exploring the Data"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Loading the Data in Partitioned Tables</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="ch01s02.html">Prev</a> </td><th width="60%" align="center">Chapter 1. MobilityDB Tutorial</th><td width="20%" align="right"> <a accesskey="n" href="ch01s04.html">Next</a></td></tr></table><hr></div><div class="sect1"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="idm238"></a>Loading the Data in Partitioned Tables</h2></div></div></div><p>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>Loading the Data in Partitioned Tables</title><link rel="stylesheet" type="text/css" href="docbook.css"><meta name="generator" content="DocBook XSL Stylesheets Vsnapshot"><link rel="home" href="index.html" title="BerlinMOD Benchmark on MobilityDB"><link rel="up" href="ch01.html" title="Chapter 1. MobilityDB Tutorial"><link rel="prev" href="ch01s02.html" title="Loading the Data"><link rel="next" href="ch01s04.html" title="Exploring the Data"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Loading the Data in Partitioned Tables</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="ch01s02.html">Prev</a> </td><th width="60%" align="center">Chapter 1. MobilityDB Tutorial</th><td width="20%" align="right"> <a accesskey="n" href="ch01s04.html">Next</a></td></tr></table><hr></div><div class="sect1"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="idm239"></a>Loading the Data in Partitioned Tables</h2></div></div></div><p>
 		PostgreSQL provides partitioning mechanisms so that large tables can be split in smaller physical tables. This may result in increased performance when querying and manipulating large tables. We will split the <code class="varname">Trips</code> table given in the previous section using list partitioning, where each partitition will contain all the trips that start at a particular date. For doing this, we use the procedure given next for automatically creating the partitions according to a date range.
 		</p><pre class="programlisting">
 CREATE OR REPLACE FUNCTION create_partitions_by_date(TableName TEXT, StartDate DATE,
@@ -24,8 +24,8 @@ BEGIN
     PartitionName = TableName || '_' || to_char(d, 'YYYY_MM_DD');
     IF NOT EXISTS (
       SELECT 1
-       FROM information_schema.tables 
-       WHERE  table_name = lower(PartitionName))
+      FROM information_schema.tables 
+      WHERE  table_name = lower(PartitionName))
     THEN
       EXECUTE format('CREATE TABLE %s PARTITION OF %s FOR VALUES IN (''%s'');', 
         PartitionName, TableName, to_char(d, 'YYYY-MM-DD'));
@@ -39,11 +39,11 @@ $$ LANGUAGE plpgsql;
 </pre><p>In order to partition table <code class="varname">Trips</code> by date we need to add an addition column <code class="varname">TripDate</code> to table <code class="varname">TripsInput</code>.
 			</p><pre class="programlisting">
 ALTER TABLE TripsInput ADD COLUMN TripDate DATE;
-UPDATE TripsInput T1 
-SET TripDate = T2.TripDate
-FROM (SELECT DISTINCT TripId, date_trunc('day', MIN(T) OVER (PARTITION BY TripId))
-AS TripDate FROM TripsInput) T2
-WHERE T1.TripId = T2.TripId;
+UPDATE TripsInput t1 
+SET TripDate = t2.TripDate
+FROM (SELECT DISTINCT TripId, date_trunc('day', MIN(t) OVER (PARTITION BY TripId))
+AS TripDate FROM TripsInput) t2
+WHERE t1.TripId = t2.TripId;
 </pre><p>
 		Notice that the <code class="varname">UPDATE</code> statement above takes into account the fact that a trip may finish at a day later than the starting day.
 		</p><p>
@@ -53,9 +53,9 @@ DROP TABLE Trips CASCADE;
 CREATE TABLE Trips (
   TripId integer,
   TripDate date,
-  VehId integer NOT NULL REFERENCES Vehicles(VehId),
+  VehicleId integer NOT NULL REFERENCES Vehicles(VehicleId),
   Trip tgeompoint NOT NULL,
-  Traj geometry,
+  Trajectory geometry,
   PRIMARY KEY (TripId, TripDate)
 ) PARTITION BY LIST(TripDate);
 
@@ -80,10 +80,10 @@ trips_2020_06_05
 		</p><p>We modify the query that loads table <code class="varname">Trips</code> from the data in table <code class="varname">TripsInput</code> as follows.
 			</p><pre class="programlisting">
 INSERT INTO Trips
-SELECT TripId, TripDate, VehId, tgeompoint_seq(array_agg(tgeompoint_inst(
-  ST_Transform(ST_SetSRID(ST_MakePoint(PosX,PosY), 4326), 5676), T) ORDER BY T))
+SELECT TripId, TripDate, VehicleId, tgeompoint_seq(array_agg(tgeompoint_inst(
+  ST_Transform(ST_SetSRID(ST_MakePoint(PosX,PosY), 4326), 5676), t) ORDER BY t))
 FROM TripsInput
-GROUP BY TripId, TripDate, VehId;
+GROUP BY TripId, TripDate, VehicleId;
 </pre><p>
 		</p><p>We can see how many trips are in each partition of the <code class="varname">TripsInput</code> as follows.
 			</p><pre class="programlisting">

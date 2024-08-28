@@ -1,5 +1,5 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>Loading the Data</title><link rel="stylesheet" type="text/css" href="docbook.css"><meta name="generator" content="DocBook XSL Stylesheets Vsnapshot"><link rel="home" href="index.html" title="BerlinMOD Benchmark on MobilityDB"><link rel="up" href="ch01.html" title="Chapter 1. MobilityDB Tutorial"><link rel="prev" href="ch01.html" title="Chapter 1. MobilityDB Tutorial"><link rel="next" href="ch01s03.html" title="Loading the Data in Partitioned Tables"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Loading the Data</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="ch01.html">Prev</a> </td><th width="60%" align="center">Chapter 1. MobilityDB Tutorial</th><td width="20%" align="right"> <a accesskey="n" href="ch01s03.html">Next</a></td></tr></table><hr></div><div class="sect1"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="idm118"></a>Loading the Data</h2></div></div></div><p>The ZIP file with the data for this tutorial contains a set of CSV files as follows:
-			</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem"><p><code class="varname">instants.csv</code> with fields <code class="varname">InstantId</code> and <code class="varname">Instant</code> contains timestamps used for queries.</p></li><li class="listitem"><p><code class="varname">licences.csv</code> with fields <code class="varname">LicenceId</code>, <code class="varname">Licence</code> and <code class="varname">VehId</code> contains vehicle licences used for queries.</p></li><li class="listitem"><p><code class="varname">periods.csv</code> with fields <code class="varname">PeriodId</code>, <code class="varname">Begin</code>, and <code class="varname">End</code> contains periods used for the queries.</p></li><li class="listitem"><p><code class="varname">points.csv</code> with fields <code class="varname">PointId</code>, <code class="varname">PosX</code>, and <code class="varname">PosY</code> contains points used for queries.</p></li><li class="listitem"><p><code class="varname">regions.csv</code> with fields <code class="varname">RegionId</code>, <code class="varname">PointNo</code>, <code class="varname">PosX</code>, and <code class="varname">PosY</code> and <code class="varname">Yend</code> contains the polygons used for queries.</p></li><li class="listitem"><p><code class="varname">trips.csv</code> with fields <code class="varname">TripId</code>, <code class="varname">VehId</code>, <code class="varname">PosX</code>, <code class="varname">PosY</code>, and <code class="varname">Instant</code> contains vehicles movements and pauses.</p></li><li class="listitem"><p><code class="varname">vehicles.csv</code> with fields <code class="varname">VehId</code>, <code class="varname">Licence</code>, <code class="varname">Type</code>, and <code class="varname">Model</code> contains the vehicle descriptions.</p></li></ul></div><p>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>Loading the Data</title><link rel="stylesheet" type="text/css" href="docbook.css"><meta name="generator" content="DocBook XSL Stylesheets Vsnapshot"><link rel="home" href="index.html" title="BerlinMOD Benchmark on MobilityDB"><link rel="up" href="ch01.html" title="Chapter 1. MobilityDB Tutorial"><link rel="prev" href="ch01.html" title="Chapter 1. MobilityDB Tutorial"><link rel="next" href="ch01s03.html" title="Loading the Data in Partitioned Tables"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Loading the Data</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="ch01.html">Prev</a> </td><th width="60%" align="center">Chapter 1. MobilityDB Tutorial</th><td width="20%" align="right"> <a accesskey="n" href="ch01s03.html">Next</a></td></tr></table><hr></div><div class="sect1"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="idm119"></a>Loading the Data</h2></div></div></div><p>The ZIP file with the data for this tutorial contains a set of CSV files as follows:
+			</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem"><p><code class="varname">instants.csv</code> with fields <code class="varname">InstantId</code> and <code class="varname">Instant</code> contains timestamps used for queries.</p></li><li class="listitem"><p><code class="varname">licences.csv</code> with fields <code class="varname">LicenceId</code>, <code class="varname">Licence</code> and <code class="varname">VehicleId</code> contains vehicle licences used for queries.</p></li><li class="listitem"><p><code class="varname">periods.csv</code> with fields <code class="varname">PeriodId</code>, <code class="varname">Begin</code>, and <code class="varname">End</code> contains periods used for the queries.</p></li><li class="listitem"><p><code class="varname">points.csv</code> with fields <code class="varname">PointId</code>, <code class="varname">PosX</code>, and <code class="varname">PosY</code> contains points used for queries.</p></li><li class="listitem"><p><code class="varname">regions.csv</code> with fields <code class="varname">RegionId</code>, <code class="varname">PointNo</code>, <code class="varname">PosX</code>, and <code class="varname">PosY</code> and <code class="varname">Yend</code> contains the polygons used for queries.</p></li><li class="listitem"><p><code class="varname">trips.csv</code> with fields <code class="varname">TripId</code>, <code class="varname">VehicleId</code>, <code class="varname">PosX</code>, <code class="varname">PosY</code>, and <code class="varname">Instant</code> contains vehicles movements and pauses.</p></li><li class="listitem"><p><code class="varname">vehicles.csv</code> with fields <code class="varname">VehicleId</code>, <code class="varname">Licence</code>, <code class="varname">VehicleType</code>, and <code class="varname">Model</code> contains the vehicle descriptions.</p></li></ul></div><p>
 		</p><p>
 		We decompress the file with the data into a directory. This can be done using the command. 
 			</p><pre class="programlisting">
@@ -16,55 +16,46 @@ CREATE EXTENSION MobilityDB CASCADE;
 			</p><pre class="programlisting">
 CREATE TABLE Instants (
   InstantId integer PRIMARY KEY,
-  Instant timestamptz NOT NULL
-  );
+  Instant timestamptz NOT NULL );
 CREATE TABLE Periods (
   PeriodId integer PRIMARY KEY,
   Tstart TimestampTz NOT NULL,
   Tend TimestampTz NOT NULL,
-  Period tstzspan
-  );
+  Period tstzspan );
 CREATE TABLE Points (
   PointId integer PRIMARY KEY,
   PosX double precision NOT NULL,
   PosY double precision NOT NULL,
-  Geom Geometry(Point)
-  );
+  Geom Geometry(Point) );
 CREATE TABLE RegionsInput (
   RegionId integer,
   PointNo integer,
   XPos double precision NOT NULL,
   YPos double precision NOT NULL,
-  PRIMARY KEY (RegionId, PointNo)
-  );
+  PRIMARY KEY (RegionId, PointNo) );
 CREATE TABLE Regions (
   RegionId integer PRIMARY KEY,
-  Geom Geometry(Polygon) NOT NULL
-  );
+  Geom Geometry(Polygon) NOT NULL );
 CREATE TABLE Vehicles (
-  VehId integer PRIMARY KEY,
+  VehicleId integer PRIMARY KEY,
   Licence text NOT NULL,
-  Type text NOT NULL,
-  Model text NOT NULL
-  );
+  VehicleType text NOT NULL,
+  Model text NOT NULL );
 CREATE TABLE Licences (
   LicenceId integer PRIMARY KEY,
   Licence text NOT NULL,
-  VehId integer NOT NULL REFERENCES Vehicles(VehId)
-  );
+  VehicleId integer NOT NULL REFERENCES Vehicles(VehicleId) );
 CREATE TABLE TripsInput (
   TripId integer NOT NULL,
-  VehId integer NOT NULL REFERENCES Vehicles(VehId),
+  VehicleId integer NOT NULL REFERENCES Vehicles(VehicleId),
   PosX float NOT NULL,
   PosY float NOT NULL,
-  T timestamptz NOT NULL,
-  PRIMARY KEY (TripId, T)
-  );
+  t timestamptz NOT NULL,
+  PRIMARY KEY (TripId, t) );
 CREATE TABLE Trips (
   TripId integer PRIMARY KEY,
-  VehId integer NOT NULL REFERENCES Vehicles(VehId),
-  Trip tgeompoint NOT NULL
-  );
+  VehicleId integer NOT NULL REFERENCES Vehicles(VehicleId),
+  Trip tgeompoint NOT NULL );
 </pre><p>
 		We created one table for each CSV file. In addition, we created a table <code class="varname">Regions</code> in order to assemble all points composing the polygon  of a region into a single geometry and a table <code class="varname">Trips</code> in order to assemble all instants composing a trip into a single temporal point.
 		</p><p>
@@ -82,11 +73,11 @@ UPDATE Points
 SET Geom = ST_Transform(ST_SetSRID(ST_MakePoint(PosX, PosY), 4326), 5676);
 COPY RegionsInput(RegionId, PointId, XPos, YPos) FROM 
   '/home/mobilitydb/data/regions.csv' DELIMITER  ',' CSV HEADER;
-COPY Vehicles(VehId, Licence, Type, Model) FROM '/home/mobilitydb/data/vehicles.csv' 
+COPY Vehicles(VehicleId, Licence, VehicleType, Model)
+  FROM '/home/mobilitydb/data/vehicles.csv' DELIMITER ',' CSV HEADER;
+COPY Licences(LicenceId, Licence, VehicleId) FROM '/home/mobilitydb/data/licences.csv' 
   DELIMITER ',' CSV HEADER;
-COPY Licences(LicenceId, Licence, VehId) FROM '/home/mobilitydb/data/licences.csv' 
-  DELIMITER ',' CSV HEADER;
-COPY TripsInput(TripId, VehId, PosX, PosY, T) FROM '/home/mobilitydb/data/trips.csv' 
+COPY TripsInput(TripId, VehicleId, PosX, PosY, t) FROM '/home/mobilitydb/data/trips.csv' 
   DELIMITER ',' CSV HEADER;
 </pre><p>
 		</p><p>The following query is used to load table <code class="varname">Regions</code> from the data in table <code class="varname">RegionsInput</code>.
@@ -101,11 +92,11 @@ GROUP BY RegionId;
 			</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem"><p>Function <code class="varname">ST_MakePoint</code> construct a point from the <code class="varname">PosX</code> and <code class="varname">PosY</code> values.</p></li><li class="listitem"><p>Function <code class="varname">ST_SetSRID</code> sets the SRID of the point to 4326, that is, to the standard WGS84 GPS coordinates.</p></li><li class="listitem"><p>Function <code class="varname">ST_Transform</code> transforms the spherical GPS coordinates to plannar coordinates fitted for Belgium.</p></li><li class="listitem"><p>Function <code class="varname">array_agg</code> collects in an array all points of a region (as specified by the <code class="varname">GROUP BY</code> clause) and sort them by  <code class="varname">PointNo</code> (as specified by the <code class="varname">ORDER BY</code> clause).</p></li><li class="listitem"><p>Function <code class="varname">ST_MakeLine</code> make a linestring from the array of all points in a region.</p></li><li class="listitem"><p>Function <code class="varname">ST_MakePolygon</code> make a polygon for the region from a linestring.</p></li></ul></div><p>
 		</p><p>The following query is used to load table <code class="varname">Trips</code> from the data in table <code class="varname">TripsInput</code>.
 			</p><pre class="programlisting">
-INSERT INTO Trips(TripId, VehId, Trip)
-SELECT TripId, VehId, tgeompoint_seq(array_agg(tgeompoint_inst(
-  ST_Transform(ST_SetSRID(ST_MakePoint(PosX, PosY), 4326), 5676), T) ORDER BY T))
+INSERT INTO Trips(TripId, VehicleId, Trip)
+SELECT TripId, VehicleId, tgeompoint_seq(array_agg(tgeompoint_inst(
+  ST_Transform(ST_SetSRID(ST_MakePoint(PosX, PosY), 4326), 5676), t) ORDER BY t))
 FROM TripsInput
-GROUP BY VehId, TripId;
+GROUP BY VehicleId, TripId;
 </pre><p>
 		There are many nested functions, so reading from the innermost:
 			</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem"><p>Function <code class="varname">ST_MakePoint</code> construct a point from the <code class="varname">PosX</code> and <code class="varname">PosY</code> values.</p></li><li class="listitem"><p>Function <code class="varname">ST_SetSRID</code> sets the SRID of the point to 4326.</p></li><li class="listitem"><p>Function <code class="varname">ST_Transform</code> transforms the spherical coordinates to plannar coordinates with SRID 5676.</p></li><li class="listitem"><p>Function <code class="varname">tgeompoint_inst</code> gets the point and the time values to create a temporal point of instant duration.</p></li><li class="listitem"><p>Function <code class="varname">array_agg</code> collects in an array all temporal instant points of a given vehicle and a given trip (as specified by the <code class="varname">GROUP BY</code> clause) and sort them by time (as specified by the <code class="varname">ORDER BY</code> clause).</p></li><li class="listitem"><p>Function <code class="varname">tgeompoint_seq</code> gets the array of temporal points and construct a temporal sequence point.</p></li></ul></div><p>
@@ -115,7 +106,7 @@ CREATE INDEX Instants_Instant_Idx ON Instants USING btree(Instant);
 CREATE INDEX Periods_Period_Idx ON Periods USING gist(Period);
 CREATE INDEX Points_Geom_Idx ON Points USING gist(Geom);
 CREATE INDEX Regions_Geom_Idx ON Regions USING gist(Geom);
-CREATE INDEX Trips_VehId_Idx ON Trips USING btree(VehId);
+CREATE INDEX Trips_VehId_Idx ON Trips USING btree(VehicleId);
 CREATE INDEX Trips_Trip_gist_Idx ON Trips USING gist(trip);
 
 CREATE VIEW Instants1 AS SELECT * FROM Instants LIMIT 10;
