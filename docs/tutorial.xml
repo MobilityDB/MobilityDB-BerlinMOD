@@ -28,14 +28,14 @@ cd MobilityDB-BerlinMOD/BerlinMOD
 		<para>
 		We explain now how to explore this tutorial using a Docker image that contains MobilityDB and all its dependencies (including PostgreSQL and PostGIS). The container has a default database called <varname>mobilitydb</varname> with the MobilityDB extension installed where <varname>user = pw = docker</varname>. This presupposes that you have installed Docker into your computer. In that case, you can run the following command.
 			<programlisting language="bash" xml:space="preserve">
-docker pull codewit/mobilitydb
+docker pull mobilitydb/mobilitydb
 docker volume create mobilitydb_data
 docker run --name "mobilitydb" -d -p 25432:5432 -v mobilitydb_data:/var/lib/postgresql 
-codewit/mobilitydb
+mobilitydb/mobilitydb
 </programlisting>
 			In the above commands
 			<itemizedlist>
-				<listitem><para><varname>docker pull</varname> downloads the Docker image of <varname>mobilitydb</varname>. If the image has been downloaded before, this checks whether a more recent image has been published in the docker repository, and downloads it. It is better to call this command every time, to ensures that you have the latest most up-to-date version of this image.</para></listitem>
+				<listitem><para><varname>docker pull</varname> downloads the Docker image of <varname>mobilitydb</varname>. If the image has been downloaded before, this checks whether a more recent image has been published in the docker repository, and downloads it. It is better to call this command every time, to ensure that you have the most up-to-date version of this image.</para></listitem>
 
 				<listitem><para><varname>docker volume create mobilitydb_data</varname> creates a volume container on the host, that we will use to persist the PostgreSQL database files outside of the MobilityDB container. You need to run this command only once, during the first use of the image</para>
 				</listitem>
@@ -47,10 +47,10 @@ codewit/mobilitydb
 				<listitem><para><varname>-p 25432:5432</varname> maps TCP port 5432 in the container to port 25432 on the Docker host (to prevent potential conflicts with any local database instance you may have). This is required because the PostgreSQL database server in the container listens for connections on port 5432 by default.</para>
 				</listitem>
 
-				<listitem><para><varname>-v mobilitydb_data:/var/lib/postgresql</varname> tells the container filesystem to mount the <varname>mobilitydb_data</varname> volume that we have just created to the path /var/lib/postgresql. This means that any database objects that the container saves or creates (by default in <varname>/var/lib/postgresql</varname>) will instead be persisted in the <varname>mobilitydb_data</varname> directory, which is stored in the host. This options ensures that your data will not be lost when the container is removed. </para>
+				<listitem><para><varname>-v mobilitydb_data:/var/lib/postgresql</varname> tells the container filesystem to mount the <varname>mobilitydb_data</varname> volume that we have just created to the path <varname>/var/lib/postgresql</varname>. This means that any database objects that the container saves or creates (by default in <varname>/var/lib/postgresql</varname>) will instead be persisted in the <varname>mobilitydb_data</varname> directory, which is stored in the host. This options ensures that your data will not be lost when the container is removed. </para>
 				</listitem>
 
-				<listitem><para><varname>codewit/mobilitydb</varname> tells Docker to pull the docker image with that name from Docker Hub.</para>
+				<listitem><para><varname>mobilitydb/mobilitydb</varname> tells Docker to pull the docker image with that name from Docker Hub.</para>
 				</listitem>
 			</itemizedlist>
 		</para>
@@ -121,7 +121,7 @@ docker rm "mobilitydb"
 				</listitem>
 
 				<listitem>
-					<para><varname>licences.csv</varname> with fields <varname>LicenceId</varname>, <varname>Licence</varname> and <varname>VehId</varname> contains vehicle licences used for queries.</para>
+					<para><varname>licences.csv</varname> with fields <varname>LicenceId</varname>, <varname>Licence</varname> and <varname>VehicleId</varname> contains vehicle licences used for queries.</para>
 				</listitem>
 
 				<listitem>
@@ -137,11 +137,11 @@ docker rm "mobilitydb"
 				</listitem>
 
 				<listitem>
-					<para><varname>trips.csv</varname> with fields <varname>TripId</varname>, <varname>VehId</varname>, <varname>PosX</varname>, <varname>PosY</varname>, and <varname>Instant</varname> contains vehicles movements and pauses.</para>
+					<para><varname>trips.csv</varname> with fields <varname>TripId</varname>, <varname>VehicleId</varname>, <varname>PosX</varname>, <varname>PosY</varname>, and <varname>Instant</varname> contains vehicles movements and pauses.</para>
 				</listitem>
 
 				<listitem>
-					<para><varname>vehicles.csv</varname> with fields <varname>VehId</varname>, <varname>Licence</varname>, <varname>Type</varname>, and <varname>Model</varname> contains the vehicle descriptions.</para>
+					<para><varname>vehicles.csv</varname> with fields <varname>VehicleId</varname>, <varname>Licence</varname>, <varname>VehicleType</varname>, and <varname>Model</varname> contains the vehicle descriptions.</para>
 				</listitem>
 			</itemizedlist>
 		</para>
@@ -166,55 +166,46 @@ CREATE EXTENSION MobilityDB CASCADE;
 			<programlisting language="sql" xml:space="preserve">
 CREATE TABLE Instants (
   InstantId integer PRIMARY KEY,
-  Instant timestamptz NOT NULL
-  );
+  Instant timestamptz NOT NULL );
 CREATE TABLE Periods (
   PeriodId integer PRIMARY KEY,
   Tstart TimestampTz NOT NULL,
   Tend TimestampTz NOT NULL,
-  Period tstzspan
-  );
+  Period tstzspan );
 CREATE TABLE Points (
   PointId integer PRIMARY KEY,
   PosX double precision NOT NULL,
   PosY double precision NOT NULL,
-  Geom Geometry(Point)
-  );
+  Geom Geometry(Point) );
 CREATE TABLE RegionsInput (
   RegionId integer,
   PointNo integer,
   XPos double precision NOT NULL,
   YPos double precision NOT NULL,
-  PRIMARY KEY (RegionId, PointNo)
-  );
+  PRIMARY KEY (RegionId, PointNo) );
 CREATE TABLE Regions (
   RegionId integer PRIMARY KEY,
-  Geom Geometry(Polygon) NOT NULL
-  );
+  Geom Geometry(Polygon) NOT NULL );
 CREATE TABLE Vehicles (
-  VehId integer PRIMARY KEY,
+  VehicleId integer PRIMARY KEY,
   Licence text NOT NULL,
-  Type text NOT NULL,
-  Model text NOT NULL
-  );
+  VehicleType text NOT NULL,
+  Model text NOT NULL );
 CREATE TABLE Licences (
   LicenceId integer PRIMARY KEY,
   Licence text NOT NULL,
-  VehId integer NOT NULL REFERENCES Vehicles(VehId)
-  );
+  VehicleId integer NOT NULL REFERENCES Vehicles(VehicleId) );
 CREATE TABLE TripsInput (
   TripId integer NOT NULL,
-  VehId integer NOT NULL REFERENCES Vehicles(VehId),
+  VehicleId integer NOT NULL REFERENCES Vehicles(VehicleId),
   PosX float NOT NULL,
   PosY float NOT NULL,
-  T timestamptz NOT NULL,
-  PRIMARY KEY (TripId, T)
-  );
+  t timestamptz NOT NULL,
+  PRIMARY KEY (TripId, t) );
 CREATE TABLE Trips (
   TripId integer PRIMARY KEY,
-  VehId integer NOT NULL REFERENCES Vehicles(VehId),
-  Trip tgeompoint NOT NULL
-  );
+  VehicleId integer NOT NULL REFERENCES Vehicles(VehicleId),
+  Trip tgeompoint NOT NULL );
 </programlisting>
 		We created one table for each CSV file. In addition, we created a table <varname>Regions</varname> in order to assemble all points composing the polygon  of a region into a single geometry and a table <varname>Trips</varname> in order to assemble all instants composing a trip into a single temporal point.
 		</para>
@@ -234,11 +225,11 @@ UPDATE Points
 SET Geom = ST_Transform(ST_SetSRID(ST_MakePoint(PosX, PosY), 4326), 5676);
 COPY RegionsInput(RegionId, PointId, XPos, YPos) FROM 
   '/home/mobilitydb/data/regions.csv' DELIMITER  ',' CSV HEADER;
-COPY Vehicles(VehId, Licence, Type, Model) FROM '/home/mobilitydb/data/vehicles.csv' 
+COPY Vehicles(VehicleId, Licence, VehicleType, Model)
+  FROM '/home/mobilitydb/data/vehicles.csv' DELIMITER ',' CSV HEADER;
+COPY Licences(LicenceId, Licence, VehicleId) FROM '/home/mobilitydb/data/licences.csv' 
   DELIMITER ',' CSV HEADER;
-COPY Licences(LicenceId, Licence, VehId) FROM '/home/mobilitydb/data/licences.csv' 
-  DELIMITER ',' CSV HEADER;
-COPY TripsInput(TripId, VehId, PosX, PosY, T) FROM '/home/mobilitydb/data/trips.csv' 
+COPY TripsInput(TripId, VehicleId, PosX, PosY, t) FROM '/home/mobilitydb/data/trips.csv' 
   DELIMITER ',' CSV HEADER;
 </programlisting>
 		</para>
@@ -276,11 +267,11 @@ GROUP BY RegionId;
 
 		<para>The following query is used to load table <varname>Trips</varname> from the data in table <varname>TripsInput</varname>.
 			<programlisting language="sql" xml:space="preserve">
-INSERT INTO Trips(TripId, VehId, Trip)
-SELECT TripId, VehId, tgeompoint_seq(array_agg(tgeompoint_inst(
-  ST_Transform(ST_SetSRID(ST_MakePoint(PosX, PosY), 4326), 5676), T) ORDER BY T))
+INSERT INTO Trips(TripId, VehicleId, Trip)
+SELECT TripId, VehicleId, tgeompoint_seq(array_agg(tgeompoint_inst(
+  ST_Transform(ST_SetSRID(ST_MakePoint(PosX, PosY), 4326), 5676), t) ORDER BY t))
 FROM TripsInput
-GROUP BY VehId, TripId;
+GROUP BY VehicleId, TripId;
 </programlisting>
 		There are many nested functions, so reading from the innermost:
 			<itemizedlist>
@@ -311,7 +302,7 @@ CREATE INDEX Instants_Instant_Idx ON Instants USING btree(Instant);
 CREATE INDEX Periods_Period_Idx ON Periods USING gist(Period);
 CREATE INDEX Points_Geom_Idx ON Points USING gist(Geom);
 CREATE INDEX Regions_Geom_Idx ON Regions USING gist(Geom);
-CREATE INDEX Trips_VehId_Idx ON Trips USING btree(VehId);
+CREATE INDEX Trips_VehId_Idx ON Trips USING btree(VehicleId);
 CREATE INDEX Trips_Trip_gist_Idx ON Trips USING gist(trip);
 
 CREATE VIEW Instants1 AS SELECT * FROM Instants LIMIT 10;
@@ -353,8 +344,8 @@ BEGIN
     PartitionName = TableName || '_' || to_char(d, 'YYYY_MM_DD');
     IF NOT EXISTS (
       SELECT 1
-       FROM information_schema.tables 
-       WHERE  table_name = lower(PartitionName))
+      FROM information_schema.tables 
+      WHERE  table_name = lower(PartitionName))
     THEN
       EXECUTE format('CREATE TABLE %s PARTITION OF %s FOR VALUES IN (''%s'');', 
         PartitionName, TableName, to_char(d, 'YYYY-MM-DD'));
@@ -370,11 +361,11 @@ $$ LANGUAGE plpgsql;
 		<para>In order to partition table <varname>Trips</varname> by date we need to add an addition column <varname>TripDate</varname> to table <varname>TripsInput</varname>.
 			<programlisting language="sql" xml:space="preserve">
 ALTER TABLE TripsInput ADD COLUMN TripDate DATE;
-UPDATE TripsInput T1 
-SET TripDate = T2.TripDate
-FROM (SELECT DISTINCT TripId, date_trunc('day', MIN(T) OVER (PARTITION BY TripId))
-AS TripDate FROM TripsInput) T2
-WHERE T1.TripId = T2.TripId;
+UPDATE TripsInput t1 
+SET TripDate = t2.TripDate
+FROM (SELECT DISTINCT TripId, date_trunc('day', MIN(t) OVER (PARTITION BY TripId))
+AS TripDate FROM TripsInput) t2
+WHERE t1.TripId = t2.TripId;
 </programlisting>
 		Notice that the <varname>UPDATE</varname> statement above takes into account the fact that a trip may finish at a day later than the starting day.
 		</para>
@@ -386,9 +377,9 @@ DROP TABLE Trips CASCADE;
 CREATE TABLE Trips (
   TripId integer,
   TripDate date,
-  VehId integer NOT NULL REFERENCES Vehicles(VehId),
+  VehicleId integer NOT NULL REFERENCES Vehicles(VehicleId),
   Trip tgeompoint NOT NULL,
-  Traj geometry,
+  Trajectory geometry,
   PRIMARY KEY (TripId, TripDate)
 ) PARTITION BY LIST(TripDate);
 
@@ -417,10 +408,10 @@ trips_2020_06_05
 		<para>We modify the query that loads table <varname>Trips</varname> from the data in table <varname>TripsInput</varname> as follows.
 			<programlisting language="sql" xml:space="preserve">
 INSERT INTO Trips
-SELECT TripId, TripDate, VehId, tgeompoint_seq(array_agg(tgeompoint_inst(
-  ST_Transform(ST_SetSRID(ST_MakePoint(PosX,PosY), 4326), 5676), T) ORDER BY T))
+SELECT TripId, TripDate, VehicleId, tgeompoint_seq(array_agg(tgeompoint_inst(
+  ST_Transform(ST_SetSRID(ST_MakePoint(PosX,PosY), 4326), 5676), t) ORDER BY t))
 FROM TripsInput
-GROUP BY TripId, TripDate, VehId;
+GROUP BY TripId, TripDate, VehicleId;
 </programlisting>
 		</para>
 
@@ -501,11 +492,11 @@ Aggregate (cost=33.73..33.74 rows=1 width=8)
 
 	<sect1>
 		<title>Exploring the Data</title>
-		<para>In order to visualize the data with traditional tools such as <ulink url="https://qgis.org/">QGIS</ulink> we add to table <varname>Trip</varname> a column <varname>Traj</varname> of type <varname>geometry</varname> containing the trajectory of the trips.
+		<para>In order to visualize the data with traditional tools such as <ulink url="https://qgis.org/">QGIS</ulink> we add to table <varname>Trip</varname> a column <varname>Trajectory</varname> of type <varname>geometry</varname> containing the trajectory of the trips.
 			<programlisting language="sql" xml:space="preserve">
-ALTER TABLE Trips ADD COLUMN traj geometry;
+ALTER TABLE Trips ADD COLUMN Trajectory geometry;
 UPDATE Trips
-SET Traj = trajectory(Trip);
+SET Trajectory = trajectory(Trip);
 </programlisting>
 		The visualization of the trajectories in QGIS is given in <xref linkend="berlinmod_visualization" />. As we will explain in <xref linkend ="datagen" /> this synthetic dataset models people using their car for going from home to work in the morning, from work to home in the afternoon, as well as doing some additional leisure trips at evenings or weekends.
 		</para>
@@ -522,17 +513,17 @@ SET Traj = trajectory(Trip);
 			<programlisting language="sql" xml:space="preserve">
 SELECT count(*) FROM Trips;
 -- 1672
-SELECT count(*) FROM Trips WHERE GeometryType(Traj) = 'POINT';
+SELECT count(*) FROM Trips WHERE GeometryType(Trajectory) = 'POINT';
 -- 0
-SELECT count(*) FROM Trips WHERE GeometryType(Traj) = 'LINESTRING';
+SELECT count(*) FROM Trips WHERE GeometryType(Trajectory) = 'LINESTRING';
 -- 1672
 </programlisting>
 		We can also determine the spatiotemporal extent of the data using the following query.
 			<programlisting language="sql" xml:space="preserve">
 SELECT extent(Trip) from Trips;
--- SRID=3857;STBOX XT(((469715.0960907607,6577078.768286072),
---    (500997.56505993055,6607214.0038881665)),
---    [2020-06-01 08:01:16.984+02, 2020-06-05 01:40:04.281127+02])
+/* SRID=3857;STBOX XT(((469715.0960907607,6577078.768286072),
+    (500997.56505993055,6607214.0038881665)),
+    [2020-06-01 08:01:16.984+02, 2020-06-05 01:40:04.281127+02]) */
 </programlisting>
 		</para>
 		<para>
@@ -569,32 +560,32 @@ FROM Trips ORDER BY duration;
 		<para>
 		The following query produces a histogram of trip length.
 			<programlisting language="sql" xml:space="preserve">
-WITH buckets (bucketNo, bucketRange) AS (
+WITH Bins(BinNo, BinRange) AS (
   SELECT 1, floatspan '[0, 1)' UNION
   SELECT 2, floatspan '[1, 2)' UNION
   SELECT 3, floatspan '[2, 5)' UNION
   SELECT 4, floatspan '[5, 10)' UNION
   SELECT 5, floatspan '[10, 50)' UNION
   SELECT 6, floatspan '[50, 100)' ),
-histogram AS (
-  SELECT bucketNo, bucketRange, count(TripId) as freq
-  FROM buckets left outer join trips on length(trip) / 1e3 &lt;@ bucketRange
-  GROUP BY bucketNo, bucketRange
-  ORDER BY bucketNo, bucketRange )
-SELECT bucketNo, bucketRange, freq,
-  repeat('&#9632;', ( freq::float / max(freq) OVER () * 30 )::int ) AS bar
-FROM histogram;
+Histogram AS (
+  SELECT BinNo, BinRange, COUNT(TripId) AS Freq
+  FROM Bins LEFT OUTER JOIN Trips ON length(trip) / 1e3 &lt;@ BinRange
+  GROUP BY BinNo, BinRange
+  ORDER BY BinNo, BinRange )
+SELECT BinNo, BinRange, Freq,
+  repeat('&#9632;', ( Freq::float / MAX(Freq) OVER () * 30 )::int ) AS bar
+FROM Histogram;
 </programlisting>
 			The result of the above query is given next. 
 			<programlisting language="sql" xml:space="preserve">
- bucketno | bucketrange | freq |              bar
-----------+-------------+------+--------------------------------
-        1 | [0, 1)      |   41 | &#9632;
-        2 | [1, 2)      |   91 | &#9632;&#9632;&#9632;
-        3 | [2, 5)      |  329 | &#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;
-        4 | [5, 10)     |  294 | &#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;
-        5 | [10, 50)    |  909 | &#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;
-        6 | [50, 100)   |    8 |
+ BinNo | BinRange  | Freq |              bar
+-------+-----------+------+--------------------------------
+     1 | [0, 1)    |   41 | &#9632;
+     2 | [1, 2)    |   91 | &#9632;&#9632;&#9632;
+     3 | [2, 5)    |  329 | &#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;
+     4 | [5, 10)   |  294 | &#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;
+     5 | [10, 50)  |  909 | &#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;&#9632;
+     6 | [50, 100) |    8 |
 </programlisting>
 		</para>
 	</sect1>
@@ -611,36 +602,36 @@ FROM histogram;
 				<listitem id="qa_range_spatial">
 					<para>List the vehicles that have passed at a region from <varname>Regions</varname>.</para>
 					<programlisting language="sql" xml:space="preserve">
-SELECT DISTINCT R.RegionId, T.VehId
-FROM Trips T, Regions R
-WHERE ST_Intersects(trajectory(T.Trip), R.Geom)
-ORDER BY R.RegionId, T.VehId;
+SELECT DISTINCT r.RegionId, t.VehicleId
+FROM Trips t, Regions r
+WHERE ST_Intersects(trajectory(t.Trip), r.Geom)
+ORDER BY r.RegionId, t.VehicleId;
 </programlisting>
-					<para>This is a spatial range query. The query verifies that the trajectory of the vehicle intersects the region. PostGIS performs an implicit bounding box comparison <varname>trajectory(T.Trip) &amp;&amp; R.Geom</varname> using the spatial index on table <varname>Regions</varname> when executing the predicate <varname>ST_Intersects</varname>.</para>
+					<para>This is a spatial range query. The query verifies that the trajectory of the vehicle intersects the region. PostGIS performs an implicit bounding box comparison <varname>trajectory(t.Trip) &amp;&amp; r.Geom</varname> using the spatial index on table <varname>Regions</varname> when executing the predicate <varname>ST_Intersects</varname>.</para>
 				</listitem>
 
 				<listitem id="qa_range_spatiotemporal">
 					<para>List the vehicles that were within a region from <varname>Regions</varname> during a period from <varname>Periods</varname>.</para>
 					<programlisting language="sql" xml:space="preserve">
-SELECT R.RegionId, P.PeriodId, T.VehId
-FROM Trips T, Regions R, Periods P
-WHERE T.Trip &amp;&amp; stbox(R.Geom, P.Period) AND 
-  eintersects(atTime(T.Trip, P.Period), R.Geom)
-ORDER BY R.RegionId, P.PeriodId, T.VehId;
+SELECT r.RegionId, p.PeriodId, t.VehicleId
+FROM Trips t, Regions r, Periods p
+WHERE t.Trip &amp;&amp; stbox(r.Geom, p.Period) AND 
+  eIntersects(atTime(t.Trip, p.Period), r.Geom)
+ORDER BY r.RegionId, p.PeriodId, t.VehicleId;
 </programlisting>
-					<para>This is a spatio-temporal range query. The query performs a bounding box comparison with the <varname>&amp;&amp;</varname> operator using the spatio-temporal index on table <varname>Trips</varname>. After that, the query verifies that the location of the vehicle during the period intersects the region. Notice the predicate <varname>eintersects</varname> (ever intersects) that is applied to the arguments <varname>atTime(Trip, P.Period)</varname> and <varname>R.Geom</varname>.</para>
+					<para>This is a spatio-temporal range query. The query performs a bounding box comparison with the <varname>&amp;&amp;</varname> operator using the spatio-temporal index on table <varname>Trips</varname>. After that, the query verifies that the location of the vehicle during the period intersects the region. Notice the predicate <varname>eIntersects</varname> (ever intersects) that is applied to the arguments <varname>atTime(Trip, p.Period)</varname> and <varname>r.Geom</varname>.</para>
 				</listitem>
 
 				<listitem id="qa_range_spatiotemporal_join">
 					<para>List the pairs of vehicles that were both located within a region from <varname>Regions</varname> during a period from <varname>Periods</varname>.</para>
 					<programlisting language="sql" xml:space="preserve">
-SELECT DISTINCT T1.VehId AS VehId1, T2.VehId AS VehId2, R.RegionId, P.PeriodId
-FROM Trips T1, Trips T2, Regions R, Periods P
-WHERE T1.VehId &lt; T2.VehId AND T1.Trip &amp;&amp; stbox(R.Geom, P.Period) AND
-  T2.Trip &amp;&amp; stbox(R.Geom, P.Period) AND 
-  eintersects(atTime(T1.Trip, P.Period), R.Geom) AND
-  eintersects(atTime(T2.Trip, P.Period), R.Geom)
-ORDER BY T1.VehId, T2.VehId, R.RegionId, P.PeriodId;
+SELECT DISTINCT t1.VehicleId AS VehId1, t2.VehicleId AS VehId2, r.RegionId, p.PeriodId
+FROM Trips t1, Trips t2, Regions r, Periods p
+WHERE t1.VehicleId &lt; t2.VehicleId AND t1.Trip &amp;&amp; stbox(r.Geom, p.Period) AND
+  t2.Trip &amp;&amp; stbox(r.Geom, p.Period) AND 
+  eIntersects(atTime(t1.Trip, p.Period), r.Geom) AND
+  eIntersects(atTime(t2.Trip, p.Period), r.Geom)
+ORDER BY t1.VehicleId, t2.VehicleId, r.RegionId, p.PeriodId;
 </programlisting>
 					<para>This is a spatio-temporal range join query. The query selects two trips of different vehicles and performs bounding box comparisons of each trip with a region and a period using the spatio-temporal index of the <varname>Trips</varname> table. The query then verifies that both vehicles were located within the region during the period.</para>
 				</listitem>
@@ -648,12 +639,12 @@ ORDER BY T1.VehId, T2.VehId, R.RegionId, P.PeriodId;
 				<listitem id="qa_range_entering">
 					<para>List the first time at which a vehicle visited a point in <varname>Points</varname>.</para>
 					<programlisting language="sql" xml:space="preserve">
-SELECT T.VehId, P.PointId, MIN(startTimestamp(atValues(T.Trip,P.Geom))) AS Instant
-FROM Trips T, Points P
-WHERE ST_Contains(trajectory(T.Trip), P.Geom)
-GROUP BY T.VehId, P.PointId;
+SELECT t.VehicleId, p.PointId, MIN(startTimestamp(atValues(t.Trip,p.Geom))) AS Instant
+FROM Trips t, Points p
+WHERE ST_Contains(trajectory(t.Trip), p.Geom)
+GROUP BY t.VehicleId, p.PointId;
 </programlisting>
-					<para>The query selects a trip and a point and verifies that the vehicle passed by the point by testing that the trajectory of the trip contains the point. Notice that PostGIS will perform the bounding box containment <varname>trajectory(T.Trip) ~ P.Geom</varname> using the spatial index on table <varname>Points</varname> before executing <varname>ST_Contains</varname>. Then, the query projects the trip to the point with the <varname>atValue</varname> function, get the first timestamp of the projected trip with the <varname>startTimestamp</varname> function, and applies the traditional <varname>MIN</varname> aggregate function for all trips of the vehicle and the point.</para>
+					<para>The query selects a trip and a point and verifies that the vehicle passed by the point by testing that the trajectory of the trip contains the point. Notice that PostGIS will perform the bounding box containment <varname>trajectory(t.Trip) ~ p.Geom</varname> using the spatial index on table <varname>Points</varname> before executing <varname>ST_Contains</varname>. Then, the query projects the trip to the point with the <varname>atValue</varname> function, get the first timestamp of the projected trip with the <varname>startTimestamp</varname> function, and applies the traditional <varname>MIN</varname> aggregate function for all trips of the vehicle and the point.</para>
 				</listitem>
 			</orderedlist>
 		</sect2>
@@ -680,11 +671,11 @@ GROUP BY T.VehId, P.PointId;
 				<listitem id="qa_aggregate_instant">
 					<para>Compute how many vehicles were active at each period in <varname>Periods</varname>.</para>
 					<programlisting language="sql" xml:space="preserve">
-SELECT P.PeriodID, COUNT(*), TCOUNT(atTime(T.Trip, P.Period))
-FROM Trips T, Periods P
-WHERE T.Trip &amp;&amp; P.Period
-GROUP BY P.PeriodID
-ORDER BY P.PeriodID;
+SELECT p.PeriodId, COUNT(*), tCount(atTime(t.Trip, p.Period))
+FROM Trips t, Periods p
+WHERE t.Trip &amp;&amp; p.Period
+GROUP BY p.PeriodId
+ORDER BY p.PeriodId;
 </programlisting>
 					<para>This an instant temporal aggregate query. For each period, the query projects the trips to the given period and applies the temporal count to the projected trips. The condition in the <varname>WHERE</varname> clause is used for filtering the trips with the spatio-temporal index on table <varname>Trips</varname>.</para>
 				</listitem>
@@ -692,12 +683,12 @@ ORDER BY P.PeriodID;
 				<listitem id="qa_aggregate_window">
 					<para>For each region in <varname>Regions</varname>, give the window temporal count of trips with a 10-minute interval.</para>
 					<programlisting language="sql" xml:space="preserve">
-SELECT R.RegionID, wcount(atGeometry(T.Trip, R.Geom), interval '10 min')
-FROM Trips T, Regions R
-WHERE T.Trip &amp;&amp; stbox(R.Geom)
-GROUP BY R.RegionID
-HAVING wcount(atGeometry(T.Trip, R.Geom), interval '10 min') IS NOT NULL
-ORDER BY R.RegionID;
+SELECT r.RegionId, wCount(atGeometry(t.Trip, r.Geom), interval '10 min')
+FROM Trips t, Regions r
+WHERE t.Trip &amp;&amp; stbox(r.Geom)
+GROUP BY r.RegionId
+HAVING wCount(atGeometry(t.Trip, r.Geom), interval '10 min') IS NOT NULL
+ORDER BY r.RegionId;
 </programlisting>
 					<para>This is a window temporal aggregate query. Suppose that we are computing pollution levels by region. Since the effect of a vehicle passing at a location lasts some time interval, this is a typical case for window aggregates. For each region, the query computes the spatial projection of the trips to the given region and apply the window temporal count to the projected trips. The condition in the <varname>WHERE</varname> clause is used for filtering the trips with the spatio-temporal index. The condition in the <varname>HAVING</varname> clause is used for removing regions that do not intersect with any trip.</para>
 				</listitem>
@@ -710,10 +701,10 @@ WITH TimeSplit(Period) AS (
   FROM generate_series(timestamptz '2007-05-29 00:00:00', 
     timestamptz '2007-05-29 23:00:00', interval '1 hour') AS H )
 SELECT Period, COUNT(*)
-FROM TimeSplit S, Trips T
-WHERE S.Period &amp;&amp; T.Trip AND atTime(Trip, Period) IS NOT NULL
-GROUP BY S.Period
-ORDER BY S.Period;
+FROM TimeSplit s, Trips t
+WHERE s.Period &amp;&amp; t.Trip AND atTime(Trip, Period) IS NOT NULL
+GROUP BY s.Period
+ORDER BY s.Period;
 </programlisting>
 					<para>This is a span temporal aggregate query. The query defines the intervals to consider in the <varname>TimeSplit</varname> temporary table. For each of these intervals, the main query applies the traditional count function for counting the trips that overlap the interval.</para>
 				</listitem>
@@ -728,12 +719,12 @@ ORDER BY S.Period;
 				<listitem id="qa_distance_overall">
 					<para>List the overall traveled distances of the vehicles during the periods from <varname>Periods</varname>.</para>
 					<programlisting language="sql" xml:space="preserve">
-SELECT T.VehId, P.PeriodId, P.Period,
-  SUM(length(atTime(T.Trip, P.Period))) AS Distance
-FROM Trips T, Periods P
-WHERE T.Trip &amp;&amp; P.Period
-GROUP BY T.VehId, P.PeriodId, P.Period
-ORDER BY T.VehId, P.PeriodId;
+SELECT t.VehicleId, p.PeriodId, p.Period,
+  SUM(length(atTime(t.Trip, p.Period))) AS Distance
+FROM Trips t, Periods p
+WHERE t.Trip &amp;&amp; p.Period
+GROUP BY t.VehicleId, p.PeriodId, p.Period
+ORDER BY t.VehicleId, p.PeriodId;
 </programlisting>
 					<para>The query performs a bounding box comparison with the <varname>&amp;&amp;</varname> operator using the spatio-temporal index on the <varname>Trips</varname> table. It then projects the trip to the period, computes the length of the projected trip, and sum the lengths of all the trips of the same vehicle during the period.</para>
 				</listitem>
@@ -741,10 +732,10 @@ ORDER BY T.VehId, P.PeriodId;
 				<listitem id="qa_distance_static">
 					<para>List the minimum distance ever between each vehicle and each point from <varname>Points</varname>.</para>
 					<programlisting language="sql" xml:space="preserve">
-SELECT T.VehId, P.PointId, MIN(trajectory(T.Trip) &lt;-&gt; P.Geom) AS MinDistance
-FROM Trips T, Points P
-GROUP BY T.VehId, P.PointId
-ORDER BY T.VehId, P.PointId;
+SELECT t.VehicleId, p.PointId, MIN(trajectory(t.Trip) &lt;-&gt; p.Geom) AS MinDistance
+FROM Trips t, Points p
+GROUP BY t.VehicleId, p.PointId
+ORDER BY t.VehicleId, p.PointId;
 </programlisting>
 					<para>The query projects the trip to the spatial dimension with the <varname>trajectory</varname> function and computes the traditional distance between the trajectory of the trip and the point. The traditional minimum function is then applied for computing the minimum distance between all trips of the vehicle and the point.</para>
 				</listitem>
@@ -752,40 +743,41 @@ ORDER BY T.VehId, P.PointId;
 				<listitem id="qa_distance_moving">
 					<para>List the minimum temporal distance between each pair of vehicles.</para>
 					<programlisting language="sql" xml:space="preserve">
-SELECT T1.VehId AS Car1Id, T2.VehId AS Car2Id, tmin(T1.Trip &lt;-&gt; T2.Trip) AS MinDistance
-FROM Trips T1, Trips T2
-WHERE T1.VehId &lt; T2.VehId AND timeSpan(T1.Trip) &amp;&amp; timeSpan(T2.Trip)
-GROUP BY T1.VehId, T2.VehId
-ORDER BY T1.VehId, T2.VehId;
+SELECT t1.VehicleId AS Veh1Id, t2.VehicleId AS Veh2Id,
+  tMin(t1.Trip &lt;-&gt; t2.Trip) AS MinDistance
+FROM Trips t1, Trips t2
+WHERE t1.VehicleId &lt; t2.VehicleId AND timeSpan(t1.Trip) &amp;&amp; timeSpan(t2.Trip)
+GROUP BY t1.VehicleId, t2.VehicleId
+ORDER BY t1.VehicleId, t2.VehicleId;
 </programlisting>
-					<para>The query selects two trips <varname>T1</varname> and <varname>T2</varname> from different vehicles that were both traveling during a common period of time, computes the temporal distance between the trips, and then computes the temporal minimum distance between all trips of the two vehicles. The query uses the spatio-temporal index to filter the pairs of trips that were both traveling during a common period of time.</para>
+					<para>The query selects two trips <varname>t1</varname> and <varname>t2</varname> from different vehicles that were both traveling during a common period of time, computes the temporal distance between the trips, and then computes the temporal minimum distance between all trips of the two vehicles. The query uses the spatio-temporal index to filter the pairs of trips that were both traveling during a common period of time.</para>
 				</listitem>
 
 				<listitem id="qa_nearest_approach">
 					<para>List the nearest approach time, distance, and shortest line between each pair of trips.</para>
 					<programlisting language="sql" xml:space="preserve">
-SELECT T1.VehId AS Car1Id, T1.TripId AS Trip1Id, T2.VehId AS Car2Id, 
-  T2.TripId AS Trip2Id, timeSpan(NearestApproachInstant(T1.Trip, T2.Trip)) AS Time,
-  NearestApproachDistance(T1.Trip, T2.Trip) AS Distance, 
-  ShortestLine(T1.Trip, T2.Trip) AS Line
-FROM Trips T1, Trips T2
-WHERE T1.VehId &lt; T2.VehId AND timeSpan(T1.Trip) &amp;&amp; timeSpan(T2.Trip)
-ORDER BY T1.VehId, T1.TripId, T2.VehId, T2.TripId;
+SELECT t1.VehicleId AS Veh1Id, t1.TripId AS Trip1Id, t2.VehicleId AS Veh2Id, 
+  t2.TripId AS Trip2Id, timeSpan(nearestApproachInstant(t1.Trip, t2.Trip)) AS Time,
+  nearestApproachDistance(t1.Trip, t2.Trip) AS Distance, 
+  shortestLine(t1.Trip, t2.Trip) AS Line
+FROM Trips t1, Trips t2
+WHERE t1.VehicleId &lt; t2.VehicleId AND timeSpan(t1.Trip) &amp;&amp; timeSpan(t2.Trip)
+ORDER BY t1.VehicleId, t1.TripId, t2.VehicleId, t2.TripId;
 </programlisting>
-					<para>This query shows similar functionality as that provided by the PostGIS functions <varname>ST_ClosestPointOfApproach</varname> and <varname>ST_DistanceCPA</varname>. The query selects two trips <varname>T1</varname> and <varname>T2</varname> from different vehicles that were both traveling during a common period of time and computes the required results.</para>
+					<para>This query shows similar functionality as that provided by the PostGIS functions <varname>ST_ClosestPointOfApproach</varname> and <varname>ST_DistanceCPA</varname>. The query selects two trips <varname>t1</varname> and <varname>t2</varname> from different vehicles that were both traveling during a common period of time and computes the required results.</para>
 				</listitem>
 
-				<listitem id="qa_distance_tdwithin">
+				<listitem id="qa_distance_tDwithin">
 					<para>List when and where a pairs of vehicles have been at 10 m or less from each other.</para>
 					<programlisting language="sql" xml:space="preserve">
-SELECT T1.VehId AS VehId1, T2.VehId AS VehId2, atTime(T1.Trip,
-  getTime(tdwithin(T1.Trip, T2.Trip, 10.0, TRUE))) AS Position
-FROM Trips T1, Trips T2
-WHERE T1.VehId &lt; T2.VehId AND T1.Trip &amp;&amp; expandSpace(T2.Trip, 10) AND
-  tdwithin(T1.Trip, T2.Trip, 10.0, TRUE) IS NOT NULL
-ORDER BY T1.VehId, T2.VehId, Position;
+SELECT t1.VehicleId AS VehId1, t2.VehicleId AS VehId2, atTime(t1.Trip,
+  getTime(tDwithin(t1.Trip, t2.Trip, 10.0, TRUE))) AS Position
+FROM Trips t1, Trips t2
+WHERE t1.VehicleId &lt; t2.VehicleId AND t1.Trip &amp;&amp; expandSpace(t2.Trip, 10) AND
+  tDwithin(t1.Trip, t2.Trip, 10.0, TRUE) IS NOT NULL
+ORDER BY t1.VehicleId, t2.VehicleId, Position;
 </programlisting>
-					<para>The query performs for each pair of trips <varname>T1</varname> and <varname>T2</varname> of different vehicles a bounding box comparison with the <varname>&amp;&amp;</varname> operator using the spatio-temporal index on the <varname>Trips</varname> table, where the bounding box of <varname>T2</varname> is expanded by 10 m. Then, the <varname>period</varname> expression computes the periods during which the vehicles were within 10 m. from each other and the <varname>atTime</varname> function projects the trips to those periods. Notice that the expression <varname>tdwithin(T1.Trip, T2.Trip, 10.0)</varname> is conceptually equivalent to <varname>dwithin(T1.Trip, T2.Trip) #&lt;= 10.0</varname>. However, in this case the spatio-temporal index cannot be used for filtering values.</para>
+					<para>The query performs for each pair of trips <varname>t1</varname> and <varname>t2</varname> of different vehicles a bounding box comparison with the <varname>&amp;&amp;</varname> operator using the spatio-temporal index on the <varname>Trips</varname> table, where the bounding box of <varname>t2</varname> is expanded by 10 m. Then, the <varname>period</varname> expression computes the periods during which the vehicles were within 10 m. from each other and the <varname>atTime</varname> function projects the trips to those periods. Notice that the expression <varname>tDwithin(t1.Trip, t2.Trip, 10.0)</varname> is conceptually equivalent to <varname>dwithin(t1.Trip, t2.Trip) #&lt;= 10.0</varname>. However, in this case the spatio-temporal index cannot be used for filtering values.</para>
 				</listitem>
 			</orderedlist>
 		</sect2>
@@ -803,7 +795,7 @@ ORDER BY T1.VehId, T2.VehId, Position;
 					</listitem>
 
 					<listitem>
-						<para>Given two sets of points P and Q, aggregate nearest-neighbor (ANN) queries find the points from P that have minimum aggregated distance to all points from Q.</para>
+						<para>Given two sets of points p and Q, aggregate nearest-neighbor (ANN) queries find the points from p that have minimum aggregated distance to all points from Q.</para>
 					</listitem>
 				</itemizedlist>
 			</para>
@@ -815,91 +807,91 @@ ORDER BY T1.VehId, T2.VehId, Position;
 					<para>For each trip from <varname>Trips</varname>, list the three points from <varname>Points</varname> that have been closest to that vehicle.</para>
 					<programlisting language="sql" xml:space="preserve">
 WITH TripsTraj AS (
-  SELECT TripId, VehId, trajectory(Trip) AS Trajectory FROM Trips )
-SELECT T.VehId, P1.PointId, P1.Distance
-FROM TripsTraj T CROSS JOIN LATERAL (
-  SELECT P.PointId, T.Trajectory &lt;-&gt; P.Geom AS Distance
-  FROM Points P
-  ORDER BY Distance LIMIT 3 ) AS P1
-ORDER BY T.TripId, T.VehId, P1.Distance;
+  SELECT TripId, VehicleId, trajectory(Trip) AS Trajectory FROM Trips )
+SELECT t.VehicleId, ps1.PointId, ps1.Distance
+FROM TripsTraj t CROSS JOIN LATERAL (
+  SELECT p.PointId, t.Trajectory &lt;-&gt; p.Geom AS Distance
+  FROM Points p
+  ORDER BY Distance LIMIT 3 ) AS ps1
+ORDER BY t.TripId, t.VehicleId, ps1.Distance;
 </programlisting>
-					<para>This is a nearest-neighbor query with moving reference objects and static candidate objects. The query above uses PostgreSQL's lateral join, which intuitively iterates over each row in a result set and evaluates a subquery using that row as a parameter. The query starts by computing the trajectory of the trips in the temporary table <varname>TripsTraj</varname>. Then, given a trip <varname>T</varname> in the outer query, the subquery computes the traditional distance between the trajectory of <varname>T</varname> and each point <varname>P</varname>. The <varname>ORDER BY</varname> and <varname>LIMIT</varname> clauses in the inner query select the three closest points. PostGIS will use the spatial index on the <varname>Points</varname> table for selecting the three closest points.</para>
+					<para>This is a nearest-neighbor query with moving reference objects and static candidate objects. The query above uses PostgreSQL's lateral join, which intuitively iterates over each row in a result set and evaluates a subquery using that row as a parameter. The query starts by computing the trajectory of the trips in the temporary table <varname>TripsTraj</varname>. Then, given a trip <varname>t</varname> in the outer query, the subquery computes the traditional distance between the trajectory of <varname>t</varname> and each point <varname>p</varname>. The <varname>ORDER BY</varname> and <varname>LIMIT</varname> clauses in the inner query select the three closest points. PostGIS will use the spatial index on the <varname>Points</varname> table for selecting the three closest points.</para>
 				</listitem>
 
 				<listitem id="qa_knn_moving">
 					<para>For each trip from <varname>Trips</varname>, list the three vehicles that are closest to that vehicle</para>
 					<programlisting language="sql" xml:space="preserve">
-SELECT T1.VehId AS VehId1, C2.VehId AS VehId2, C2.Distance
-FROM Trips T1 CROSS JOIN LATERAL (
-  SELECT T2.VehId, minValue(T1.Trip &lt;-&gt; T2.Trip) AS Distance
-  FROM Trips T2
-  WHERE T1.VehId &lt; T2.VehId AND timeSpan(T1.Trip) &amp;&amp; timeSpan(T2.Trip)
-  ORDER BY Distance LIMIT 3 ) AS C2
-ORDER BY T1.VehId, C2.VehId;
+SELECT t1.VehicleId AS VehId1, v2.VehicleId AS VehId2, v2.Distance
+FROM Trips t1 CROSS JOIN LATERAL (
+  SELECT t2.VehicleId, minValue(t1.Trip &lt;-&gt; t2.Trip) AS Distance
+  FROM Trips t2
+  WHERE t1.VehicleId &lt; t2.VehicleId AND timeSpan(t1.Trip) &amp;&amp; timeSpan(t2.Trip)
+  ORDER BY Distance LIMIT 3 ) AS v2
+ORDER BY t1.VehicleId, v2.VehicleId;
 </programlisting>
-					<para>This is a nearest-neighbor query where both the reference and the candidate objects are moving. Therefore, it is not possible to proceed as in the previous query to first project the moving points to the spatial dimension and then compute the traditional distance. Given a trip <varname>T1</varname> in the outer query, the subquery computes the temporal distance between <varname>T1</varname> and a trip <varname>T2</varname> of another vehicle different from the vehicle from <varname>T1</varname> and then computes the minimum value in the temporal distance. Finally, the <varname>ORDER BY</varname> and <varname>LIMIT</varname> clauses in the inner query select the three closest vehicles.</para>
+					<para>This is a nearest-neighbor query where both the reference and the candidate objects are moving. Therefore, it is not possible to proceed as in the previous query to first project the moving points to the spatial dimension and then compute the traditional distance. Given a trip <varname>t1</varname> in the outer query, the subquery computes the temporal distance between <varname>t1</varname> and a trip <varname>t2</varname> of another vehicle different from the vehicle from <varname>t1</varname> and then computes the minimum value in the temporal distance. Finally, the <varname>ORDER BY</varname> and <varname>LIMIT</varname> clauses in the inner query select the three closest vehicles.</para>
 				</listitem>
 
 				<listitem id="qa_rknn_static">
 					<para>For each trip from <varname>Trips</varname>, list the points from <varname>Points</varname> that have that vehicle among their three nearest neighbors.</para>
 					<programlisting language="sql" xml:space="preserve">
 WITH TripsTraj AS (
-  SELECT TripId, VehId, trajectory(Trip) AS Trajectory FROM Trips ),
+  SELECT TripId, VehicleId, trajectory(Trip) AS Trajectory FROM Trips ),
 PointTrips AS (
-  SELECT P.PointId, T2.VehId, T2.TripId, T2.Distance
-  FROM Points P CROSS JOIN LATERAL (
-    SELECT T1.VehId, T1.TripId, P.Geom &lt;-&gt; T1.Trajectory AS Distance
-    FROM TripsTraj T1
-    ORDER BY Distance LIMIT 3 ) AS T2 )
-SELECT T.VehId, T.TripId, P.PointId, PT.Distance
-FROM Trips T CROSS JOIN Points P JOIN PointTrips PT
-  ON T.VehId = PT.VehId AND T.TripId = PT.TripId AND P.PointId = PT.PointId
-ORDER BY T.VehId, T.TripId, P.PointId;
+  SELECT p.PointId, t2.VehicleId, t2.TripId, t2.Distance
+  FROM Points p CROSS JOIN LATERAL (
+    SELECT t1.VehicleId, t1.TripId, p.Geom &lt;-&gt; t1.Trajectory AS Distance
+    FROM TripsTraj t1
+    ORDER BY Distance LIMIT 3 ) AS t2 )
+SELECT t.VehicleId, t.TripId, p.PointId, pt.Distance
+FROM Trips t CROSS JOIN Points p JOIN PointTrips pt
+  ON t.VehicleId = pt.VehicleId AND t.TripId = pt.TripId AND p.PointId = pt.PointId
+ORDER BY t.VehicleId, t.TripId, p.PointId;
 </programlisting>
-					<para>This is a reverse nearest-neighbor query with moving reference objects and static candidate objects. The query starts by computing the corresponding nearest-neighbor query in the temporary table <varname>PointTrips</varname> as it is done in Query 13. Then, in the main query it verifies for each trip <varname>T</varname> and point <varname>P</varname> that both belong to the <varname>PointTrips</varname> table.</para>
+					<para>This is a reverse nearest-neighbor query with moving reference objects and static candidate objects. The query starts by computing the corresponding nearest-neighbor query in the temporary table <varname>PointTrips</varname> as it is done in Query 13. Then, in the main query it verifies for each trip <varname>t</varname> and point <varname>p</varname> that both belong to the <varname>PointTrips</varname> table.</para>
 				</listitem>
 
 				<listitem id="qa_rknn_moving">
 					<para>For each trip from <varname>Trips</varname>, list the vehicles having the vehicle of the trip among the three nearest neighbors.</para>
 					<programlisting language="sql" xml:space="preserve">
 WITH TripDistances AS (
-  SELECT T1.VehId AS VehId1, T1.TripId AS TripId1, T3.VehId AS VehId2, 
-    T3.TripId AS TripId2, T3.Distance
-  FROM Trips T1 CROSS JOIN LATERAL (
-    SELECT T2.VehId, T2.TripId, minValue(T1.Trip &lt;-&gt; T2.Trip) AS Distance
-    FROM Trips T2
-    WHERE T1.VehId &lt; T2.VehId AND timeSpan(T1.Trip) &amp;&amp; timeSpan(T2.Trip)
-    ORDER BY Distance LIMIT 3 ) AS T3 )
-SELECT T1.VehId, T1.TripId, T2.VehId, T2.TripId, TD.Distance
-FROM Trips T1 JOIN Trips T2 ON T1.VehId &lt; T2.VehId
-  JOIN TripDistances TD ON T1.VehId = TD.VehId1 AND T1.TripId = TD.TripId1 AND
-  T2.VehId = TD.VehId2 AND T2.TripId = TD.TripId2
-ORDER BY T1.VehId, T1.TripId, T2.VehId, T2.TripId;
+  SELECT t1.VehicleId AS VehId1, t1.TripId AS TripId1, t3.VehicleId AS VehId2, 
+    t3.TripId AS TripId2, t3.Distance
+  FROM Trips t1 CROSS JOIN LATERAL (
+    SELECT t2.VehicleId, t2.TripId, minValue(t1.Trip &lt;-&gt; t2.Trip) AS Distance
+    FROM Trips t2
+    WHERE t1.VehicleId &lt; t2.VehicleId AND timeSpan(t1.Trip) &amp;&amp; timeSpan(t2.Trip)
+    ORDER BY Distance LIMIT 3 ) AS t3 )
+SELECT t1.VehicleId, t1.TripId, t2.VehicleId, t2.TripId, td.Distance
+FROM Trips t1 JOIN Trips t2 ON t1.VehicleId &lt; t2.VehicleId
+  JOIN TripDistances td ON t1.VehicleId = td.VehId1 AND t1.TripId = td.TripId1 AND
+  t2.VehicleId = td.VehId2 AND t2.TripId = td.TripId2
+ORDER BY t1.VehicleId, t1.TripId, t2.VehicleId, t2.TripId;
 </programlisting>
-					<para>This is a reverse nearest-neighbor query where both the reference and the candidate objects are moving. The query starts by computing the corresponding nearest-neighbor query in the temporary table <varname>TripDistances</varname> as it is done in Query 14. Then, in the main query it verifies for each pair of trips <varname>T1</varname> and <varname>T2</varname> that both belong to the <varname>TripDistances</varname> table.</para>
+					<para>This is a reverse nearest-neighbor query where both the reference and the candidate objects are moving. The query starts by computing the corresponding nearest-neighbor query in the temporary table <varname>TripDistances</varname> as it is done in Query 14. Then, in the main query it verifies for each pair of trips <varname>t1</varname> and <varname>t2</varname> that both belong to the <varname>TripDistances</varname> table.</para>
 				</listitem>
 
 				<listitem id="qa_ann">
 					<para>For each group of ten disjoint vehicles, list the point(s) from <varname>Points</varname>, having the minimum aggregated distance from the given group of ten vehicles during the given period.</para>
 					<programlisting language="sql" xml:space="preserve">
 WITH Groups AS (
-  SELECT ((ROW_NUMBER() OVER (ORDER BY V.VehId))-1)/10 + 1 AS GroupId, V.VehId
-  FROM Vehicles V ),
+  SELECT ((ROW_NUMBER() OVER (ORDER BY v.VehicleId))-1)/10 + 1 AS GroupId, v.VehicleId
+  FROM Vehicles v ),
 SumDistances AS (
-  SELECT G.GroupId, P.PointId,
-    SUM(ST_Distance(trajectory(T.Trip), P.Geom)) AS SumDist
-  FROM Groups G, Points P, Trips T
-  WHERE T.VehId = G.VehId
-  GROUP BY G.GroupId, P.PointId )
-SELECT S1.GroupId, S1.PointId, S1.SumDist
-FROM SumDistances S1
-WHERE S1.SumDist &lt;= ALL (
+  SELECT g.GroupId, p.PointId,
+    SUM(ST_Distance(trajectory(t.Trip), p.Geom)) AS SumDist
+  FROM Groups g, Points p, Trips t
+  WHERE t.VehicleId = g.VehicleId
+  GROUP BY g.GroupId, p.PointId )
+SELECT s1.GroupId, s1.PointId, s1.SumDist
+FROM SumDistances s1
+WHERE s1.SumDist &lt;= ALL (
   SELECT SumDist
-  FROM SumDistances S2
-  WHERE S1.GroupId = S2.GroupId )
-ORDER BY S1.GroupId, S1.PointId;
+  FROM SumDistances s2
+  WHERE s1.GroupId = s2.GroupId )
+ORDER BY s1.GroupId, s1.PointId;
 </programlisting>
-					<para>This is an aggregate nearest-neighbor query. The temporary table <varname>Groups</varname> splits the vehicles in groups where the <varname>GroupId</varname> column takes the values from 1 to total number of groups. The temporary table <varname>SumDistances</varname> computes for each group <varname>G</varname> and point <varname>P</varname> the sum of the distances between a trip of a vehicle in the group and the point. The main query then selects for each group in table <varname>SumDistances</varname> the points(s) that have the minimum aggregated distance.</para>
+					<para>This is an aggregate nearest-neighbor query. The temporary table <varname>Groups</varname> splits the vehicles in groups where the <varname>GroupId</varname> column takes the values from 1 to total number of groups. The temporary table <varname>SumDistances</varname> computes for each group <varname>g</varname> and point <varname>p</varname> the sum of the distances between a trip of a vehicle in the group and the point. The main query then selects for each group in table <varname>SumDistances</varname> the points(s) that have the minimum aggregated distance.</para>
 				</listitem>
 			</orderedlist>
 		</sect2>

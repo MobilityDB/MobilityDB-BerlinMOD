@@ -1,5 +1,5 @@
 /******************************************************************************
- * Executes the 17 BerlinMOD/R benchmark queries
+ * Executes the 17 BerlinMOD/r benchmark queries
  * http://dna.fernuni-hagen.de/secondo/BerlinMOD/BerlinMOD-FinalReview-2008-06-18.pdf
  * in MobilityDB.
  * Parameters:
@@ -76,9 +76,9 @@ LOOP
 
   -- Query 1
   EXPLAIN (ANALYZE, FORMAT JSON)
-  SELECT DISTINCT L.Licence, V.Model AS Model
-  FROM Vehicles V, Vehicles L
-  WHERE V.Licence = L.Licence
+  SELECT DISTINCT l.Licence, v.Model AS Model
+  FROM Vehicles v, Licences l
+  WHERE v.Licence = l.Licence
   INTO J;
 
   PlanningTime := (J->0->>'Planning Time')::float;
@@ -103,9 +103,9 @@ LOOP
 
   -- Query 2
   EXPLAIN (ANALYZE, FORMAT JSON)
-  SELECT COUNT (Licence)
-  FROM Vehicles V
-  WHERE Type = 'passenger'
+  SELECT COUNT(Licence)
+  FROM Vehicles v
+  WHERE VehicleType = 'passenger'
   INTO J;
 
   PlanningTime := (J->0->>'Planning Time')::float;
@@ -131,23 +131,23 @@ LOOP
 
   -- Query 3
   EXPLAIN (ANALYZE, FORMAT JSON)
-  SELECT DISTINCT L.Licence, I.InstantId, I.Instant AS Instant,
-    valueAtTimestamp(T.Trip, I.Instant) AS Pos
-  FROM Trips T, Licences1 L, Instants1 I
-  WHERE T.VehId = L.VehId AND T.Trip::tstzspan @> I.Instant
-  ORDER BY L.Licence, I.InstantId
+  SELECT DISTINCT l.Licence, i.InstantId, i.Instant AS Instant,
+    valueAtTimestamp(t.Trip, i.Instant) AS Pos
+  FROM Trips t, Licences1 l, Instants1 i
+  WHERE t.VehicleId = l.VehicleId AND t.Trip::tstzspan @> i.Instant
+  ORDER BY l.Licence, i.InstantId
   INTO J;
 
   /* Check the spgist index. It took more than 10 min in sf11_0
   EXPLAIN (ANALYZE, FORMAT JSON)
   WITH Temp AS (
-    SELECT DISTINCT T.VehId, I.InstantId, I.Instant, valueAtTimestamp(T.Trip, I.Instant) AS Pos
-    FROM Trips T, Instants1 I
-    WHERE T.Trip @> I.Instant )
-  SELECT L.Licence, T.InstantId, T.Instant, T.Pos
-  FROM Temp T, Licences1 L
-  WHERE T.VehId = L.VehId 
-  ORDER BY L.Licence, T.InstantId
+    SELECT DISTINCT t.VehicleId, i.InstantId, i.Instant, valueAtTimestamp(t.Trip, i.Instant) AS Pos
+    FROM Trips t, Instants1 i
+    WHERE t.Trip @> i.Instant )
+  SELECT l.Licence, t.InstantId, t.Instant, t.Pos
+  FROM Temp t, Licences1 l
+  WHERE t.VehicleId = l.VehicleId 
+  ORDER BY l.Licence, t.InstantId
   INTO J;
   */
 
@@ -173,11 +173,11 @@ LOOP
 
   -- Query 4
   EXPLAIN (ANALYZE, FORMAT JSON)
-  SELECT DISTINCT P.PointId, P.geom, V.Licence
-  FROM Trips T, Vehicles V, Points P
-  WHERE T.VehId = V.VehId
-  AND ST_Intersects(trajectory(T.Trip), P.geom) 
-  ORDER BY P.PointId, V.Licence
+  SELECT DISTINCT p.PointId, p.Geom, v.Licence
+  FROM Trips t, Vehicles v, Points p
+  WHERE t.VehicleId = v.VehicleId
+  AND ST_Intersects(trajectory(t.Trip), p.Geom) 
+  ORDER BY p.PointId, v.Licence
   INTO J;
 
   PlanningTime := (J->0->>'Planning Time')::float;
@@ -204,29 +204,27 @@ LOOP
 
   -- Query 5
   /* Slower version of the query
-  SELECT L1.Licence AS Licence1, L2.Licence AS Licence2,
-    MIN(ST_Distance(trajectory(T1.Trip), trajectory(T2.Trip))) AS MinDist
-  FROM Trips T1, Licences1 L1, Trips T2, Licences2 L2
-  WHERE T1.VehId = L1.VehId AND T2.VehId = L2.VehId
-  GROUP BY L1.Licence, L2.Licence 
-  ORDER BY L1.Licence, L2.Licence
+  SELECT l1.Licence AS Licence1, l2.Licence AS Licence2,
+    MIN(ST_Distance(trajectory(t1.Trip), trajectory(t2.Trip))) AS MinDist
+  FROM Trips t1, Licences1 l1, Trips t2, Licences2 l2
+  WHERE t1.VehicleId = l1.VehicleId AND t2.VehicleId = l2.VehicleId
+  GROUP BY l1.Licence, l2.Licence 
+  ORDER BY l1.Licence, l2.Licence
   */
 
   EXPLAIN (ANALYZE, FORMAT JSON)
   WITH Temp1(Licence1, Trajs) AS (
-    SELECT L1.Licence, ST_Collect(trajectory(T1.Trip))
-    FROM Trips T1, Licences1 L1
-    WHERE T1.VehId = L1.VehId
-    GROUP BY L1.Licence
-  ),
+    SELECT l1.Licence, ST_Collect(trajectory(t1.Trip))
+    FROM Trips t1, Licences1 l1
+    WHERE t1.VehicleId = l1.VehicleId
+    GROUP BY l1.Licence ),
   Temp2(Licence2, Trajs) AS (
-    SELECT L2.Licence, ST_Collect(trajectory(T2.Trip))
-    FROM Trips T2, Licences2 L2
-    WHERE T2.VehId = L2.VehId
-    GROUP BY L2.Licence
-  )
-  SELECT Licence1, Licence2, ST_Distance(T1.Trajs, T2.Trajs) AS MinDist
-  FROM Temp1 T1, Temp2 T2  
+    SELECT l2.Licence, ST_Collect(trajectory(t2.Trip))
+    FROM Trips t2, Licences2 l2
+    WHERE t2.VehicleId = l2.VehicleId
+    GROUP BY l2.Licence )
+  SELECT Licence1, Licence2, ST_Distance(t1.Trajs, t2.Trajs) AS MinDist
+  FROM Temp1 t1, Temp2 t2  
   ORDER BY Licence1, Licence2
   INTO J;
 
@@ -253,29 +251,27 @@ LOOP
   -- Query 6
   /* Slower version of the query
   EXPLAIN (ANALYZE, FORMAT JSON)
-  SELECT DISTINCT V1.Licence AS Licence1, V2.Licence AS Licence2
-  FROM Trips T1, Vehicles V1, Trips T2, Vehicles V2
-  WHERE T1.VehId = V1.VehId AND T2.VehId = V2.VehId
-  AND T1.VehId < T2.VehId AND V1.Type = 'truck' AND V2.Type = 'truck' 
-  AND T1.Trip && expandSpatial(T2.Trip, 10) 
-  AND tdwithin(T1.Trip, T2.Trip, 10.0) ?= true
-  ORDER BY V1.Licence, V2.Licence
+  SELECT DISTINCT v1.Licence AS Licence1, v2.Licence AS Licence2
+  FROM Trips t1, Vehicles v1, Trips t2, Vehicles v2
+  WHERE t1.VehicleId = v1.VehicleId AND t2.VehicleId = v2.VehicleId
+  AND t1.VehicleId < t2.VehicleId AND v1.VehicleType = 'truck' AND v2.VehicleType = 'truck' 
+  AND t1.Trip && expandSpatial(t2.Trip, 10) 
+  AND tdwithin(t1.Trip, t2.Trip, 10.0) ?= true
+  ORDER BY v1.Licence, v2.Licence
   INTO J;
   */
 
   EXPLAIN (ANALYZE, FORMAT JSON)
-  WITH Temp(Licence, VehId, Trip) AS (
-    SELECT V.Licence, T.VehId, T.Trip
-    FROM Trips T, Vehicles V
-    WHERE T.VehId = V.VehId 
-    AND V.Type = 'truck'
-  )
-  SELECT T1.Licence, T2.Licence
-  FROM Temp T1, Temp T2
-  WHERE T1.VehId < T2.VehId 
-  AND T1.Trip && expandSpace(T2.Trip, 10) 
-  AND tdwithin(T1.Trip, T2.Trip, 10.0) ?= true
-  ORDER BY T1.Licence, T2.Licence
+  WITH Temp(Licence, VehicleId, Trip) AS (
+    SELECT v.Licence, t.VehicleId, t.Trip
+    FROM Trips t, Vehicles v
+    WHERE t.VehicleId = v.VehicleId AND v.VehicleType = 'truck' )
+  SELECT t1.Licence, t2.Licence
+  FROM Temp t1, Temp t2
+  WHERE t1.VehicleId < t2.VehicleId 
+  AND t1.Trip && expandSpace(t2.Trip, 10) 
+  AND eDwithin(t1.Trip, t2.Trip, 10.0)
+  ORDER BY t1.Licence, t2.Licence
   INTO J;
                         
   PlanningTime := (J->0->>'Planning Time')::float;
@@ -305,21 +301,19 @@ LOOP
   -- Query 7
   EXPLAIN (ANALYZE, FORMAT JSON)
   WITH Temp AS (
-    SELECT DISTINCT V.Licence, P.PointId, P.geom, 
-      MIN(startTimestamp(atValues(T.Trip,P.geom))) AS Instant
-    FROM Trips T, Vehicles V, Points P
-    WHERE T.VehId = V.VehId AND V.Type = 'passenger'
-    AND ST_Intersects(trajectory(T.Trip), P.geom)
-    GROUP BY V.Licence, P.PointId, P.geom
-  )
-  SELECT T1.Licence, T1.PointId, T1.geom, T1.Instant
-  FROM Temp T1
-  WHERE T1.Instant <= ALL (
-    SELECT T2.Instant
-    FROM Temp T2
-    WHERE T1.PointId = T2.PointId
-  )
-  ORDER BY T1.PointId, T1.Licence
+    SELECT DISTINCT v.Licence, p.PointId, p.Geom, 
+      MIN(startTimestamp(atValues(t.Trip,p.Geom))) AS Instant
+    FROM Trips t, Vehicles v, Points p
+    WHERE t.VehicleId = v.VehicleId AND v.VehicleType = 'passenger'
+    AND ST_Intersects(trajectory(t.Trip), p.Geom)
+    GROUP BY v.Licence, p.PointId, p.Geom )
+  SELECT t1.Licence, t1.PointId, t1.Geom, t1.Instant
+  FROM Temp t1
+  WHERE t1.Instant <= ALL (
+    SELECT t2.Instant
+    FROM Temp t2
+    WHERE t1.PointId = t2.PointId )
+  ORDER BY t1.PointId, t1.Licence
   INTO J;
 
   PlanningTime := (J->0->>'Planning Time')::float;
@@ -345,12 +339,12 @@ LOOP
 
   -- Query 8
   EXPLAIN (ANALYZE, FORMAT JSON)
-  SELECT L.Licence, P.PeriodId, P.Period,
-  SUM(length(atTime(T.Trip, P.Period))) AS Dist
-  FROM Trips T, Licences1 L, Periods1 P
-  WHERE T.VehId = L.VehId AND T.Trip && P.Period
-  GROUP BY L.Licence, P.PeriodId, P.Period 
-  ORDER BY L.Licence, P.PeriodId
+  SELECT l.Licence, p.PeriodId, p.Period,
+  SUM(length(atTime(t.Trip, p.Period))) AS Dist
+  FROM Trips t, Licences1 l, Periods1 p
+  WHERE t.VehicleId = l.VehicleId AND t.Trip && p.Period
+  GROUP BY l.Licence, p.PeriodId, p.Period 
+  ORDER BY l.Licence, p.PeriodId
   INTO J;
 
   PlanningTime := (J->0->>'Planning Time')::float;
@@ -376,12 +370,11 @@ LOOP
   -- Query 9
   EXPLAIN (ANALYZE, FORMAT JSON)        
   WITH Distances AS (
-    SELECT P.PeriodId, P.Period, T.VehId,
-      SUM(length(atTime(T.Trip, P.Period))) AS Dist
-    FROM Trips T, Periods P
-    WHERE T.Trip && P.Period
-    GROUP BY P.PeriodId, P.Period, T.VehId
-  )
+    SELECT p.PeriodId, p.Period, t.VehicleId,
+      SUM(length(atTime(t.Trip, p.Period))) AS Dist
+    FROM Trips t, Periods p
+    WHERE t.Trip && p.Period
+    GROUP BY p.PeriodId, p.Period, t.VehicleId )
   SELECT PeriodId, Period, MAX(Dist) AS MaxDist
   FROM Distances
   GROUP BY PeriodId, Period
@@ -412,22 +405,22 @@ LOOP
   -- Query 10
   /* Slower version of the query where the atValue expression in the WHERE
      clause and the SELECT clauses are executed twice
-  SELECT L1.Licence AS Licence1, T2.VehId AS Car2Id,
-    whenTrue(tdwithin(T1.Trip, T2.Trip, 3.0)) AS Periods
-  FROM Trips T1, Licences1 L1, Trips T2, Vehicles V
-  WHERE T1.VehId = L1.VehId AND T2.VehId = V.VehId AND T1.VehId <> T2.VehId
-  AND T2.Trip && expandSpace(T1.trip, 3)
-  AND whenTrue(tdwithin(T1.Trip, T2.Trip, 3.0)) IS NOT NULL
+  SELECT l1.Licence AS Licence1, t2.VehicleId AS Car2Id,
+    whenTrue(tdwithin(t1.Trip, t2.Trip, 3.0)) AS Periods
+  FROM Trips t1, Licences1 l1, Trips t2, Vehicles v
+  WHERE t1.VehicleId = l1.VehicleId AND t2.VehicleId = v.VehicleId AND t1.VehicleId <> t2.VehicleId
+  AND t2.Trip && expandSpace(t1.trip, 3)
+  AND whenTrue(tdwithin(t1.Trip, t2.Trip, 3.0)) IS NOT NULL
   */
 
   -- EXPLAIN (ANALYZE, FORMAT JSON)
   -- WITH Temp AS (
-    -- SELECT L1.Licence AS Licence1, T2.VehId AS Car2Id,
-    -- whenTrue(tdwithin(T1.Trip, T2.Trip, 3.0)) AS Periods
-    -- FROM Trips T1, Licences1 L1, Trips T2, Vehicles V
-    -- WHERE T1.VehId = L1.VehId AND T2.VehId = V.VehId AND T1.VehId <> T2.VehId
-    -- AND T2.Trip && expandSpace(T1.trip, 3)
-  -- )
+    -- SELECT l1.Licence AS Licence1, t2.VehicleId AS Car2Id,
+    -- whenTrue(tdwithin(t1.Trip, t2.Trip, 3.0)) AS Periods
+    -- FROM Trips t1, Licences1 l1, Trips t2, Vehicles v
+    -- WHERE t1.VehicleId = l1.VehicleId AND t2.VehicleId = v.VehicleId AND 
+    --   t1.VehicleId <> t2.VehicleId
+    -- AND t2.Trip && expandSpace(t1.trip, 3) )
   -- SELECT Licence1, Car2Id, Periods
   -- FROM Temp
   -- WHERE Periods IS NOT NULL
@@ -456,14 +449,13 @@ LOOP
   -- Query 11
   EXPLAIN (ANALYZE, FORMAT JSON)  
   WITH Temp AS (
-    SELECT P.PointId, P.geom, I.InstantId, I.Instant, T.VehId
-    FROM Trips T, Points1 P, Instants1 I
-    WHERE T.Trip @> stbox(P.geom, I.Instant)
-    AND valueAtTimestamp(T.Trip, I.Instant) = P.geom
-  )
-  SELECT T.PointId, T.geom, T.InstantId, T.Instant, V.Licence
-  FROM Temp T JOIN Vehicles V ON T.VehId = V.VehId
-  ORDER BY T.PointId, T.InstantId, V.Licence
+    SELECT p.PointId, p.Geom, i.InstantId, i.Instant, t.VehicleId
+    FROM Trips t, Points1 p, Instants1 i
+    WHERE t.Trip @> stbox(p.Geom, i.Instant)
+    AND valueAtTimestamp(t.Trip, i.Instant) = p.Geom )
+  SELECT t.PointId, t.Geom, t.InstantId, t.Instant, v.Licence
+  FROM Temp t JOIN Vehicles v ON t.VehicleId = v.VehicleId
+  ORDER BY t.PointId, t.InstantId, v.Licence
   INTO J;
 
   PlanningTime := (J->0->>'Planning Time')::float;
@@ -490,17 +482,16 @@ LOOP
   -- Query 12
   EXPLAIN (ANALYZE, FORMAT JSON)  
   WITH Temp AS (
-    SELECT DISTINCT P.PointId, P.geom, I.InstantId, I.Instant, T.VehId
-    FROM Trips T, Points1 P, Instants1 I
-    WHERE T.Trip @> stbox(P.geom, I.Instant)
-    AND valueAtTimestamp(T.Trip, I.Instant) = P.geom
-  )
-  SELECT DISTINCT T1.PointId, T1.geom, T1.InstantId, T1.Instant, 
-    V1.Licence AS Licence1, V2.Licence AS Licence2
-  FROM Temp T1 JOIN Vehicles V1 ON T1.VehId = V1.VehId JOIN
-    Temp T2 ON T1.VehId < T2.VehId AND T1.PointID = T2.PointID AND
-    T1.InstantId = T2.InstantId JOIN Vehicles V2 ON T2.VehId = V2.VehId
-  ORDER BY T1.PointId, T1.InstantId, V1.Licence, V2.Licence
+    SELECT DISTINCT p.PointId, p.Geom, i.InstantId, i.Instant, t.VehicleId
+    FROM Trips t, Points1 p, Instants1 i
+    WHERE t.Trip @> stbox(p.Geom, i.Instant)
+    AND valueAtTimestamp(t.Trip, i.Instant) = p.Geom )
+  SELECT DISTINCT t1.PointId, t1.Geom, t1.InstantId, t1.Instant, 
+    v1.Licence AS Licence1, v2.Licence AS Licence2
+  FROM Temp t1 JOIN Vehicles v1 ON t1.VehicleId = v1.VehicleId JOIN
+    Temp t2 ON t1.VehicleId < t2.VehicleId AND t1.PointID = t2.PointID AND
+    t1.InstantId = t2.InstantId JOIN Vehicles v2 ON t2.VehicleId = v2.VehicleId
+  ORDER BY t1.PointId, t1.InstantId, v1.Licence, v2.Licence
   INTO J;
 
   PlanningTime := (J->0->>'Planning Time')::float;
@@ -526,27 +517,26 @@ LOOP
   -- Query 13
   /* Flat version
   EXPLAIN (ANALYZE, FORMAT JSON)
-  SELECT DISTINCT R.RegionId, P.PeriodId, P.Period, V.Licence
-  FROM Trips T, Vehicles V, Regions1 R, Periods1 P
-  WHERE T.VehId = V.VehId 
-  AND T.trip && stbox(R.geom, P.Period)
-  AND _ST_Intersects(trajectory(atTime(T.Trip, P.Period)), R.geom)
-  ORDER BY R.RegionId, P.PeriodId, V.Licence
+  SELECT DISTINCT r.RegionId, p.PeriodId, p.Period, v.Licence
+  FROM Trips t, Vehicles v, Regions1 r, Periods1 p
+  WHERE t.VehicleId = v.VehicleId 
+  AND t.trip && stbox(r.Geom, p.Period)
+  AND _ST_Intersects(trajectory(atTime(t.Trip, p.Period)), r.Geom)
+  ORDER BY r.RegionId, p.PeriodId, v.Licence
   INTO J;
   */
   -- Modified version
   EXPLAIN (ANALYZE, FORMAT JSON)           
   WITH Temp AS (
-    SELECT DISTINCT R.RegionId, P.PeriodId, P.Period, T.VehId
-    FROM Trips T, Regions1 R, Periods1 P
-    WHERE T.trip && stbox(R.geom, P.Period)
-    AND _ST_Intersects(trajectory(atTime(T.Trip, P.Period)), R.geom)
-    ORDER BY R.RegionId, P.PeriodId
-  )
-  SELECT DISTINCT T.RegionId, T.PeriodId, T.Period, V.Licence
-  FROM Temp T, Vehicles V
-  WHERE T.VehId = V.VehId 
-  ORDER BY T.RegionId, T.PeriodId, V.Licence
+    SELECT DISTINCT r.RegionId, p.PeriodId, p.Period, t.VehicleId
+    FROM Trips t, Regions1 r, Periods1 p
+    WHERE t.trip && stbox(r.Geom, p.Period)
+    AND _ST_Intersects(trajectory(atTime(t.Trip, p.Period)), r.Geom)
+    ORDER BY r.RegionId, p.PeriodId )
+  SELECT DISTINCT t.RegionId, t.PeriodId, t.Period, v.Licence
+  FROM Temp t, Vehicles v
+  WHERE t.VehicleId = v.VehicleId 
+  ORDER BY t.RegionId, t.PeriodId, v.Licence
   INTO J;
 
   PlanningTime := (J->0->>'Planning Time')::float;
@@ -573,24 +563,23 @@ LOOP
   -- Query 14
   /* Flat version
   EXPLAIN (ANALYZE, FORMAT JSON)
-  SELECT DISTINCT R.RegionId, I.InstantId, I.Instant, V.Licence
-  FROM Trips T, Vehicles V, Regions1 R, Instants1 I
-  WHERE T.VehId = V.VehId 
-  AND T.trip && stbox(R.geom, I.Instant)
-  AND _ST_Contains(R.geom, valueAtTimestamp(T.Trip, I.Instant))
-  ORDER BY R.RegionId, I.InstantId, V.Licence
+  SELECT DISTINCT r.RegionId, i.InstantId, i.Instant, v.Licence
+  FROM Trips t, Vehicles v, Regions1 r, Instants1 i
+  WHERE t.VehicleId = v.VehicleId 
+  AND t.trip && stbox(r.Geom, i.Instant)
+  AND _ST_Contains(r.Geom, valueAtTimestamp(t.Trip, i.Instant))
+  ORDER BY r.RegionId, i.InstantId, v.Licence
   INTO J;
   */
   EXPLAIN (ANALYZE, FORMAT JSON)  
   WITH Temp AS (
-    SELECT DISTINCT R.RegionId, I.InstantId, I.Instant, T.VehId
-    FROM Trips T, Regions1 R, Instants1 I
-    WHERE T.Trip && stbox(R.geom, I.Instant)
-    AND _ST_Contains(R.geom, valueAtTimestamp(T.Trip, I.Instant))
-  )
-  SELECT DISTINCT T.RegionId, T.InstantId, T.Instant, V.Licence
-  FROM Temp T JOIN Vehicles V ON T.VehId = V.VehId 
-  ORDER BY T.RegionId, T.InstantId, V.Licence
+    SELECT DISTINCT r.RegionId, i.InstantId, i.Instant, t.VehicleId
+    FROM Trips t, Regions1 r, Instants1 i
+    WHERE t.Trip && stbox(r.Geom, i.Instant)
+    AND ST_Contains(r.Geom, valueAtTimestamp(t.Trip, i.Instant)) )
+  SELECT DISTINCT t.RegionId, t.InstantId, t.Instant, v.Licence
+  FROM Temp t JOIN Vehicles v ON t.VehicleId = v.VehicleId 
+  ORDER BY t.RegionId, t.InstantId, v.Licence
   INTO J;
 
   PlanningTime := (J->0->>'Planning Time')::float;
@@ -617,26 +606,25 @@ LOOP
   -- Query 15
   /* Flat version
   EXPLAIN (ANALYZE, FORMAT JSON)
-  SELECT DISTINCT PO.PointId, PO.geom, PR.PeriodId, PR.Period, V.Licence
-  FROM Trips T, Vehicles V, Points1 PO, Periods1 PR
-  WHERE T.VehId = V.VehId 
-  AND T.Trip && stbox(PO.geom, PR.Period)
-  AND _ST_Intersects(trajectory(atTime(T.Trip, PR.Period)), PO.geom)
-  ORDER BY PO.PointId, PR.PeriodId, V.Licence
+  SELECT DISTINCT pt.PointId, pt.Geom, pr.PeriodId, pr.Period, v.Licence
+  FROM Trips t, Vehicles v, Points1 pt, Periods1 pr
+  WHERE t.VehicleId = v.VehicleId 
+  AND t.Trip && stbox(pt.Geom, pr.Period)
+  AND _ST_Intersects(trajectory(atTime(t.Trip, pr.Period)), pt.Geom)
+  ORDER BY pt.PointId, pr.PeriodId, v.Licence
   INTO J;
   */
 
   EXPLAIN (ANALYZE, FORMAT JSON)
   WITH Temp AS (
-    SELECT DISTINCT PO.PointId, PO.geom, PR.PeriodId, PR.Period, T.VehId
-    FROM Trips T, Points1 PO, Periods1 PR
-    WHERE T.Trip && stbox(PO.geom, PR.Period)
-    AND _ST_Intersects(trajectory(atTime(T.Trip, PR.Period)), PO.geom)      
-  )
-  SELECT DISTINCT T.PointId, T.geom, T.PeriodId, T.Period, V.Licence  
-  FROM Temp T, Vehicles V
-  WHERE T.VehId = V.VehId 
-  ORDER BY T.PointId, T.PeriodId, V.Licence
+    SELECT DISTINCT pt.PointId, pt.Geom, pr.PeriodId, pr.Period, t.VehicleId
+    FROM Trips t, Points1 pt, Periods1 pr
+    WHERE t.Trip && stbox(pt.Geom, pr.Period)
+    AND ST_Intersects(trajectory(atTime(t.Trip, pr.Period)), pt.Geom) )
+  SELECT DISTINCT t.PointId, t.Geom, t.PeriodId, t.Period, v.Licence  
+  FROM Temp t, Vehicles v
+  WHERE t.VehicleId = v.VehicleId 
+  ORDER BY t.PointId, t.PeriodId, v.Licence
   INTO J;
 
   PlanningTime := (J->0->>'Planning Time')::float;
@@ -665,14 +653,15 @@ LOOP
 
   -- Query 16
   EXPLAIN (ANALYZE, FORMAT JSON)      
-  SELECT P.PeriodId, P.Period, R.RegionId, 
-    L1.Licence AS Licence1, L2.Licence AS Licence2
-  FROM Trips T1, Licences1 L1, Trips T2, Licences2 L2, Periods1 P, Regions1 R
-  WHERE T1.VehId = L1.VehId AND T2.VehId = L2.VehId AND L1.Licence < L2.Licence
-  -- AND T1.Trip && stbox(R.geom, P.Period) AND T2.Trip && stbox(R.geom, P.Period) 
-  AND _ST_Intersects(trajectory(atTime(T1.Trip, P.Period)), R.geom)
-  AND _ST_Intersects(trajectory(atTime(T2.Trip, P.Period)), R.geom)
-  AND tintersects(atTime(T1.Trip, P.Period), atTime(T2.Trip, P.Period)) %= FALSE 
+  SELECT p.PeriodId, p.Period, r.RegionId, 
+    l1.Licence AS Licence1, l2.Licence AS Licence2
+  FROM Trips t1, Licences1 l1, Trips t2, Licences2 l2, Periods1 p, Regions1 r
+  WHERE t1.VehicleId = l1.VehicleId AND t2.VehicleId = l2.VehicleId AND
+    l1.Licence < l2.Licence
+  -- AND t1.Trip && stbox(r.Geom, p.Period) AND t2.Trip && stbox(r.Geom, p.Period) 
+  AND _ST_Intersects(trajectory(atTime(t1.Trip, p.Period)), r.Geom)
+  AND _ST_Intersects(trajectory(atTime(t2.Trip, p.Period)), r.Geom)
+  AND aDisjoint(atTime(t1.Trip, p.Period), atTime(t2.Trip, p.Period))
   ORDER BY PeriodId, RegionId, Licence1, Licence2
   INTO J;
 
@@ -699,14 +688,13 @@ LOOP
   -- Query 17
   EXPLAIN (ANALYZE, FORMAT JSON)
   WITH PointCount AS (
-    SELECT P.PointId, COUNT(DISTINCT T.VehId) AS Hits
-    FROM Trips T, Points P
-    WHERE ST_Intersects(trajectory(T.Trip), P.geom)
-    GROUP BY P.PointId
-  )
+    SELECT p.PointId, COUNT(DISTINCT t.VehicleId) AS Hits
+    FROM Trips t, Points p
+    WHERE ST_Intersects(trajectory(t.Trip), p.Geom)
+    GROUP BY p.PointId )
   SELECT PointId, Hits
-  FROM PointCount AS P
-  WHERE P.Hits = ( SELECT MAX(Hits) FROM PointCount )
+  FROM PointCount AS p
+  WHERE p.Hits = ( SELECT MAX(Hits) FROM PointCount )
   INTO J;
 
   PlanningTime := (J->0->>'Planning Time')::float;

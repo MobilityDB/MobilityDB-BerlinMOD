@@ -18,12 +18,12 @@ patterns or modify the sampling of positions.
 
 The database must contain the following input relations.
 
-*  Nodes(id bigint primary key, geom geometry(Point))
-*  RoadSegments(SegmentId bigint primary key, name text, tag_id int, 
-    sourceNode bigint, targetNode bigint, SegmentLength float, 
-    cost_s float, reverse_cost_s float, MaxSpeedFwd float,
-    MaxSpeedBwd float, priority float, SegmentGeo geometry(Linestring))
-    sourceNode and targetNode references Nodes(id)
+*  Nodes(NodeId bigint primary key, Geom geometry(Point))
+*  RoadSegments(SegmentId bigint primary key, Name text, TagId int, 
+    SourceNode bigint, TargetNode bigint, SegmentLength float, 
+    TimeSecsFwd float, TimeSecsBwd float, MaxSpeedFwd float,
+    MaxSpeedBwd float, Priority float, SegmentGeo geometry(Linestring))
+    SourceNode and TargetNode references Nodes(NodeId)
   The Nodes and RoadSegments tables define the road network graph.
   These tables are typically obtained by osm2pgrouting from OSM data.
   The minimum number of attributes these tables should contain are
@@ -47,38 +47,42 @@ The database must contain the following input relations.
 The generated data is saved into the database in which the
 functions are executed using the following tables
 
-*  Vehicles(vehicleId int primary key, licence text, vehType text, model text)
-*  Licences(licenceId int primary key, licence text, vehicleId int)
-*  Trips(tripId serial primary key, vehicleId int, startDate date, seqNo int,
-     trip tgeompoint, trajectory geometry);
-*  LeisureTrips(vehicleId int, startDate date, tripNo int, seqNo int, sourceNode bigint,
-    targetNode bigint)
-    primary key (vehicleId, startDate, tripNo, seqNo)
-    tripNo is 1 for morning/evening trip and is 2 for afternoon trip
-    seqNo is the sequence of trips composing a leisure trip
-*  Points(pointId int, geom geometry)
-*  Regions(regionId int, geom geometry)
-*  Instants(instantId int, instant timestamptz)
-*  Periods(periodId int, period)
+*  Vehicles(VehicleId int primary key, Licence text, VehicleType text,
+     Model text)
+*  Licences(LicenceId int primary key, Licence text, VehicleId int)
+*  Trips(TripId serial primary key, VehicleId int, StartDate date, SeqNo int,
+     Trip tgeompoint, Trajectory geometry);
+*  LeisureTrips(VehicleId int, StartDate date, TripNo int, SeqNo int,
+      SourceNode bigint,  TargetNode bigint)
+    primary key (VehicleId, StartDate, TripNo, SeqNo)
+    TripNo is 1 for morning/evening trip and is 2 for afternoon trip
+    SeqNo is the sequence of trips composing a leisure trip
+*  Points(PointId int, Geom geometry)
+*  Regions(RegionId int, Geom geometry)
+*  Instants(InstantId int, Instant timestamptz)
+*  Periods(PeriodId int, Period)
 
 In addition the following working tables are created
 
-*  HomeRegions(id int primary key, priority int, weight int, prob float,
-    cumProb float, geom geometry)
-*  WorkRegions(id int primary key, priority int, weight int, prob float,
-    cumProb float, geom geometry)
-    priority indicates the region selection priority
-    weight is the relative weight to choose from the given region
-    geom is a (Multi)Polygon describing the region's area
-*  HomeNodes(id bigint primary key, osm_id bigint, geom geometry, region int)
-*  WorkNodes(id bigint primary key, osm_id bigint, geom geometry, region int)
-*  VehicleNodes(vehicleId int primary key, home bigint, work bigint, noNeighbours int);
-*  Neighbourhoods(vehicleId int, seqNo int, node bigint)
-    primary key (vehicleId, seqNo)
-*  Destinations(vehicleId int, sourceNode bigint, targetNode bigint)
-    primary key (vehicleId, sourceNode, targetNode)
-*  Paths(vehicleId int, start_vid bigint, end_vid bigint, seqNo int,
-    node bigint, edge bigint, geom geometry, speed float, category int);
+*  HomeRegions(RegionId int primary key, Priority int, Weight int, Prob float,
+    CumulProb float, Geom geometry)
+*  WorkRegions(RegionId int primary key, Priority int, Weight int, Prob float,
+    CumulProb float, Geom geometry)
+    Priority indicates the region selection priority
+    Weight is the relative weight to choose from the given region
+    Geom is a (Multi)Polygon describing the region's area
+*  HomeNodes(NodeId bigint primary key, osm_id bigint, Geom geometry,
+    RegionId int)
+*  WorkNodes(NodeId bigint primary key, osm_id bigint, Geom geometry,
+    RegionId int)
+*  VehicleNodes(VehicleId int primary key, home bigint, work bigint,
+    NoNeighbours int);
+*  Neighbourhoods(VehicleId int, SeqNo int, NodeId bigint)
+    primary key (VehicleId, SeqNo)
+*  Destinations(VehicleId int, SourceNode bigint, TargetNode bigint)
+    primary key (VehicleId, SourceNode, TargetNode)
+*  Paths(VehicleId int, StartNode bigint, EndNode bigint, SeqNo int,
+    NodeId bigint, EdgeId bigint, Geom geometry, Speed float, Category int);
 
 -----------------------------------------------------------------------------*/
 
@@ -99,10 +103,10 @@ END;
 $$ LANGUAGE plpgsql STRICT;
 
 /*
-select random_int(1,7), count(*)
-from generate_series(1, 1e3)
-group by 1
-order by 1
+SELECT random_int(1,7), COUNT(*)
+FROM generate_series(1, 1e3)
+GROUP BY 1
+ORDER BY 1
 */
 
 -- Random integer with binomial distribution
@@ -128,11 +132,10 @@ END;
 $$ LANGUAGE plpgsql STRICT;
 
 /*
-with data as (
-  select random_binomial(100,0.5) AS r from generate_series(1,1e5) t
-)
-select min(r), max(r), avg(r)
-from data;
+WITH data AS (
+  SELECT random_binomial(100,0.5) AS r FROM generate_series(1,1e5) t )
+SELECT MIN(r), MAX(r), AVG(r)
+FROM data;
 -- Successfully run. Total query runtime: 40 secs 876 msec.
 */
 
@@ -156,11 +159,10 @@ END;
 $$ LANGUAGE plpgsql STRICT;
 
 /*
-with data as (
-  select random_exp(1) AS r from generate_series(1,1e5) t
-)
-select min(r), max(r), avg(r)
-from data;
+WITH data AS (
+  SELECT random_exp(1) AS r FROM generate_series(1,1e5) t )
+SELECT MIN(r), MAX(r), AVG(r)
+FROM data;
 -- Successfully run. Total query runtime: 6 min 18 secs.
 */
 
@@ -182,14 +184,13 @@ END;
 $$ LANGUAGE plpgsql STRICT;
 
 /*
-with data as (
-  select t, random_gauss(100,15)::int score from generate_series(1,1000000) t
-)
-select score, sum(1), repeat('=',sum(1)::int/500) bar
-from data
-where score between 60 and 140
-group by score
-order by 1;
+WITH data AS (
+  SELECT t, random_gauss(100,15)::int score FROM generate_series(1,1000000) t )
+SELECT score, sum(1), repeat('=',sum(1)::int/500) bar
+FROM data
+WHERE score between 60 and 140
+GROUP BY score
+ORDER BY 1;
 */
 
 -- Random float with a Gaussian distributed value within [Low, High]
@@ -213,9 +214,9 @@ END;
 $$ LANGUAGE plpgsql STRICT;
 
 /*
-select random_boundedgauss(-0.5, 0.5)
-from generate_series(1, 1e2)
-order by 1
+SELECT random_boundedgauss(-0.5, 0.5)
+FROM generate_series(1, 1e2)
+ORDER BY 1
 */
 
 -------------------------------------------------------------------------------
@@ -226,20 +227,20 @@ order by 1
 CREATE OR REPLACE FUNCTION createPause()
 RETURNS interval AS $$
 BEGIN
-  RETURN (((random_boundedgauss(-6.0, 6.0, 0.0, 1.4) * 100.0) + 600.0) * 6000.0)::int * interval '1 ms';
+  RETURN (((random_boundedgauss(-6.0, 6.0, 0.0, 1.4) * 100.0) + 600.0) * 
+    6000.0)::int * interval '1 ms';
 END;
 $$ LANGUAGE plpgsql STRICT;
 
 /*
-with test(t) as (
-select CreatePause()
-from generate_series(1, 1e5)
-order by 1
-)
-select min(t), max(t) from test
+WITH test(t) AS (
+  SELECT CreatePause()
+  FROM generate_series(1, 1e5)
+  ORDER BY 1 )
+SELECT MIN(t), MAX(t) FROM test
 */
 
--- Creates a random non-zero duration of length [2ms, N min - 4ms]
+-- Creates a random non-zero duration of length [2ms, n min - 4ms]
 -- using a uniform distribution
 
 CREATE OR REPLACE FUNCTION createPauseN(Minutes int)
@@ -250,12 +251,11 @@ END;
 $$ LANGUAGE plpgsql STRICT;
 
 /*
-with test(t) as (
-select CreatePauseN(1)
-from generate_series(1, 1e5)
-order by 1
-)
-select min(t), max(t) from test
+WITH test(t) AS (
+  SELECT CreatePauseN(1)
+  FROM generate_series(1, 1e5)
+  ORDER BY 1 )
+SELECT MIN(t), MAX(t) FROM test
 */
 
 -- Creates a normally distributed duration within [-Rhours h, +Rhours h]
@@ -277,12 +277,11 @@ END
 $$ LANGUAGE plpgsql STRICT;
 
 /*
-with test(t) as (
-select CreateDurationRhoursNormal(12)
-from generate_series(1, 1e5)
-order by 1
-)
-select min(t), max(t) from test
+WITH test(t) AS (
+  SELECT CreateDurationRhoursNormal(12)
+  FROM generate_series(1, 1e5)
+  ORDER BY 1 )
+SELECT MIN(t), MAX(t) FROM test
 */
 
 -------------------------------------------------------------------------------
@@ -328,7 +327,7 @@ $$ LANGUAGE plpgsql STRICT;
 -- target nodes in the graph
 
 DROP TYPE IF EXISTS step CASCADE;
-CREATE TYPE step as (linestring geometry, maxspeed float, category int);
+CREATE TYPE step AS (linestring geometry, maxspeed float, category int);
 
 -- Call pgrouting to find a path between source and target nodes.
 -- A path is composed of an array of steps (see the above type definition).
@@ -336,7 +335,8 @@ CREATE TYPE step as (linestring geometry, maxspeed float, category int);
 -- This function is currently not used in the generation but is useful
 -- for debugging purposes.
 
-CREATE OR REPLACE FUNCTION createPath(sourceN bigint, targetN bigint, pathMode text)
+CREATE OR REPLACE FUNCTION createPath(sourceN bigint, targetN bigint,
+  pathMode text)
 RETURNS step[] AS $$
 DECLARE
   -- Query sent to pgrouting depending on the argument pathMode
@@ -345,35 +345,36 @@ DECLARE
   result step[];
 BEGIN
   IF pathMode = 'Fastest Path' THEN
-    query_pgr = 'SELECT segmentid as id, sourceNode as source, targetNode as target, cost_s AS cost, '
-      'reverse_cost_s as reverse_cost FROM RoadSegments';
+    query_pgr = 
+      'SELECT SegmentId AS id, SourceNode AS source, TargetNode AS target, '
+      'TimeSecsFwd AS cost, TimeSecsBwd AS reverse_cost FROM RoadSegments';
   ELSE
-    query_pgr = 'SELECT segmentid as id, sourceNode as source, targetNode as target, segmentlength AS cost, '
-      'segmentlength * sign(reverse_cost_s) as reverse_cost FROM RoadSegments';
+    query_pgr = 
+      'SELECT SegmentId AS id, SourceNode AS source, TargetNode AS target, '
+      'SegmentLength AS cost, SegmentLength * sign(TimeSecsBwd) AS reverse_cost '
+      'FROM RoadSegments';
   END IF;
   WITH Temp1 AS (
-    SELECT P.seq, P.node, P.edge
-    FROM pgr_dijkstra(query_pgr, sourceN, targetN, true) P
-  ),
+    SELECT p.seq, p.node, p.edge
+    FROM pgr_dijkstra(query_pgr, sourceN, targetN, true) p ),
   Temp2 AS (
-    SELECT T.seq,
+    SELECT t.seq,
       -- adjusting directionality
       CASE
-        WHEN T.node = E.sourceNode THEN E.SegmentGeo
+        WHEN t.node = s.SourceNode THEN s.SegmentGeo
         ELSE ST_Reverse(SegmentGeo)
-      END AS geom,
-      maxspeedfwd AS maxSpeed, berlinmod_roadCategory(tag_id) AS category
-    FROM Temp1 T, RoadSegments E
-    WHERE edge IS NOT NULL AND E.segmentid = T.edge
-  )
-  SELECT array_agg((geom, maxSpeed, category)::step ORDER BY seq) INTO result
+      END AS Geom,
+      MaxSpeedFwd AS maxSpeed, berlinmod_roadCategory(TagId) AS Category
+    FROM Temp1 t, RoadSegments s
+    WHERE t.edge IS NOT NULL AND s.SegmentId = t.edge )
+  SELECT array_agg((Geom, maxSpeed, category)::step ORDER BY seq) INTO result
   FROM Temp2;
   RETURN result;
 END;
 $$ LANGUAGE plpgsql STRICT;
 
 /*
-select createPath(9598, 4010, 'Fastest Path')
+SELECT createPath(9598, 4010, 'Fastest Path')
 */
 
 -- Creates a trip following a path between a source and a target node starting
@@ -395,7 +396,7 @@ DECLARE
 
   -- The probability of an event is proportional to (P_EVENT_C)/Vmax.
   -- The probability for an event being a forced stop is given by
-  -- 0.0 <= 'P_EVENT_P' <= 1.0 (the balance, 1-P, is meant to trigger
+  -- 0.0 <= 'P_EVENT_P' <= 1.0 (the balance, 1-p, is meant to trigger
   -- deceleration events).
   P_EVENT_C float = 1.0;
   P_EVENT_P float = 0.1;
@@ -506,7 +507,7 @@ BEGIN
     linestring = (edges[edge]).linestring;
     maxSpeedEdge = (edges[edge]).maxSpeed;
     category = (edges[edge]).category;
-    SELECT array_agg(geom ORDER BY path) INTO points
+    SELECT array_agg(Geom ORDER BY path) INTO points
     FROM ST_DumpPoints(linestring);
     noSegs = array_length(points, 1) - 1;
     -- Loop for every segment of the current edge
@@ -531,7 +532,8 @@ BEGIN
         IF abs(mod(alpha::numeric, 360.0)) < P_EPSILON THEN
           maxSpeedTurn = maxSpeedEdge;
         ELSE
-          maxSpeedTurn = mod(abs(alpha - 180.0)::numeric, 180.0) / 180.0 * maxSpeedEdge;
+          maxSpeedTurn = mod(abs(alpha - 180.0)::numeric, 180.0) / 
+            180.0 * maxSpeedEdge;
         END IF;
       END IF;
       segLength = ST_Distance(p1, p2);
@@ -555,7 +557,8 @@ BEGIN
             curSpeed = least(P_EVENT_ACC, maxSpeedTurn);
           END IF;
           IF messages = 'debug' THEN
-            RAISE INFO '          Acceleration after stop -> Speed = %', round(curSpeed::numeric, 3);
+            RAISE INFO '          Acceleration after stop -> Speed = %',
+              round(curSpeed::numeric, 3);
           END IF;
         ELSE
           -- If the current speed is not considered as a stop,
@@ -567,14 +570,16 @@ BEGIN
               curSpeed = 0.0;
               noStop = noStop + 1;
               IF messages = 'debug' THEN
-                RAISE INFO '          Stop -> Speed = %', round(curSpeed::numeric, 3);
+                RAISE INFO '          Stop -> Speed = %',
+                  round(curSpeed::numeric, 3);
               END IF;
             ELSE
               -- Apply deceleration event to the trip
               curSpeed = curSpeed * random_binomial(20, 0.5) / 20.0;
               noDecel = noDecel + 1;
               IF messages = 'debug' THEN
-                RAISE INFO '          Deceleration -> Speed = %', round(curSpeed::numeric, 3);
+                RAISE INFO '          Deceleration -> Speed = %',
+                  round(curSpeed::numeric, 3);
               END IF;
             END IF;
           ELSE
@@ -584,7 +589,8 @@ BEGIN
             IF frac = noFracs AND seg < noSegs THEN
               maxSpeed = maxSpeedTurn;
               IF messages = 'debug' THEN
-                RAISE INFO '           Turn -> Angle = %, Maximum speed at turn = %', round(alpha::numeric, 3), round(maxSpeedTurn::numeric, 3);
+                RAISE INFO '           Turn -> Angle = %, Maximum speed at turn = %',
+                  round(alpha::numeric, 3), round(maxSpeedTurn::numeric, 3);
               END IF;
             ELSE
               maxSpeed = maxSpeedEdge;
@@ -593,12 +599,14 @@ BEGIN
             IF curSpeed < newSpeed THEN
               noAccel = noAccel + 1;
               IF messages = 'debug' THEN
-                RAISE INFO '          Acceleration -> Speed = %', round(newSpeed::numeric, 3);
+                RAISE INFO '          Acceleration -> Speed = %',
+                  round(newSpeed::numeric, 3);
               END IF;
             ELSIF curSpeed > newSpeed THEN
               noDecel = noDecel + 1;
               IF messages = 'debug' THEN
-                RAISE INFO '          Deceleration -> Speed = %', round(newSpeed::numeric, 3);
+                RAISE INFO '          Deceleration -> Speed = %',
+                  round(newSpeed::numeric, 3);
               END IF;
             END IF;
             curSpeed = newSpeed;
@@ -613,7 +621,8 @@ BEGIN
           t = t + waitTime * interval '1 sec';
           totalWaitTime = totalWaitTime + waitTime;
           IF messages = 'debug' THEN
-            RAISE INFO '          Waiting for % seconds', round(waitTime::numeric, 3);
+            RAISE INFO '          Waiting for % seconds',
+              round(waitTime::numeric, 3);
           END IF;
         ELSE
           -- Otherwise, move current position P_EVENT_LENGTH meters towards p2
@@ -677,7 +686,8 @@ BEGIN
         t = t + waitTime * interval '1 sec';
         totalWaitTime = totalWaitTime + waitTime;
         IF messages = 'debug' THEN
-          RAISE INFO '      Stop at crossing -> Waiting for % seconds', round(waitTime::numeric, 3);
+          RAISE INFO '      Stop at crossing -> Waiting for % seconds',
+            round(waitTime::numeric, 3);
         END IF;
         instants[l] = tgeompoint_inst(curPos, t);
         l = l + 1;
@@ -689,8 +699,10 @@ BEGIN
     RAISE INFO '      Number of acceleration events: %', noAccel;
     RAISE INFO '      Number of deceleration events: %', noDecel;
     RAISE INFO '      Number of stop events: %', noStop;
-    RAISE INFO '      Total travel time: % secs.', round(totalTravelTime::numeric, 3);
-    RAISE INFO '      Total waiting time: % secs.', round(totalWaitTime::numeric, 3);
+    RAISE INFO '      Total travel time: % secs.',
+      round(totalTravelTime::numeric, 3);
+    RAISE INFO '      Total waiting time: % secs.',
+      round(totalWaitTime::numeric, 3);
     RAISE INFO '      Time-weighted average speed: % Km/h',
       round((twSumSpeed / (totalTravelTime + totalWaitTime))::numeric, 3);
   END IF;
@@ -701,7 +713,8 @@ $$ LANGUAGE plpgsql STRICT;
 
 /*
 WITH Temp(trip) AS (
-  SELECT createTrip(createPath(34125, 44979, 'Fastest Path'), '2020-05-10 08:00:00', false, 'minimal')
+  SELECT createTrip(createPath(34125, 44979, 'Fastest Path'), 
+    '2020-05-10 08:00:00', false, 'minimal')
 )
 SELECT startTimestamp(trip), endTimestamp(trip), timespan(trip)
 FROM Temp;
@@ -719,15 +732,14 @@ DECLARE
   result bigint;
 BEGIN
   WITH RandomRegion AS (
-    SELECT id
+    SELECT RegionId
     FROM HomeRegions
-    WHERE random() <= cumProb
-    ORDER BY cumProb
-    LIMIT 1
-  )
-  SELECT N.id INTO result
-  FROM HomeNodes N, RandomRegion R
-  WHERE N.region = R.id
+    WHERE random() <= CumulProb
+    ORDER BY CumulProb
+    LIMIT 1 )
+  SELECT n.NodeId INTO result
+  FROM HomeNodes n, RandomRegion r
+  WHERE n.RegionId = r.RegionId
   ORDER BY random()
   LIMIT 1;
   RETURN result;
@@ -735,15 +747,14 @@ END;
 $$ LANGUAGE plpgsql STRICT;
 
 /*
--- WE DON'T COVER ALL REGIONS EVEN AFTER 1e5 attempts
-with temp(node) as (
-select berlinmod_selectHomeNode()
-from generate_series(1, 1e5)
-)
-select region, count(*)
-from temp T, homenodes N
-where t.node = id
-group by region order by region;
+-- WE DON't COVER ALL REGIONS EVEN AFTER 1e5 attempts
+WITH Temp(NodeId) AS (
+  SELECT berlinmod_selectHomeNode()
+  FROM generate_series(1, 1e5) )
+SELECT Region, COUNT(*)
+FROM Temp t, HomeNodes n
+WHERE t.NodeId = n.NodeId
+GROUP BY region ORDER BY region;
 -- Total query runtime: 3 min 6 secs.
 */
 
@@ -754,15 +765,14 @@ DECLARE
   result bigint;
 BEGIN
   WITH RandomRegion AS (
-    SELECT id
+    SELECT RegionId
     FROM WorkRegions
-    WHERE random() <= cumProb
-    ORDER BY cumProb
-    LIMIT 1
-  )
-  SELECT N.id INTO result
-  FROM WorkNodes N, RandomRegion R
-  WHERE N.region = R.id
+    WHERE random() <= CumulProb
+    ORDER BY CumulProb
+    LIMIT 1 )
+  SELECT n.NodeId INTO result
+  FROM WorkNodes n, RandomRegion r
+  WHERE n.Region = r.RegionId
   ORDER BY random()
   LIMIT 1;
   RETURN result;
@@ -770,15 +780,14 @@ END;
 $$ LANGUAGE plpgsql STRICT;
 
 /*
--- WE DON'T COVER ALL REGIONS EVEN AFTER 1e5 attempts
-with temp(node) as (
-select berlinmod_selectWorkNode()
-from generate_series(1, 1e5)
-)
-select region, count(*)
-from temp T, homenodes N
-where t.node = id
-group by region order by region;
+-- WE DON't COVER ALL REGIONS EVEN AFTER 1e5 attempts
+WITH Temp(NodeId) AS (
+  SELECT berlinmod_selectWorkNode()
+  FROM generate_series(1, 1e5) )
+SELECT Region, COUNT(*)
+FROM Temp t, HomeNodes n
+WHERE t.NodeId = n.NodeId
+GROUP BY Region ORDER BY Region;
 -- Total query runtime: 3 min.
 */
 
@@ -796,9 +805,9 @@ DECLARE
 BEGIN
   IF noNeigh > 0 AND random() < 0.8 THEN
     seq = random_int(1, noNeigh);
-    SELECT node INTO result
+    SELECT NodeId INTO result
     FROM Neighbourhoods
-    WHERE vehicleId = vehId AND seqNo = seq;
+    WHERE VehicleId = vehId AND SeqNo = seq;
   ELSE
     result = random_int(1, noNodes);
   END IF;
@@ -819,8 +828,8 @@ CREATE OR REPLACE FUNCTION berlinmod_createLicence(vehicId int)
   RETURNS text AS $$
 BEGIN
   IF vehicId > 0 and vehicId < 1000 THEN
-    RETURN text 'B-' || chr(random_int(1, 26) + 65) || chr(random_int(1, 25) + 65)
-      || ' ' || vehicId::text;
+    RETURN text 'B-' || chr(random_int(1, 26) + 65) || 
+      chr(random_int(1, 25) + 65) || ' ' || vehicId::text;
   ELSEIF vehicId % 1000 = 0 THEN
     RETURN text 'B-' || chr((vehicId % 1000) + 65) || ' '
       || (random_int(1, 998) + 1)::text;
@@ -865,7 +874,7 @@ $$ LANGUAGE plpgsql STRICT;
  ORDER BY 1;
  */
 
--- Return a random vehicle model with a uniform distribution
+-- Return a random vehicle Model with a uniform distribution
 
 CREATE OR REPLACE FUNCTION berlinmod_vehicleModel()
   RETURNS text AS $$
@@ -929,9 +938,9 @@ BEGIN
     RAISE INFO 'Creation of the Trips table started at %', clock_timestamp();
   END IF;
   DROP TABLE IF EXISTS Trips CASCADE;
-  CREATE TABLE Trips(tripId SERIAL PRIMARY KEY, vehicleId int, startDate date,
-    seqNo int, trip tgeompoint, trajectory geometry,
-    UNIQUE (vehicleId, startDate, seqNo));
+  CREATE TABLE Trips(TripId SERIAL PRIMARY KEY, VehicleId int, StartDate date,
+    SeqNo int, Trip tgeompoint, Trajectory geometry,
+    UNIQUE (VehicleId, StartDate, SeqNo));
   -- Loop for each vehicle
   FOR vehId IN 1..noVehicles LOOP
     IF messages = 'medium' OR messages = 'verbose' THEN
@@ -940,14 +949,14 @@ BEGIN
       RAISE INFO '  Vehicles % to %', vehId, least(vehId + 99, noVehicles);
     END IF;
     -- Get home -> work and work -> home paths
-    SELECT homeNode, workNode INTO homeN, workN
-    FROM VehicleNodes V WHERE V.vehicleId = vehId;
-    SELECT array_agg((geom, speed, category)::step ORDER BY seqNo) INTO homework
+    SELECT HomeNode, WorkNode INTO homeN, workN
+    FROM VehicleNodes V WHERE V.VehicleId = vehId;
+    SELECT array_agg((Geom, Speed, Category)::step ORDER BY SeqNo) INTO homework
     FROM Paths
-    WHERE vehicleId = vehId AND start_vid = homeN AND end_vid = workN;
-    SELECT array_agg((geom, speed, category)::step ORDER BY seqNo) INTO workhome
+    WHERE VehicleId = vehId AND StartNode = homeN AND EndNode = workN;
+    SELECT array_agg((Geom, Speed, Category)::step ORDER BY SeqNo) INTO workhome
     FROM Paths
-    WHERE vehicleId = vehId AND start_vid = workN AND end_vid = homeN;
+    WHERE VehicleId = vehId AND StartNode = workN AND EndNode = homeN;
     d = startDay;
     -- Loop for each generation day
     FOR j IN 1..noDays LOOP
@@ -971,7 +980,7 @@ BEGIN
           RAISE INFO '    Home to work trip started at % and lasted %',
             t, endTimestamp(trip) - startTimestamp(trip);
         END IF;
-        INSERT INTO Trips(vehicleId, startDate, seqNo, trip, trajectory) VALUES
+        INSERT INTO Trips(VehicleId, StartDate, SeqNo, Trip, Trajectory) VALUES
           (vehId, d, 1, trip, trajectory(trip));
         -- Work -> Home
         t = d + time '16:00:00' + CreatePauseN(120);
@@ -987,14 +996,14 @@ BEGIN
           RAISE INFO '    Work to home trip started at % and lasted %',
             t, endTimestamp(trip) - startTimestamp(trip);
         END IF;
-        INSERT INTO Trips(vehicleId, startDate, seqNo, trip, trajectory) VALUES
+        INSERT INTO Trips(VehicleId, StartDate, SeqNo, Trip, Trajectory) VALUES
           (vehId, d, 2, trip, trajectory(trip));
         tripSeq = 2;
       END IF;
       -- Get the number of leisure trips
-      SELECT COUNT(DISTINCT tripNo) INTO noLeisTrip
-      FROM LeisureTrips L
-      WHERE L.vehicleId = vehId AND L.startDate = d;
+      SELECT COUNT(DISTINCT TripNo) INTO noLeisTrip
+      FROM LeisureTrips l
+      WHERE l.VehicleId = vehId AND l.StartDate = d;
       IF noLeisTrip = 0 AND messages = 'verbose' or messages = 'debug' THEN
         RAISE INFO '    No leisure trip';
       END IF;
@@ -1011,9 +1020,9 @@ BEGIN
           IF noLeisTrip = 2 THEN
             leisNo = leis;
           ELSE
-            SELECT tripNo INTO leisNo
-            FROM LeisureTrips L
-            WHERE L.vehicleId = vehId AND L.startDate = d
+            SELECT TripNo INTO leisNo
+            FROM LeisureTrips l
+            WHERE l.VehicleId = vehId AND l.StartDate = d
             LIMIT 1;
           END IF;
           -- Determine the start time
@@ -1024,26 +1033,30 @@ BEGIN
             END IF;
           ELSE
             t = d + time '17:00:00' + CreatePauseN(120);
-            IF messages = 'medium' OR messages = 'verbose' or messages = 'debug' THEN
+            IF messages = 'medium' OR messages = 'verbose' OR messages = 'debug' THEN
               RAISE INFO '    Weekend afternoon trips started at %', t;
             END IF;
           END IF;
         END IF;
         -- Get the number of subtrips (number of destinations + 1)
         SELECT COUNT(*) INTO noSubtrips
-        FROM LeisureTrips L
-        WHERE L.vehicleId = vehId AND L.tripNo = leisNo AND L.startDate = d;
+        FROM LeisureTrips l
+        WHERE l.VehicleId = vehId AND l.TripNo = leisNo AND l.StartDate = d;
         FOR dest IN 1..noSubtrips LOOP
           -- Get the source and destination nodes of the subtrip
-          SELECT sourceNode, targetNode INTO sourceN, targetN
-          FROM LeisureTrips L
-          WHERE L.vehicleId = vehId AND L.startDate = d AND L.tripNo = leisNo AND L.seqNo = dest;
+          SELECT SourceNode, TargetNode INTO sourceN, targetN
+          FROM LeisureTrips l
+          WHERE l.VehicleId = vehId AND l.StartDate = d AND 
+            l.TripNo = leisNo AND l.SeqNo = dest;
           -- Get the path
-          SELECT array_agg((geom, speed, category)::step ORDER BY seqNo) INTO path
-          FROM Paths P
-          WHERE vehicleId = vehId AND start_vid = sourceN AND end_vid = targetN AND edge > 0;
+          SELECT array_agg((Geom, Speed, Category)::step ORDER BY SeqNo)
+            INTO Path
+          FROM Paths
+          WHERE VehicleId = vehId AND StartNode = sourceN AND 
+            EndNode = targetN AND EdgeId > 0;
           IF messages = 'verbose' OR messages = 'debug' THEN
-            RAISE INFO '    Leisure trip from % to % started at %', sourceN, targetN, t;
+            RAISE INFO '    Leisure trip from % to % started at %', sourceN,
+              targetN, t;
           END IF;
           IF tripGeneration = 'C' THEN
             trip = create_trip(path, t, disturbData, messages);
@@ -1055,8 +1068,8 @@ BEGIN
               t, endTimestamp(trip) - startTimestamp(trip);
           END IF;
           tripSeq = tripSeq + 1;
-          INSERT INTO Trips(vehicleId, startDate, seqNo, trip, trajectory) VALUES
-            (vehId, d, tripSeq, trip, trajectory(trip));
+          INSERT INTO Trips(VehicleId, StartDate, SeqNo, Trip, Trajectory) 
+            VALUES (vehId, d, tripSeq, trip, trajectory(trip));
           -- Add a delay time in [0, 120] min using a bounded Gaussian distribution
           t = endTimestamp(trip) + createPause();
         END LOOP;
@@ -1148,8 +1161,8 @@ DECLARE
   P_TRIP_GENERATION text = 'C';
 
   -- Determine the type of indices.
-  -- Possible values are 'GiST' (default) and 'SPGiST'
-  P_INDEX_TYPE text = 'GiST';
+  -- Possible values are 'gist' (default) and 'spgist'
+  P_INDEX_TYPE text = 'gist';
 
   ----------------------------------------------------------------------
   --  Variables
@@ -1229,7 +1242,8 @@ BEGIN
   END IF;
 
   RAISE INFO '------------------------------------------------------------------';
-  RAISE INFO 'Starting the BerlinMOD data generator with scale factor %', scaleFactor;
+  RAISE INFO 'Starting the BerlinMOD data generator with scale factor %', 
+    scaleFactor;
   RAISE INFO '------------------------------------------------------------------';
   RAISE INFO 'Parameters:';
   RAISE INFO '------------';
@@ -1255,24 +1269,24 @@ BEGIN
   -- inserting duplicates in the table, the query sent to the pgr_dijkstra
   -- function MUST use 'SELECT DISTINCT ...'
 
-  RAISE INFO 'Creating the Destinations table';
+  RAISE INFO 'Creating table Destinations';
   DROP TABLE IF EXISTS Destinations CASCADE;
-  CREATE TABLE Destinations(vehicleId int, sourceNode bigint, targetNode bigint,
-    PRIMARY KEY (vehicleId, sourceNode, targetNode));
+  CREATE TABLE Destinations(VehicleId int, SourceNode bigint, TargetNode bigint,
+    PRIMARY KEY (VehicleId, SourceNode, TargetNode));
 
   -- Create a relation with all vehicles, their home and work node and the
   -- number of neighbourhood nodes
 
-  RAISE INFO 'Creating the VehicleNodes, Vehicles, and Neighbourhoods tables';
+  RAISE INFO 'Creating tables VehicleNodes, Vehicles, and Neighbourhoods';
   DROP TABLE IF EXISTS VehicleNodes CASCADE;
-  CREATE TABLE VehicleNodes(vehicleId int PRIMARY KEY, homeNode bigint NOT NULL,
-    workNode bigint NOT NULL, noNeighbours int);
+  CREATE TABLE VehicleNodes(VehicleId int PRIMARY KEY, HomeNode bigint NOT NULL,
+    WorkNode bigint NOT NULL, NoNeighbours int);
   DROP TABLE IF EXISTS Vehicles CASCADE;
-  CREATE TABLE Vehicles(vehicleId int PRIMARY KEY, licence text, vehType text,
-    model text);
+  CREATE TABLE Vehicles(VehicleId int PRIMARY KEY, Licence text,
+    VehicleType text, Model text);
   DROP TABLE IF EXISTS Neighbourhoods CASCADE;
-  CREATE TABLE Neighbourhoods(vehicleId int, seqNo int, node bigint NOT NULL,
-    PRIMARY KEY (vehicleId, seqNo));
+  CREATE TABLE Neighbourhoods(VehicleId int, SeqNo int, NodeId bigint NOT NULL,
+    PRIMARY KEY (VehicleId, SeqNo));
 
   -- Get the number of nodes
   SELECT COUNT(*) INTO noNodes FROM Nodes;
@@ -1288,122 +1302,125 @@ BEGIN
     IF homeN IS NULL OR workN IS NULL THEN
       RAISE EXCEPTION '    The home and the work nodes cannot be NULL';
     END IF;
-    INSERT INTO VehicleNodes(vehicleId, homeNode, workNode) VALUES
+    INSERT INTO VehicleNodes(VehicleId, HomeNode, WorkNode) VALUES
       (vehId, homeN, workN);
     -- Destinations
-    INSERT INTO Destinations(vehicleId, sourceNode, targetNode) VALUES
+    INSERT INTO Destinations(VehicleId, SourceNode, TargetNode) VALUES
       (vehId, homeN, workN), (vehId, workN, homeN);
     -- Vehicles
     lic = berlinmod_createLicence(vehId);
     vehType = berlinmod_vehicleType();
     model = berlinmod_vehicleModel();
-    INSERT INTO Vehicles(vehicleId, licence, vehType, model) VALUES
+    INSERT INTO Vehicles(VehicleId, Licence, VehicleType, Model) VALUES
       (vehId, lic, vehType, model);
 
-    INSERT INTO Neighbourhoods(vehicleId, seqNo, node)
-    WITH Temp(vehicle, n) AS (
-      SELECT vehId, N2.id
-      FROM Nodes N1, Nodes N2
-      WHERE N1.id = homeN AND N1.id <> N2.id AND
-        ST_DWithin(N1.geom, N2.geom, P_NEIGHBOURHOOD_RADIUS)
-    )
-    SELECT vehicle, ROW_NUMBER() OVER (), n
+    INSERT INTO Neighbourhoods(VehicleId, SeqNo, NodeId)
+    WITH Temp(VehicleId, n) AS (
+      SELECT vehId, n2.NodeId
+      FROM Nodes n1, Nodes n2
+      WHERE n1.NodeId = homeN AND n1.NodeId <> n2.NodeId AND
+        ST_DWithin(n1.Geom, n2.Geom, P_NEIGHBOURHOOD_RADIUS) )
+    SELECT VehicleId, ROW_NUMBER() OVER (), n
     FROM Temp;
   END LOOP;
 
   UPDATE VehicleNodes V
-  SET noNeighbours = (SELECT COUNT(*) FROM Neighbourhoods N WHERE N.vehicleId = V.vehicleId);
+  SET NoNeighbours = (
+    SELECT COUNT(*) FROM Neighbourhoods n WHERE n.VehicleId = V.VehicleId);
 
   -------------------------------------------------------------------------
   -- Create auxiliary benchmarking data
   -- The number of rows these tables is determined by P_SAMPLE_SIZE
   -------------------------------------------------------------------------
 
-  RAISE INFO 'Creating the Licences table';
+  RAISE INFO 'Creating table Licences';
 
   DROP TABLE IF EXISTS Licences CASCADE;
-  CREATE TABLE Licences(licenceId int PRIMARY KEY, licence text, 
-    vehicleId int REFERENCES Vehicles(VehicleId));
-  INSERT INTO Licences(licenceId, licence, vehicleId)
-  WITH Temp(licenceId, vehicleId) AS (
-    SELECT licenceId, random_int(1, noVehicles)
-    FROM generate_series(1, P_SAMPLE_SIZE) licenceId
-  )
-  SELECT T.licenceId, V.licence, V.vehicleId
-  FROM Temp T, Vehicles V
-  WHERE T.vehicleId = V.vehicleId;
+  CREATE TABLE Licences(LicenceId int PRIMARY KEY, Licence text, 
+    VehicleId int REFERENCES Vehicles(VehicleId));
+  INSERT INTO Licences(LicenceId, licence, VehicleId)
+  WITH Temp(LicenceId, VehicleId) AS (
+    SELECT LicenceId, random_int(1, noVehicles)
+    FROM generate_series(1, P_SAMPLE_SIZE) LicenceId )
+  SELECT t.LicenceId, V.licence, V.VehicleId
+  FROM Temp t, Vehicles V
+  WHERE t.VehicleId = V.VehicleId;
 
-  CREATE INDEX Licences_VehicleId_idx ON Licences USING btree (VehicleId);
+  CREATE INDEX Licences_VehicleId_idx ON Licences USING btree(VehicleId);
 
-  CREATE VIEW Licences1 (LicenceId, Licence, vehicleId) AS
-  SELECT LicenceId, Licence, vehicleId
+  CREATE VIEW Licences1 (LicenceId, Licence, VehicleId) AS
+  SELECT LicenceId, Licence, VehicleId
   FROM Licences
   LIMIT 10;
 
-  CREATE VIEW Licences2 (LicenceId, Licence, vehicleId) AS
-  SELECT LicenceId, Licence, vehicleId
+  CREATE VIEW Licences2 (LicenceId, Licence, VehicleId) AS
+  SELECT LicenceId, Licence, VehicleId
   FROM Licences
   LIMIT 10 OFFSET 10;
 
-  RAISE INFO 'Creating the Points and Regions tables';
+  RAISE INFO 'Creating tables Points and Regions';
 
   -- Random points
   DROP TABLE IF EXISTS Points CASCADE;
-  CREATE TABLE Points(pointId int PRIMARY KEY, geom geometry(Point, 3857));
-  INSERT INTO Points(pointId, geom)
-  WITH Temp(pointId, nodeId) AS (
-    SELECT pointId, random_int(1, noNodes)
-    FROM generate_series(1, P_SAMPLE_SIZE) pointId
-  )
-  SELECT T.pointId, N.geom
-  FROM Temp T, Nodes N
-  WHERE T.nodeId = N.id;
+  CREATE TABLE Points(PointId int PRIMARY KEY, Geom geometry(Point, 3857));
+  INSERT INTO Points(PointId, Geom)
+  WITH Temp(PointId, NodeId) AS (
+    SELECT PointId, random_int(1, noNodes)
+    FROM generate_series(1, P_SAMPLE_SIZE) PointId )
+  SELECT t.PointId, n.Geom
+  FROM Temp t, Nodes n
+  WHERE t.NodeId = n.NodeId;
 
   RAISE NOTICE 'Creating indexes on table Points';
-  IF indexType = 'GiST' THEN
-    CREATE INDEX IF NOT EXISTS Points_geom_gist_idx ON Points USING gist(geom);
+  IF lower(indexType) = 'gist' THEN
+    CREATE INDEX IF NOT EXISTS Points_geom_gist_idx ON Points
+      USING gist(Geom);
   ELSE
-    CREATE INDEX IF NOT EXISTS Points_geom_spgist_idx ON Points USING spgist(geom);
+    CREATE INDEX IF NOT EXISTS Points_geom_spgist_idx ON Points
+      USING spgist(Geom);
   END IF;
 
-  CREATE VIEW Points1 (PointId, geom) AS
-  SELECT PointId, geom
+  CREATE VIEW Points1 (PointId, Geom) AS
+  SELECT PointId, Geom
   FROM Points
   LIMIT 10;
 
   -- Random regions
   DROP TABLE IF EXISTS Regions CASCADE;
-  CREATE TABLE Regions(regionId int PRIMARY KEY, geom geometry(Polygon, 3857));
-  INSERT INTO Regions(regionId, geom)
-  WITH Temp(regionId, nodeId) AS (
-    SELECT regionId, random_int(1, noNodes)
-    FROM generate_series(1, P_SAMPLE_SIZE) regionId
-  )
-  SELECT T.regionId, ST_Buffer(N.geom, random_int(1, 997) + 3.0, random_int(0, 25)) AS geom
-  FROM Temp T, Nodes N
-  WHERE T.nodeId = N.id;
+  CREATE TABLE Regions(RegionId int PRIMARY KEY, Geom geometry(Polygon, 3857));
+  INSERT INTO Regions(RegionId, Geom)
+  WITH Temp(RegionId, NodeId) AS (
+    SELECT RegionId, random_int(1, noNodes)
+    FROM generate_series(1, P_SAMPLE_SIZE) RegionId )
+  SELECT t.RegionId, ST_Buffer(n.Geom, random_int(1, 997) + 3.0, 
+    random_int(0, 25)) AS Geom
+  FROM Temp t, Nodes n
+  WHERE t.NodeId = n.NodeId;
 
   RAISE NOTICE 'Creating indexes on table Regions';
-  IF indexType = 'GiST' THEN
-    CREATE INDEX IF NOT EXISTS Regions_geom_gist_idx ON Regions USING gist (geom);
+  IF lower(indexType) = 'gist' THEN
+    CREATE INDEX IF NOT EXISTS Regions_geom_gist_idx ON Regions
+      USING gist(Geom);
   ELSE
-    CREATE INDEX IF NOT EXISTS Regions_geom_spgist_idx ON Regions USING spgist (geom);
+    CREATE INDEX IF NOT EXISTS Regions_geom_spgist_idx ON Regions
+      USING spgist(Geom);
   END IF;
 
-  CREATE VIEW Regions1 (RegionId, geom) AS
-  SELECT RegionId, geom
+  CREATE VIEW Regions1 (RegionId, Geom) AS
+  SELECT RegionId, Geom
   FROM Regions
   LIMIT 10;
 
   -- Random instants
-  RAISE INFO 'Creating the Instants and Periods tables';
+  RAISE INFO 'Creating tables Instants and Periods';
   DROP TABLE IF EXISTS Instants CASCADE;
-  CREATE TABLE Instants(instantId int PRIMARY KEY, instant timestamptz);
-  INSERT INTO Instants(instantId, instant)
-  SELECT id, startDay + (random() * noDays) * interval '1 day' AS instant
-  FROM generate_series(1, P_SAMPLE_SIZE) id;
+  CREATE TABLE Instants(InstantId int PRIMARY KEY, Instant timestamptz);
+  INSERT INTO Instants(InstantId, Instant)
+  SELECT InstantId, startDay + (random() * noDays) * interval '1 day' AS Instant
+  FROM generate_series(1, P_SAMPLE_SIZE) InstantId;
 
-  CREATE INDEX IF NOT EXISTS Instants_instant_idx ON Instants USING btree(Instant);
+  CREATE INDEX IF NOT EXISTS Instants_instant_idx ON Instants
+    USING btree(Instant);
 
   CREATE VIEW Instants1 (InstantId, Instant) AS
   SELECT InstantId, Instant
@@ -1412,21 +1429,22 @@ BEGIN
 
   -- Random periods
   DROP TABLE IF EXISTS Periods CASCADE;
-  CREATE TABLE Periods(periodId int PRIMARY KEY, period tstzspan);
-  INSERT INTO Periods(periodId, period)
-  WITH Instants AS (
-    SELECT id, startDay + (random() * noDays) * interval '1 day' AS instant
-    FROM generate_series(1, P_SAMPLE_SIZE) id
-  )
-  SELECT id, span(instant, instant + abs(random_gauss()) * interval '1 day',
-    true, true) AS period
-  FROM Instants;
+  CREATE TABLE Periods(PeriodId int PRIMARY KEY, Period tstzspan);
+  INSERT INTO Periods(PeriodId, Period)
+  WITH Temp AS (
+    SELECT PeriodId, startDay + (random() * noDays) * interval '1 day' AS Instant
+    FROM generate_series(1, P_SAMPLE_SIZE) PeriodId )
+  SELECT PeriodId, span(Instant, Instant + 
+    abs(random_gauss()) * interval '1 day', true, true) AS Period
+  FROM Temp;
 
   RAISE NOTICE 'Creating indexes on table Periods';
-  IF indexType = 'GiST' THEN
-    CREATE INDEX IF NOT EXISTS Periods_Period_gist_idx ON Periods USING gist (Period);
+  IF lower(indexType) = 'gist' THEN
+    CREATE INDEX IF NOT EXISTS Periods_Period_gist_idx ON Periods
+      USING gist(Period);
   ELSE
-    CREATE INDEX IF NOT EXISTS Periods_Period_spgist_idx ON Periods USING spgist (Period);
+    CREATE INDEX IF NOT EXISTS Periods_Period_spgist_idx ON Periods
+      USING spgist(Period);
   END IF;
 
   CREATE VIEW Periods1 (PeriodId, Period) AS
@@ -1438,23 +1456,23 @@ BEGIN
   -- Generate the leisure trips.
   -- There is at most 1 leisure trip during the week (evening) and at most
   -- 2 leisure trips during the weekend (morning and afternoon).
-  -- The value of attribute tripNo is 1 for evening and morning trips
+  -- The value of attribute TripNo is 1 for evening and morning trips
   -- and is 2 for afternoon trips.
   -------------------------------------------------------------------------
 
-  RAISE INFO 'Creating the LeisureTrips table';
+  RAISE INFO 'Creating table LeisureTrips';
   DROP TABLE IF EXISTS LeisureTrips CASCADE;
-  CREATE TABLE LeisureTrips(vehicleId int, startDate date, tripNo int, seqNo int,
-    sourceNode bigint, targetNode bigint,
-    PRIMARY KEY (vehicleId, startDate, tripNo, seqNo));
+  CREATE TABLE LeisureTrips(VehicleId int, StartDate date, TripNo int,
+    SeqNo int, SourceNode bigint, TargetNode bigint,
+    PRIMARY KEY (VehicleId, StartDate, TripNo, SeqNo));
   -- Loop for every vehicle
   FOR vehId IN 1..noVehicles LOOP
     IF messages = 'verbose' THEN
       RAISE INFO '-- Vehicle %', vehId;
     END IF;
     -- Get home node and number of neighbour nodes
-    SELECT homeNode, noNeighbours INTO homeN, noNeigh
-    FROM VehicleNodes V WHERE V.vehicleId = vehId;
+    SELECT HomeNode, NoNeighbours INTO homeN, noNeigh
+    FROM VehicleNodes V WHERE V.VehicleId = vehId;
     d = startDay;
     -- Loop for every generation day
     FOR dayNo IN 1..noDays LOOP
@@ -1506,9 +1524,10 @@ BEGIN
             IF messages = 'verbose' THEN
               RAISE INFO '    Leisure trip from % to %', sourceN, targetN;
             END IF;
-            INSERT INTO LeisureTrips(vehicleId, startDate, tripNo, seqNo, sourceNode, targetNode) VALUES
+            INSERT INTO LeisureTrips(VehicleId, StartDate, TripNo, SeqNo, 
+                SourceNode, TargetNode) VALUES
               (vehId, d, leis, dest, sourceN, targetN);
-            INSERT INTO Destinations(vehicleId, sourceNode, targetNode)
+            INSERT INTO Destinations(VehicleId, SourceNode, TargetNode)
               VALUES (vehId, sourceN, targetN)
               ON CONFLICT DO NOTHING;
             sourceN = targetN;
@@ -1524,50 +1543,56 @@ BEGIN
   END LOOP;
 
   -- Build indexes to speed up processing
-  CREATE INDEX Destinations_vehicleId_idx ON Destinations USING BTREE(vehicleId);
+  CREATE INDEX Destinations_vehicleId_idx ON Destinations USING btree(VehicleId);
 
   -------------------------------------------------------------------------
   -- Call pgRouting to generate the paths
   -------------------------------------------------------------------------
 
   IF messages = 'minimal' THEN
-    RAISE INFO 'Creating the Paths table';
+    RAISE INFO 'Creating table Paths';
   ELSE
     RAISE INFO 'Creation of the Paths table started at %', clock_timestamp();
   END IF;
   DROP TABLE IF EXISTS Paths CASCADE;
   CREATE TABLE Paths(
     -- This attribute is needed for partitioning the table for big scale factors
-    vehicleId int,
+    VehicleId int,
     -- The following attributes are generated by pgRouting
-    start_vid bigint, end_vid bigint, seqNo int, node bigint, edge bigint,
+    StartNode bigint, EndNode bigint, SeqNo int, NodeId bigint, EdgeId bigint,
     -- The following attributes are filled in the subsequent update
-    geom geometry NOT NULL, speed float NOT NULL, category int NOT NULL,
-    PRIMARY KEY (vehicleId, start_vid, end_vid, seqNo));
+    Geom geometry NOT NULL, Speed float NOT NULL, Category int NOT NULL,
+    PRIMARY KEY (VehicleId, StartNode, EndNode, SeqNo));
 
   -- Select query sent to pgRouting
   IF pathMode = 'Fastest Path' THEN
-    query1_pgr = 'SELECT SegmentId AS id, sourcenode AS source, targetnode AS target, cost_s AS cost, reverse_cost_s as reverse_cost FROM RoadSegments';
+    query1_pgr = 
+      'SELECT SegmentId AS id, SourceNode AS source, targetnode AS target, '
+      '  TimeSecsFwd AS cost, TimeSecsBwd as reverse_cost FROM RoadSegments';
   ELSE
-    query1_pgr = 'SELECT SegmentId AS id, sourcenode AS source, targetnode AS target, SegmentLength AS cost, SegmentLength * sign(reverse_cost_s) AS reverse_cost FROM RoadSegments';
+    query1_pgr = 
+      'SELECT SegmentId AS id, SourceNode AS source, targetnode AS target, '
+      '  SegmentLength AS cost, SegmentLength * sign(TimeSecsBwd) AS reverse_cost '
+      'FROM RoadSegments';
   END IF;
   -- Get the total number of paths and number of calls to pgRouting
   SELECT COUNT(*) INTO noPaths
-  FROM (SELECT DISTINCT sourceNode, targetNode FROM Destinations) AS T;
+  FROM (SELECT DISTINCT SourceNode, TargetNode FROM Destinations) AS t;
   noCalls = ceiling(noPaths / P_PGROUTING_BATCH_SIZE::float);
   IF messages = 'minimal' OR messages = 'medium' OR messages = 'verbose' THEN
     IF noCalls = 1 THEN
       RAISE INFO 'Call to pgRouting to compute % paths', noPaths;
     ELSE
-      RAISE INFO 'Call to pgRouting to compute % paths in % calls with % (source, target) couples each',
+      RAISE INFO 'Call to pgRouting to compute % paths in % calls with % '
+        '(source, target) couples each',
         noPaths, noCalls, P_PGROUTING_BATCH_SIZE;
     END IF;
   END IF;
 
   startPgr = clock_timestamp();
   FOR c IN 1..noCalls LOOP
-    query2_pgr = format('SELECT DISTINCT sourceNode AS source, targetNode AS target '
-      'FROM Destinations ORDER BY sourceNode, targetNode LIMIT %s OFFSET %s',
+    query2_pgr = format('SELECT DISTINCT SourceNode AS source, TargetNode AS target '
+      'FROM Destinations ORDER BY SourceNode, TargetNode LIMIT %s OFFSET %s',
       P_PGROUTING_BATCH_SIZE, (c - 1) * P_PGROUTING_BATCH_SIZE);
     IF messages = 'medium' OR messages = 'verbose' THEN
       IF noCalls = 1 THEN
@@ -1576,22 +1601,22 @@ BEGIN
         RAISE INFO '  Call number % started at %', c, clock_timestamp();
       END IF;
     END IF;
-    INSERT INTO Paths(vehicleId, start_vid, end_vid, seqNo, node, edge, geom, speed, category)
-    WITH Temp AS (
+    INSERT INTO Paths(VehicleId, StartNode, EndNode, SeqNo, NodeId, EdgeId,
+      Geom, Speed, Category)
+    WITH Temp(StartNode, EndNode, SeqNo, NodeId, EdgeId) AS (
       SELECT start_vid, end_vid, path_seq, node, edge
       FROM pgr_dijkstra(query1_pgr, query2_pgr, true)
-      WHERE edge > 0
-    )
-    SELECT D.vehicleId, start_vid, end_vid, path_seq, node, edge,
+      WHERE edge > 0 )
+    SELECT d.VehicleId, StartNode, EndNode, SeqNo, NodeId, EdgeId,
       -- adjusting directionality
       CASE
-        WHEN T.node = S.sourceNode THEN S.SegmentGeo
-        ELSE ST_Reverse(S.SegmentGeo)
-      END AS geom, S.MaxSpeedFwd AS speed,
-      berlinmod_roadCategory(S.tag_id) AS category
-    FROM Destinations D, Temp T, RoadSegments S
-    WHERE D.sourceNode = T.start_vid AND D.targetNode = T.end_vid AND
-      S.SegmentId = T.edge;
+        WHEN t.NodeId = s.SourceNode THEN s.SegmentGeo
+        ELSE ST_Reverse(s.SegmentGeo)
+      END AS Geom, s.MaxSpeedFwd AS Speed,
+      berlinmod_roadCategory(s.TagId) AS Category
+    FROM Destinations d, Temp t, RoadSegments s
+    WHERE d.SourceNode = t.StartNode AND d.TargetNode = t.EndNode AND
+      s.SegmentId = t.EdgeId;
     IF messages = 'medium' OR messages = 'verbose' THEN
       IF noCalls = 1 THEN
         RAISE INFO '  Call ended at %', clock_timestamp();
@@ -1604,7 +1629,7 @@ BEGIN
 
   -- Build index to speed up processing
   CREATE INDEX Paths_vehicle_start_vid_end_vid_idx ON Paths
-  USING BTREE(vehicleId, start_vid, end_vid);
+    USING btree(VehicleId, StartNode, EndNode);
 
   -------------------------------------------------------------------------
   -- Generate the trips
@@ -1615,7 +1640,7 @@ BEGIN
 
   RAISE NOTICE 'Creating indexes on table Trips';
   CREATE INDEX IF NOT EXISTS Trips_VehicleId_idx ON Trips USING btree(VehicleId);
-  IF indexType = 'GiST' THEN
+  IF lower(indexType) = 'gist' THEN
     CREATE INDEX IF NOT EXISTS Trips_trip_gist_idx ON Trips USING gist(trip);
   ELSE
     CREATE INDEX IF NOT EXISTS Trips_trip_spgist_idx ON Trips USING spgist(trip);
@@ -1656,9 +1681,9 @@ BEGIN
 END; $$;
 
 /*
-select berlinmod_generate();
-select berlinmod_generate(scaleFactor := 0.005);
-select berlinmod_generate(noVehicles := 2, noDays := 2);
+SELECT berlinmod_generate();
+SELECT berlinmod_generate(scaleFactor := 0.005);
+SELECT berlinmod_generate(noVehicles := 2, noDays := 2);
 */
 
 -------------------------------------------------------------------------------

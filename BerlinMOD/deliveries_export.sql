@@ -69,8 +69,20 @@ BEGIN
   EXECUTE format('COPY (SELECT * FROM RoadSegments ORDER BY SegmentId)
   TO ''%sroadsegments.csv'' DELIMITER '','' CSV HEADER', fullpath);
 
+  RAISE INFO 'Exporting table Date';
+  EXECUTE format('COPY (SELECT DateId, Date, WeekNo, MonthNo, MonthName, Quarter, Year
+    FROM Date ORDER BY DateId)
+    TO ''%sdate.csv'' DELIMITER '','' CSV HEADER', fullpath);
+
+  RAISE INFO 'Exporting table Customers';
+  EXECUTE format('COPY (SELECT CustomerId, 
+      ST_AsEWKT(CustomerGeo) AS CustomerGeo, MunicipalityId
+    FROM Customers ORDER BY CustomerId)
+    TO ''%scustomers.csv'' DELIMITER '','' CSV HEADER', fullpath);
+
   RAISE INFO 'Exporting table Warehouses';
-  EXECUTE format('COPY (SELECT WarehouseId, ST_AsEWKT(WarehouseGeo) AS WarehouseGeo
+  EXECUTE format('COPY (SELECT WarehouseId,
+      ST_AsEWKT(WarehouseGeo) AS WarehouseGeo, MunicipalityId
     FROM Warehouses ORDER BY WarehouseId)
     TO ''%swarehouses.csv'' DELIMITER '','' CSV HEADER', fullpath);
 
@@ -84,7 +96,20 @@ BEGIN
     FROM Instants
     ORDER BY DeliveryId, VehicleId, StartDate, T )
     TO ''%sdeliveriesinput.csv'' DELIMITER '','' CSV HEADER', fullpath);
-  
+
+  RAISE INFO 'Exporting table Segments transformed into SegmentsInput';
+  EXECUTE format('COPY (
+    WITH Instants(DeliveryId, SegNo, SourceWhId, SourceCustId, TargetWhId,
+      TargetCustId, Inst) AS (
+      SELECT DeliveryId, SegNo, SourceWhId, SourceCustId, TargetWhId,
+        TargetCustId, unnest(instants(Trip))
+      FROM Segments )
+    SELECT DeliveryId, SegNo, SourceWhId, SourceCustId, TargetWhId,
+      TargetCustId, getValue(Inst) AS Point, getTimestamp(Inst) AS T
+    FROM Instants
+    ORDER BY DeliveryId, SegNo, T ) 
+  TO ''%ssegmentsinput.csv'' DELIMITER '','' CSV HEADER', fullpath);
+
 --------------------------------------------------------------
 
   endTime = clock_timestamp();

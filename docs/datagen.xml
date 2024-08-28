@@ -178,28 +178,30 @@ tee trace.txt
 			<programlisting language="sql" xml:space="preserve">
 COPY (SELECT InstantId, Instant FROM Instants ORDER BY InstantId)
   TO '/home/mobilitydb/data/instants.csv' CSV HEADER DELIMITER ',';
-COPY (SELECT LicenceId, Licence, VehId FROM Licences ORDER BY LicenceId)
+COPY (SELECT LicenceId, Licence, VehicleId FROM Licences ORDER BY LicenceId)
   TO '/home/mobilitydb/data/licences.csv' CSV HEADER DELIMITER ',';
-COPY (SELECT PeriodId, lower(Period) AS StartP, upper(Period) AS EndP FROM Periods ORDER BY PeriodId)
+COPY (SELECT PeriodId, lower(Period) AS StartP, upper(Period) AS EndP FROM Periods
+    ORDER BY PeriodId)
   TO '/home/mobilitydb/data/periods.csv' CSV HEADER DELIMITER ',';
 COPY (SELECT PointId, ST_X(Geom) AS PosX, ST_Y(Geom) AS PosY FROM Points ORDER BY PointId)
   TO '/home/mobilitydb/data/points.csv' CSV HEADER DELIMITER ',';
 COPY (
-  SELECT RegionId, (dp).path[2] AS PointID, ST_X((dp).geom) AS PosX,
-    ST_Y((dp).geom) AS PosY
-  FROM (SELECT RegionId, ST_DumpPoints(ST_Transform(geom, 4326)) AS dp FROM Regions) AS T
+  SELECT RegionId, (dp).Path[2] AS PointID, ST_X((dp).Geom) AS PosX,
+    ST_Y((dp).Geom) AS PosY
+  FROM (SELECT RegionId, ST_DumpPoints(ST_Transform(Geom, 4326)) AS dp FROM Regions) AS t
   ) TO '/home/mobilitydb/data/regions.csv' CSV HEADER DELIMITER ',';
 COPY (
   WITH Temp1 AS (
-    SELECT TripId, VehId, unnest(instants(trip)) AS Inst FROM Trips ),
+    SELECT TripId, VehicleId, unnest(instants(Trip)) AS Inst FROM Trips ),
   Temp2 AS (
-    SELECT TripId, VehId, ST_Transform(getValue(Inst),4326) AS Point,
-      getTimestamp(Inst) AS T FROM Temp1 )
-  SELECT TripId, VehId, ST_X(Point) AS PosX, ST_Y(Point) AS PosY, T
+    SELECT TripId, VehicleId, ST_Transform(getValue(Inst),4326) AS Point,
+      getTimestamp(Inst) AS t FROM Temp1 )
+  SELECT TripId, VehicleId, ST_X(Point) AS PosX, ST_Y(Point) AS PosY, t
   FROM Temp2
-  ORDER BY TripId, VehId, T
+  ORDER BY TripId, VehicleId, t
   ) TO '/home/mobilitydb/data/trips.csv' CSV HEADER DELIMITER ',';
-COPY (SELECT VehId, Licence, Type, Model FROM SELECT Vehicles ORDER BY VehicleId)
+COPY (SELECT VehicleId, Licence, VehicleType, Model FROM SELECT Vehicles 
+    ORDER BY VehicleId)
   TO '/home/mobilitydb/data/vehicles.csv' CSV HEADER DELIMITER ',';
 </programlisting>
 		<para>
@@ -212,7 +214,7 @@ COPY (SELECT VehId, Licence, Type, Model FROM SELECT Vehicles ORDER BY VehicleId
 		<para>
 		Now use a PostgreSQL client such as psql or pgAdmin to explore the properties of the generated trajectories. We start by obtaining some statistics about the number, the total duration, and the total length in Km of the trips.
 			<programlisting language="sql" xml:space="preserve">
-SELECT COUNT(*), SUM(timespan(Trip)), SUM(length(Trip)) / 1e3
+SELECT COUNT(*), SUM(duration(Trip)), SUM(length(Trip)) / 1e3
 FROM Trips;
 -- 1686  "618:34:23.478239"  20546.31859281626
 </programlisting>
@@ -220,7 +222,7 @@ FROM Trips;
 		<para>
 		We continue by further analyzing the duration of all the trips
 			<programlisting language="sql" xml:space="preserve">
-SELECT MIN(timespan(Trip)), MAX(timespan(Trip)), AVG(timespan(Trip))
+SELECT MIN(duration(Trip)), MAX(duration(Trip)), AVG(duration(Trip))
 FROM Trips;
 -- "00:00:29.091033"  "01:13:21.225514"  "00:22:02.365486"
 </programlisting>
@@ -228,15 +230,15 @@ FROM Trips;
 			<programlisting language="sql" xml:space="preserve">
 SELECT
   CASE
-    WHEN T.source = V.home AND date_part('dow', T.day) BETWEEN 1 AND 5 AND
-      date_part('hour', startTimestamp(trip)) &lt; 12 THEN 'home_work'
-    WHEN T.source = V.work AND date_part('dow', T.day) BETWEEN 1 AND 5 AND
-      date_part('hour', startTimestamp(trip)) &gt; 12  THEN 'work_home'
-    WHEN date_part('dow', T.day) BETWEEN 1 AND 5 THEN 'leisure_weekday'
+    WHEN t.SourceNode = v.Home AND date_part('dow', t.day) BETWEEN 1 AND 5 AND
+      date_part('hour', startTimestamp(Trip)) &lt; 12 THEN 'home_work'
+    WHEN t.SourceNode = v.Work AND date_part('dow', t.day) BETWEEN 1 AND 5 AND
+      date_part('hour', startTimestamp(Trip)) &gt; 12  THEN 'work_home'
+    WHEN date_part('dow', t.day) BETWEEN 1 AND 5 THEN 'leisure_weekday'
     ELSE 'leisure_weekend'
-  END AS TripType, COUNT(*), MIN(timespan(Trip)), MAX(timespan(Trip)), AVG(timespan(Trip))
-FROM Trips T, Vehicle V
-WHERE T.vehicle = V.id
+  END AS TripType, COUNT(*), MIN(duration(Trip)), MAX(duration(Trip)), AVG(duration(Trip))
+FROM Trips t, Vehicles v
+WHERE t.VehicleId = v.VehicleId
 GROUP BY TripType;
 -- "leisure_weekday"    558    "00:00:29.091033"  "00:57:30.195709"  "00:10:59.118318"
 -- "work_home"          564    "00:02:04.159342"  "01:13:21.225514"  "00:27:33.424924"
@@ -253,8 +255,8 @@ FROM Trips;
 </programlisting>
 			As can be seen the longest trip is more than 56 Km long. Let's visualize one of these long trips.
 			<programlisting language="sql" xml:space="preserve">
-SELECT vehicle, seq, source, target, round(length(Trip)::numeric / 1e3, 3),
-  startTimestamp(Trip), timespan(Trip)
+SELECT VehicleId, SeqNo, source, target, round(length(Trip)::numeric / 1e3, 3),
+  startTimestamp(Trip), duration(Trip)
 FROM Trips
 WHERE length(Trip) > 50000 LIMIT 1;
 -- 90  1  23078  11985  53.766  "2020-06-01 08:46:55.487+02"  "01:10:10.549413"
@@ -270,8 +272,8 @@ WHERE length(Trip) > 50000 LIMIT 1;
 		<para>
 			We can obtain some statistics about the average speed in Km/h of all the trips as follows.
 			<programlisting language="sql" xml:space="preserve">
-SELECT MIN(twavg(speed(Trip))) * 3.6, MAX(twavg(speed(Trip))) * 3.6,
-  AVG(twavg(speed(Trip))) * 3.6
+SELECT MIN(twAvg(speed(Trip))) * 3.6, MAX(twAvg(speed(Trip))) * 3.6,
+  AVG(twAvg(speed(Trip))) * 3.6
 FROM Trips;
 -- 14.211962789552468  53.31779380411017  31.32438581663778
 </programlisting>
@@ -280,20 +282,20 @@ FROM Trips;
 			A possible visualization that we could envision is to use gradients to show how the edges of the network are used by the trips. We start by determining how many trips traversed each of the edges of the network as follows.
 			<programlisting language="sql" xml:space="preserve">
 CREATE TABLE HeatMap AS
-SELECT E.id, E.geom, count(*)
-FROM Edges E, Trips T
-WHERE st_intersects(E.geom, T.trajectory)
-GROUP BY E.id, E.geom;
+SELECT e.id, e.Geom, COUNT(*)
+FROM Edges e, Trips t
+WHERE ST_Intersects(e.Geom, t.trajectory)
+GROUP BY e.id, e.Geom;
 </programlisting>
 			This is an expensive query since it took 42 min in my laptop. In order to display unused edges in our visualization we need to add them to the table with a count of 0.
 			<programlisting language="sql" xml:space="preserve">
 INSERT INTO HeatMap
-SELECT E.id, E.geom, 0 FROM Edges E WHERE E.id NOT IN (
+SELECT e.id, e.Geom, 0 FROM Edges e WHERE e.id NOT IN (
   SELECT id FROM HeatMap );
 </programlisting>
-			We need some basic statistics about the attribute <varname>count</varname> in order to define the gradients.
+			We need some basic statistics about the attribute <varname>COUNT</varname> in order to define the gradients.
 			<programlisting language="sql" xml:space="preserve">
-SELECT min(count), max(count), round(avg(count),3), round(stddev(count),3) FROM HeatMap;
+SELECT MIN(count), MAX(COUNT), round(AVG(COUNT), 3), round(STDDEV(COUNT), 3) FROM HeatMap;
 -- 0 204 4.856 12.994
 </programlisting>
 			Although the maximum value is 204, the average and the standard deviation are, respectively, around 5 and 13.
@@ -321,19 +323,19 @@ ramp_color('RdGy', scale_linear(count, 0, 10, 0, 1))
 			<programlisting language="sql" xml:space="preserve">
 DROP TABLE IF EXISTS EdgeSpeed;
 CREATE TABLE EdgeSpeed AS
-SELECT P.edge, twavg(speed(atGeometry(T.trip, ST_Buffer(P.geom, 0.1)))) * 3.6 AS twavg
-FROM Trips T, Paths P
-WHERE T.source = P.start_vid AND T.target = P.end_vid AND P.edge > 0
-ORDER BY P.edge;
+SELECT p.edge, twAvg(speed(atGeometry(t.Trip, ST_Buffer(p.Geom, 0.1)))) * 3.6 AS twAvg
+FROM Trips t, Paths p
+WHERE t.source = p.start_vid AND t.target = p.end_vid AND p.edge > 0
+ORDER BY p.edge;
 </programlisting>
 			This is an even more expensive query than the previous one since it took more than 2 hours in my laptop. Given a trip and an edge, the query restricts the trip to the geometry of the edge and computes the time-weighted average of the speed. Notice that the <varname>ST_Buffer</varname> is used to cope with the floating-point precision. After that we can compute the speed map as follows.
 			<programlisting language="sql" xml:space="preserve">
 CREATE TABLE SpeedMap AS
 WITH Temp AS (
-  SELECT edge, avg(twavg) FROM EdgeSpeed GROUP BY edge )
-SELECT id, maxspeed_forward AS maxspeed, geom, avg, avg / maxspeed_forward AS perc
-FROM Edges E, Temp T
-WHERE E.id = T.edge;
+  SELECT edge, avg(twAvg) FROM EdgeSpeed GROUP BY edge )
+SELECT id, maxspeed_forward AS maxspeed, Geom, avg, avg / maxspeed_forward AS perc
+FROM Edges e, Temp t
+WHERE e.id = t.edge;
 </programlisting>
 			<xref linkend="speedmap" /> shows the visualization of the speed map without and with the base map.
 		</para>
@@ -357,18 +359,20 @@ WHERE E.id = T.edge;
 		<para>
 			We start by creating a first set of tables for containing the generated data as follows.
 			<programlisting language="sql" xml:space="preserve">
-CREATE TABLE Vehicle(id int PRIMARY KEY, home bigint NOT NULL, work bigint NOT NULL,
-  noNeighbours int);
-CREATE TABLE Destinations(vehicle int, source bigint, target bigint,
-  PRIMARY KEY (vehicle, source, target));
-CREATE TABLE Licences(vehicle int PRIMARY KEY, licence text, type text, model text);
-CREATE TABLE Neighbourhood(vehicle int, seq int, node bigint NOT NULL,
-  PRIMARY KEY (vehicle, seq));
+CREATE TABLE VehicleNodes(VehicleId int PRIMARY KEY, HomeNode bigint NOT NULL,
+  WorkNode bigint NOT NULL, NoNeighbours int);
+CREATE TABLE Vehicles(VehicleId int PRIMARY KEY, Licence text,
+  VehicleType text, Model text);
+CREATE TABLE Destinations(VehicleId int, SourceNode bigint, TargetNode bigint,
+  PRIMARY KEY (VehicleId, SourceNode, TargetNode));
+CREATE TABLE Licences(VehicleId int PRIMARY KEY, Licence text, VehicleType text);
+CREATE TABLE Neighbourhoods(VehicleId int, SeqNo int, Node bigint NOT NULL,
+  PRIMARY KEY (VehicleId, SeqNo));
 
 -- Get the number of nodes
 SELECT COUNT(*) INTO noNodes FROM Nodes;
 
-FOR i IN 1..noVehicles LOOP
+FOR vehId IN 1..noVehicles LOOP
 -- Fill the Vehicles table
 IF nodeChoice = 'Network Based' THEN
   homeNode = random_int(1, noNodes);
@@ -380,87 +384,88 @@ END IF;
 IF homeNode IS NULL OR workNode IS NULL THEN
   RAISE EXCEPTION '    The home and the work nodes cannot be NULL';
 END IF;
-INSERT INTO Vehicle VALUES (i, homeNode, workNode);
+INSERT INTO Vehicles VALUES (vehId, homeNode, workNode);
 
 -- Fill the Destinations table
-INSERT INTO Destinations(vehicle, source, target) VALUES
-  (i, homeNode, workNode), (i, workNode, homeNode);
+INSERT INTO Destinations(VehicleId, SourceNode, TargetNode) VALUES
+  (vehId, homeNode, workNode), (vehId, workNode, homeNode);
 
 -- Fill the Licences table
-licence = berlinmod_createLicence(i);
+licence = berlinmod_createLicence(vehId);
 type = berlinmod_vehicleType();
 model = berlinmod_vehicleModel();
-INSERT INTO Licences VALUES (i, licence, type, model);
+INSERT INTO Licences VALUES (vehId, licence, type, model);
 
--- Fill the Neighbourhood table
-INSERT INTO Neighbourhood
+-- Fill the Neighbourhoods table
+INSERT INTO Neighbourhoods
 WITH Temp AS (
-  SELECT i AS vehicle, N2.id AS node
-  FROM Nodes N1, Nodes N2
-  WHERE N1.id = homeNode AND N1.id &lt;&gt; N2.id AND
-    ST_DWithin(N1.geom, N2.geom, P_NEIGHBOURHOOD_RADIUS) )
-SELECT i, ROW_NUMBER() OVER () as seq, node
+  SELECT vehId AS VehicleId, n2.NodeId AS Node
+  FROM Nodes n1, Nodes n2
+  WHERE n1.NodeId = homeNode AND n1.NodeId &lt;&gt; n2.NodeId AND
+    ST_DWithin(n1.Geom, n2.Geom, P_NEIGHBOURHOOD_RADIUS) )
+SELECT vehId, ROW_NUMBER() OVER () AS SeqNo, Node
 FROM Temp;
 END LOOP;
 
-CREATE UNIQUE INDEX Vehicle_id_idx ON Vehicle USING BTREE(id);
-CREATE UNIQUE INDEX Neighbourhood_pkey_idx ON Neighbourhood USING BTREE(vehicle, seq);
+CREATE UNIQUE INDEX Vehicles_VehicleId_idx ON Vehicles USING BTREE(VehicleId);
+CREATE UNIQUE INDEX Neighbourhoods_pkey_idx ON Neighbourhoods USING BTREE(VehicleId, SeqNo);
 
-UPDATE Vehicle V
-SET noNeighbours = (SELECT COUNT(*) FROM Neighbourhood N WHERE N.vehicle = V.id);
+UPDATE Vehicles v
+SET NoNeighbours = (SELECT COUNT(*) FROM Neighbourhoods n WHERE n.VehicleId = v.VehicleId);
 </programlisting>
-			We start by storing in the <varname>Vehicles</varname> table the home and the work node of each vehicle. Depending on the value of the variable <varname>nodeChoice</varname>, we chose these nodes either with a uniform distribution among all nodes in the network or we call specific functions that take into account population and employment statistics in the area covered by the generation. We then keep track in the <varname>Destinations</varname> table of the two trips to and from work and we store in the <varname>Licences</varname> table information describing the vehicle. Finally, we compute in the <varname>Neighbourhood</varname> table the set of nodes that are within a given distance of the home node of every vehicle. This distance is stated by the parameter <varname>P_NEIGHBOURHOOD_RADIUS</varname>, which is set by default to 3 Km.
+			We start by storing in the <varname>Vehicles</varname> table the home and the work node of each vehicle. Depending on the value of the variable <varname>nodeChoice</varname>, we chose these nodes either with a uniform distribution among all nodes in the network or we call specific functions that take into account population and employment statistics in the area covered by the generation. We then keep track in the <varname>Destinations</varname> table of the two trips to and from work and we store in the <varname>Licences</varname> table information describing the vehicle. Finally, we compute in the <varname>Neighbourhoods</varname> table the set of nodes that are within a given distance of the home node of every vehicle. This distance is stated by the parameter <varname>P_NEIGHBOURHOOD_RADIUS</varname>, which is set by default to 3 Km.
 		</para>
 
 		<para>
 			We create now auxiliary tables containing benchmarking data. The number of rows these tables is determined by the parameter <varname>P_SAMPLE_SIZE</varname>, which is set by default to 100. These tables are used by the BerlinMOD benchmark to assess the performance of various types of queries.
 			<programlisting language="sql" xml:space="preserve">
-CREATE TABLE QueryPoints(id int PRIMARY KEY, geom geometry(Point));
-INSERT INTO QueryPoints
+CREATE TABLE Points(PointId int PRIMARY KEY, Geom geometry(Point));
+INSERT INTO Points
 WITH Temp AS (
-  SELECT id, random_int(1, noNodes) AS node
-  FROM generate_series(1, P_SAMPLE_SIZE) id )
-SELECT T.id, N.geom
-FROM Temp T, Nodes N
-WHERE T.node = N.id;
+  SELECT PointId, random_int(1, noNodes) AS Node
+  FROM generate_series(1, P_SAMPLE_SIZE) PointId )
+SELECT t.PointId, n.Geom
+FROM Temp t, Nodes n
+WHERE t.Node = n.PointId;
 
-CREATE TABLE QueryRegions(id int PRIMARY KEY, geom geometry(Polygon));
-INSERT INTO QueryRegions
+CREATE TABLE Regions(RegionId int PRIMARY KEY, Geom geometry(Polygon));
+INSERT INTO Regions
 WITH Temp AS (
-  SELECT id, random_int(1, noNodes) AS node
-  FROM generate_series(1, P_SAMPLE_SIZE) id )
-SELECT T.id, ST_Buffer(N.geom, random_int(1, 997) + 3.0, random_int(0, 25)) AS geom
-FROM Temp T, Nodes N
-WHERE T.node = N.id;
+  SELECT RegionId, random_int(1, noNodes) AS Node
+  FROM generate_series(1, P_SAMPLE_SIZE) RegionId )
+SELECT t.RegionId, ST_Buffer(n.Geom, random_int(1, 997) + 3.0, random_int(0, 25)) AS Geom
+FROM Temp t, Nodes n
+WHERE t.Node = n.RegionId;
 
-CREATE TABLE QueryInstants(id int PRIMARY KEY, instant timestamptz);
-INSERT INTO QueryInstants
-SELECT id, startDay + (random() * noDays) * interval '1 day' AS instant
-FROM generate_series(1, P_SAMPLE_SIZE) id;
+CREATE TABLE Instants(InstantId int PRIMARY KEY, Instant timestamptz);
+INSERT INTO Instants
+SELECT InstantId, startDay + (random() * noDays) * interval '1 day' AS Instant
+FROM generate_series(1, P_SAMPLE_SIZE) InstantId;
 
-CREATE TABLE QueryPeriods(id int PRIMARY KEY, period tstzspan);
-INSERT INTO QueryPeriods
-WITH Instants AS (
-  SELECT id, startDay + (random() * noDays) * interval '1 day' AS instant
-  FROM generate_series(1, P_SAMPLE_SIZE) id )
-SELECT id, tstzspan(instant, instant + abs(random_gauss()) * interval '1 day',
-  true, true) AS period
-FROM Instants;
+CREATE TABLE Periods(PeriodId int PRIMARY KEY, period tstzspan);
+INSERT INTO Periods
+WITH Temp AS (
+  SELECT PeriodId, startDay + (random() * noDays) * interval '1 day' AS Instant
+  FROM generate_series(1, P_SAMPLE_SIZE) PeriodId )
+SELECT PeriodId, span(instant, instant + abs(random_gauss()) * interval '1 day',
+  true, true) AS Period
+FROM Temp;
 </programlisting>
 		</para>
 		<para>
 			We generate now the leisure trips. There is at most one leisure trip in the evening of a week day and at most two leisure trips each day of the weekend, one in the morning and another one in the afternoon. Each leisure trip is composed of 1 to 3 destinations. The leisure trip starts and ends at the home node and visits successively these destinations. In our implementation, the various subtrips from a source to a destination node of a leisure trip are encoded independently, contrary to what is done in Secondo where a leisure trip is encoded as a single trip and stops are added between successive destinations.
 			<programlisting language="sql" xml:space="preserve">
-CREATE TABLE LeisureTrip(vehicle int, day date, tripNo int, seq int, source bigint,
-  target bigint, PRIMARY KEY (vehicle, day, tripNo, seq));
+CREATE TABLE LeisureTrip(VehicleId int, StartDate date, TripNo int, SeqNo int, 
+  SourceNode bigint, TargetNode bigint, 
+  PRIMARY KEY (VehicleId, StartDate, TripNo, SeqNo));
 -- Loop for every vehicle
-FOR i IN 1..noVehicles LOOP
+FOR vehId IN 1..noVehicles LOOP
 -- Get home node and number of neighbour nodes
-SELECT home, noNeighbours INTO homeNode, noNeigh
-FROM Vehicle V WHERE V.id = i;
+SELECT home, NoNeighbours INTO homeNode, noNeigh
+FROM Vehicles v WHERE v.VehicleId = i;
 day = startDay;
 -- Loop for every generation day
-FOR j IN 1..noDays LOOP
+FOR dayNo IN 1..noDays LOOP
   weekday = date_part('dow', day);
   -- Generate leisure trips (if any)
   -- 1: Monday, 5: Friday
@@ -470,7 +475,7 @@ FOR j IN 1..noDays LOOP
     noLeisTrips = 2;
   END IF;
   -- Loop for every leisure trip in a day (1 or 2)
-  FOR k IN 1..noLeisTrips LOOP
+  FOR leis IN 1..noLeisTrips LOOP
     -- Generate a leisure trip with a 40% probability
     IF random() &lt;= 0.4 THEN
       -- Select a number of destinations between 1 and 3
@@ -481,9 +486,9 @@ FOR j IN 1..noDays LOOP
       ELSE
         noDest = 3;
       END IF;
-      sourceNode = homeNode;
-      FOR m IN 1..noDest + 1 LOOP
-        IF m &lt;= noDest THEN
+      sourceN = homeN;
+      FOR dest IN 1..noDest + 1 LOOP
+        IF dest &lt;= noDest THEN
           targetNode = berlinmod_selectDestNode(i, noNeigh, noNodes);
         ELSE
           targetNode = homeNode;
@@ -492,9 +497,9 @@ FOR j IN 1..noDays LOOP
           RAISE EXCEPTION '    Destination node cannot be NULL';
         END IF;
         INSERT INTO LeisureTrip VALUES
-          (i, day, k, m, sourceNode, targetNode);
-        INSERT INTO Destinations(vehicle, source, target) VALUES
-          (i, sourceNode, targetNode) ON CONFLICT DO NOTHING;
+          (vehId, day, leis, dest, sourceN, targetN);
+        INSERT INTO Destinations(VehicleId, SourceNode, TargetNode) VALUES
+          (vehId, sourceNode, targetNode) ON CONFLICT DO NOTHING;
         sourceNode = targetNode;
       END LOOP;
     END IF;
@@ -503,7 +508,7 @@ FOR j IN 1..noDays LOOP
 END LOOP;
 END LOOP;
 
-CREATE INDEX Destinations_vehicle_idx ON Destinations USING BTREE(vehicle);
+CREATE INDEX Destinations_vehicle_idx ON Destinations USING BTREE(VehicleId);
 </programlisting>
 			For each vehicle and each day, we determine the number of potential leisure trips depending on whether it is a week or weekend day. A leisure trip is generated with a probability of 40% and is composed of 1 to 3 destinations. These destinations are chosen so that 80% of the destinations are from the neighbourhood of the vehicle and 20% are from the complete graph. The information about the composition of the leisure trips is then added to the <varname>LeisureTrip</varname> and <varname>Destinations</varname> tables.
 		</para>
@@ -517,8 +522,8 @@ CREATE TABLE Paths(
   -- The following attributes are generated by pgRouting
   start_vid bigint, end_vid bigint, seq int, node bigint, edge bigint,
   -- The following attributes are filled from the Edges table
-  geom geometry NOT NULL, speed float NOT NULL, category int NOT NULL,
-  PRIMARY KEY (vehicle, start_vid, end_vid, seq));
+  Geom geometry NOT NULL, speed float NOT NULL, category int NOT NULL,
+  PRIMARY KEY (VehicleId, start_vid, end_vid, seq));
 
 -- Select query sent to pgRouting
 IF pathMode = 'Fastest Path' THEN
@@ -529,31 +534,31 @@ query1_pgr = 'SELECT id, source, target, length_m AS cost,'
   'length_m * sign(reverse_cost_s) as reverse_cost FROM edges';
 END IF;
 -- Get the total number of paths and number of calls to pgRouting
-SELECT COUNT(*) INTO noPaths FROM (SELECT DISTINCT source, target FROM Destinations) AS T;
+SELECT COUNT(*) INTO noPaths FROM (SELECT DISTINCT source, target FROM Destinations) AS t;
 noCalls = ceiling(noPaths / P_PGROUTING_BATCH_SIZE::float);
 
 FOR i IN 1..noCalls LOOP
 query2_pgr = format('SELECT DISTINCT source, target FROM Destinations '
   'ORDER BY source, target LIMIT %s OFFSET %s',
   P_PGROUTING_BATCH_SIZE, (i - 1) * P_PGROUTING_BATCH_SIZE);
-INSERT INTO Paths(vehicle, start_vid, end_vid, seq, node, edge, geom, speed, category)
+INSERT INTO Paths(VehicleId, start_vid, end_vid, seq, node, edge, Geom, speed, category)
 WITH Temp AS (
   SELECT start_vid, end_vid, path_seq, node, edge
   FROM pgr_dijkstra(query1_pgr, query2_pgr, true)
   WHERE edge > 0 )
-SELECT D.vehicle, start_vid, end_vid, path_seq, node, edge,
+SELECT d.VehicleId, start_vid, end_vid, path_seq, node, edge,
   -- adjusting direction of the edge traversed
   CASE
-    WHEN T.node = E.source THEN E.geom
-    ELSE ST_Reverse(E.geom)
-  END AS geom, E.maxspeed_forward AS speed,
-  berlinmod_roadCategory(E.tag_id) AS category
-FROM Destinations D, Temp T, Edges E
-WHERE D.source = T.start_vid AND D.target = T.end_vid AND E.id = T.edge;
+    WHEN t.node = e.source THEN e.Geom
+    ELSE ST_Reverse(e.Geom)
+  END AS Geom, e.maxspeed_forward AS speed,
+  berlinmod_roadCategory(e.tag_id) AS category
+FROM Destinations d, Temp t, Edges e
+WHERE d.source = t.start_vid AND d.target = t.end_vid AND e.id = t.edge;
 END LOOP;
 
 CREATE INDEX Paths_vehicle_start_vid_end_vid_idx ON Paths USING
-BTREE(vehicle, start_vid, end_vid);
+BTREE(VehicleId, start_vid, end_vid);
 </programlisting>
 			The variable <varname>pathMode</varname> determines whether pgRouting computes either the fastest or the shortest path from a source to a destination node. Then, we determine the number of calls to pgRouting. Indeed, depending on the available memory of the computer, there is a limit in the number of paths to be computed by pgRouting in a single call. The paths are stored in the <varname>Paths</varname> table. In addition to the columns generated by pgRouting, we add the geometry (adjusting the direction if necessary), the maximum speed, and the category of the edge. The BerlinMOD data generator considers three road categories: side road, main road, and freeway. The OSM road types are mapped to one of these categories in the function <varname>berlinmod_roadCategory</varname>.
 		</para>
@@ -562,7 +567,7 @@ BTREE(vehicle, start_vid, end_vid);
 			We are now ready to generate the trips.
 			<programlisting language="sql" xml:space="preserve">
 DROP TYPE IF EXISTS step CASCADE;
-CREATE TYPE step as (linestring geometry, maxspeed float, category int);
+CREATE TYPE step AS (linestring geometry, maxspeed float, category int);
 
 CREATE FUNCTION berlinmod_createTrips(noVehicles int, noDays int, startDay date,
   disturbData boolean)
@@ -571,17 +576,17 @@ DECLARE
   /* Declaration of variables and parameters ... */
 BEGIN
   DROP TABLE IF EXISTS Trips;
-  CREATE TABLE Trips(vehicle int, day date, seq int, source bigint, target bigint,
-    trip tgeompoint, trajectory geometry, PRIMARY KEY (vehicle, day, seq));
+  CREATE TABLE Trips(VehicleId int, day date, seq int, source bigint, target bigint,
+    Trip tgeompoint, trajectory geometry, PRIMARY KEY (VehicleId, day, seq));
   -- Loop for each vehicle
   FOR i IN 1..noVehicles LOOP
     -- Get home -> work and work -> home paths
     SELECT home, work INTO homeNode, workNode
-    FROM Vehicle V WHERE V.id = i;
-    SELECT array_agg((geom, speed, category)::step ORDER BY seq) INTO homework
-    FROM Paths WHERE vehicle = i AND start_vid = homeNode AND end_vid = workNode;
-    SELECT array_agg((geom, speed, category)::step ORDER BY seq) INTO workhome
-    FROM Paths WHERE vehicle = i AND start_vid = workNode AND end_vid = homeNode;
+    FROM Vehicles v WHERE v.VehicleId = i;
+    SELECT array_agg((Geom, speed, category)::step ORDER BY seq) INTO homework
+    FROM Paths WHERE VehicleId = i AND start_vid = homeNode AND end_vid = workNode;
+    SELECT array_agg((Geom, speed, category)::step ORDER BY seq) INTO workhome
+    FROM Paths WHERE VehicleId = i AND start_vid = workNode AND end_vid = homeNode;
     d = startDay;
     -- Loop for each generation day
     FOR j IN 1..noDays LOOP
@@ -600,7 +605,7 @@ BEGIN
       -- Get the number of leisure trips
       SELECT COUNT(DISTINCT tripNo) INTO noLeisTrip
       FROM LeisureTrip L
-      WHERE L.vehicle = i AND L.day = d;
+      WHERE L.VehicleId = i AND L.day = d;
       -- Loop for each leisure trip (0, 1, or 2)
       FOR k IN 1..noLeisTrip LOOP
         IF weekday BETWEEN 1 AND 5 THEN
@@ -612,7 +617,7 @@ BEGIN
             leisNo = k;
           ELSE
             SELECT tripNo INTO leisNo FROM LeisureTrip L
-            WHERE L.vehicle = i AND L.day = d LIMIT 1;
+            WHERE L.VehicleId = i AND L.day = d LIMIT 1;
           END IF;
           -- Determine the start time
           IF leisNo = 1 THEN
@@ -624,17 +629,17 @@ BEGIN
         -- Get the number of subtrips (number of destinations + 1)
         SELECT count(*) INTO noSubtrips
         FROM LeisureTrip L
-        WHERE L.vehicle = i AND L.tripNo = leisNo AND L.day = d;
+        WHERE L.VehicleId = i AND L.tripNo = leisNo AND L.day = d;
         FOR m IN 1..noSubtrips LOOP
           -- Get the source and destination nodes of the subtrip
           SELECT source, target INTO sourceNode, targetNode
           FROM LeisureTrip L
-          WHERE L.vehicle = i AND L.day = d AND L.tripNo = leisNo AND L.seq = m;
+          WHERE L.VehicleId = i AND L.day = d AND L.tripNo = leisNo AND L.seq = m;
           -- Get the path
-          SELECT array_agg((geom, speed, category)::step ORDER BY seq) INTO path
-          FROM Paths P
-          WHERE vehicle = i AND start_vid = sourceNode AND end_vid = targetNode;
-          trip = createTrip(path, t, disturbData);
+          SELECT array_agg((Geom, speed, category)::step ORDER BY seq) INTO Path
+          FROM Paths p
+          WHERE VehicleId = i AND start_vid = sourceNode AND end_vid = targetNode;
+          trip = createTrip(Path, t, disturbData);
           tripSeq = tripSeq + 1;
           INSERT INTO Trips VALUES
             (i, d, tripSeq, sourceNode, targetNode, trip, trajectory(trip));
@@ -671,7 +676,7 @@ BEGIN
     linestring = (edges[i]).linestring; maxSpeedEdge = (edges[i]).maxSpeed;
     category = (edges[i]).category;
     -- Determine the number of segments
-    SELECT array_agg(geom ORDER BY path) INTO points
+    SELECT array_agg(Geom ORDER BY Path) INTO points
     FROM ST_DumpPoints(linestring);
     noSegs = array_length(points, 1) - 1;
     -- Loop for every segment
@@ -1036,19 +1041,19 @@ INFO:  Start day = 2020-06-01, Path mode = Fastest Path, Disturb data = f
 			We start by generating the <varname>Warehouses</varname> table. Each warehouse is located at a random node of the network.
 			<programlisting language="sql" xml:space="preserve">
 DROP TABLE IF EXISTS Warehouses;
-CREATE TABLE Warehouses(warehouseId int, nodeId bigint, geom geometry(Point));
+CREATE TABLE Warehouses(WarehouseId int, NodeId bigint, Geom geometry(Point));
 FOR i IN 1..noWarehouses LOOP
-  INSERT INTO Warehouses(warehouseId, nodeId, geom)
-  SELECT i, id, geom
-  FROM Nodes N
+  INSERT INTO Warehouses(WarehouseId, NodeId, Geom)
+  SELECT i, id, Geom
+  FROM Nodes n
   ORDER BY id LIMIT 1 OFFSET random_int(1, noNodes);
 END LOOP;
 </programlisting>
 			We create a table <varname>Vehicles</varname> with all vehicles and the associated warehouse. Warehouses are associated to vehicles in a round-robin way.
 			<programlisting language="sql" xml:space="preserve">
 DROP TABLE IF EXISTS Vehicles;
-CREATE TABLE Vehicles(vehicleId int PRIMARY KEY, licence text, type text, brand text,
-  warehouse int);
+CREATE TABLE Vehicles(VehicleId int PRIMARY KEY, Licence text, VehicleType text, 
+  Brand text, WarehouseId int);
 FOR i IN 1..noVehicles LOOP
   licence = berlinmod_createLicence(i);
   type = VEHICLETYPES[random_int(1, NOVEHICLETYPES)];
@@ -1063,16 +1068,16 @@ END LOOP;
 			We create next the <varname>Trips</varname> and <varname>Destinations</varname> tables that contain, respectively, the list of source and destination nodes composing the delivery trip of a vehicle for a day, and the list of source and destination nodes for all vehicles.
 			<programlisting language="sql" xml:space="preserve">
 DROP TABLE IF EXISTS Trips;
-CREATE TABLE Trips(vehicle int, day date, seq int, source bigint, target bigint,
-  PRIMARY KEY (vehicle, day, seq));
+CREATE TABLE Trips(VehicleId int, day date, seq int, source bigint, target bigint,
+  PRIMARY KEY (VehicleId, day, seq));
 DROP TABLE IF EXISTS Destinations;
 CREATE TABLE Destinations(id serial PRIMARY KEY, source bigint, target bigint);
 -- Loop for every vehicle
 FOR i IN 1..noVehicles LOOP
   -- Get the warehouse node 
-  SELECT W.node INTO warehouseNode
-  FROM Vehicles V, Warehouses W
-  WHERE V.vehicleId = i AND V.warehouse = W.warehouseId;
+  SELECT w.node INTO warehouseNode
+  FROM Vehicles v, Warehouses w
+  WHERE v.vehicleId = i AND v.warehouse = w.WarehouseId;
   day = startDay;
   -- Loop for every generation day
   FOR j IN 1..noDays LOOP
@@ -1093,7 +1098,7 @@ FOR i IN 1..noVehicles LOOP
           RAISE EXCEPTION '    Destination node cannot be NULL';
         END IF;
         IF sourceNode = targetNode THEN
-          RAISE EXCEPTION '    Source and destination nodes must be different, node: %', sourceNode;
+          RAISE EXCEPTION '    SourceNode and destination nodes must be different, node: %', sourceNode;
         END IF;
         -- Keep the start and end nodes of each subtrip
         INSERT INTO Segments VALUES (i, day, k, sourceNode, targetNode);
@@ -1115,7 +1120,7 @@ DROP TABLE IF EXISTS Paths;
 CREATE TABLE Paths(seq int, path_seq int, start_vid bigint, end_vid bigint,
   node bigint, edge bigint, cost float, agg_cost float,
   -- These attributes are filled in the subsequent update
-  geom geometry, speed float, category int);
+  Geom geometry, speed float, category int);
 -- Select query sent to pgRouting
 IF pathMode = 'Fastest Path' THEN
   query1_pgr = 'SELECT id, source, target, cost_s AS cost, '
@@ -1125,7 +1130,7 @@ ELSE
     'length_m * sign(reverse_cost_s) as reverse_cost FROM edges';
 END IF;
 -- Get the total number of paths and number of calls to pgRouting
-SELECT COUNT(*) INTO noPaths FROM (SELECT DISTINCT source, target FROM Destinations) AS T;
+SELECT COUNT(*) INTO noPaths FROM (SELECT DISTINCT source, target FROM Destinations) AS t;
 noCalls = ceiling(noPaths / P_PGROUTING_BATCH_SIZE::float);
 FOR i IN 1..noCalls LOOP
   query2_pgr = format('SELECT DISTINCT source, target FROM Destinations '
@@ -1136,10 +1141,10 @@ FOR i IN 1..noCalls LOOP
 END LOOP;
 UPDATE Paths SET
   -- adjusting directionality
-  geom = CASE WHEN node = E.source THEN E.geom ELSE ST_Reverse(E.geom) END,
+  Geom = CASE WHEN node = e.source THEN e.Geom ELSE ST_Reverse(e.Geom) END,
   speed = maxspeed_forward,
   category = berlinmod_roadCategory(tag_id)
-FROM Edges E WHERE E.id = edge;
+FROM Edges e WHERE e.id = edge;
 </programlisting>
 			After creating the <varname>Paths</varname> table, we set the query to be sent to pgRouting depending on whether we have want to compute the fastest or the shortest paths between two nodes. The generator uses the parameter <varname>P_PGROUTING_BATCH_SIZE</varname> to determine the maximum number of paths we compute in a single call to pgRouting. This parameter is set to 10,000 by default. Indeed, there is limit in the number of paths that pgRouting can compute in a single call and this depends in the available memory of the computer. Therefore, we need to determine the number of calls to pgRouting and compute the paths by calling the function <varname>pgr_dijkstra</varname>. Finally, we need to adjust the directionality of the geometry of the edges depending on which direction a trip traverses the edges, and set the speed and the category of the edges.
 		</para>
@@ -1147,13 +1152,13 @@ FROM Edges E WHERE E.id = edge;
 			We explain how to generate the trips for a number of vehicles and a number of days starting at a given day. 
 			<programlisting language="sql" xml:space="preserve">
 DROP TABLE IF EXISTS Deliveries;
-CREATE TABLE Deliveries(deliveryId int PRIMARY KEY, Vehicle int, Day date, noCustomers int,
+CREATE TABLE Deliveries(DeliveryId int PRIMARY KEY, VehicleId int, Day date, noCustomers int,
   Trip tgeompoint, Trajectory geometry);
 DROP TABLE IF EXISTS Segments;
-CREATE TABLE Segments(deliveryId int, seq int, source bigint, target bigint, 
-  trip tgeompoint,
+CREATE TABLE Segments(DeliveryId int, seq int, source bigint, target bigint, 
+  Trip tgeompoint,
   -- These columns are used for visualization purposes
-  trajectory geometry, sourceGeom geometry, PRIMARY KEY (deliveryId, seq));
+  trajectory geometry, sourceGeom geometry, PRIMARY KEY (DeliveryId, seq));
 delivId = 1;
 aDay = startDay;
 FOR i IN 1..noDays LOOP
@@ -1166,23 +1171,23 @@ FOR i IN 1..noDays LOOP
       -- Get the number of segments (number of destinations + 1)
       SELECT count(*) INTO noSegments
       FROM Trips
-      WHERE vehicle = j AND day = aDay;
+      WHERE VehicleId = j AND day = aDay;
       FOR k IN 1..noSegments LOOP
         -- Get the source and destination nodes of the segment
         SELECT source, target INTO sourceNode, targetNode
         FROM Trips
-        WHERE vehicle = j AND day = aDay AND seq = k;
+        WHERE VehicleId = j AND day = aDay AND seq = k;
         -- Get the path
-        SELECT array_agg((geom, speed, category) ORDER BY path_seq) INTO path
-        FROM Paths P
+        SELECT array_agg((Geom, speed, category) ORDER BY path_seq) INTO Path
+        FROM Paths p
         WHERE start_vid = sourceNode AND end_vid = targetNode AND edge > 0;
-        IF path IS NULL THEN
+        IF Path IS NULL THEN
           RAISE EXCEPTION 'The path of a trip cannot be NULL. '
-            'Source node: %, target node: %, k: %, noSegments: %', sourceNode, 
+            'SourceNode node: %, target node: %, k: %, noSegments: %', sourceNode, 
               targetNode, k, noSegments;
         END IF;
         startTime = t;
-        trip = create_trip(path, t, disturbData, messages);
+        trip = create_trip(Path, t, disturbData, messages);
         IF trip IS NULL THEN
           RAISE EXCEPTION 'A trip cannot be NULL';
         END IF;
@@ -1195,12 +1200,12 @@ FOR i IN 1..noDays LOOP
           trip = appendInstant(trip, tgeompoint_inst(endValue(trip), t));
         END IF;
         alltrips = alltrips || trip;
-        SELECT geom INTO sourceGeom FROM Nodes WHERE id = sourceNode;
-        INSERT INTO Segments(deliveryId, seq, source, target, trip, trajectory, sourceGeom)
+        SELECT Geom INTO sourceGeom FROM Nodes WHERE id = sourceNode;
+        INSERT INTO Segments(DeliveryId, SeqNo, Source, target, trip, trajectory, sourceGeom)
           VALUES (delivId, k, sourceNode, targetNode, trip, trajectory(trip), sourceGeom);
       END LOOP;
       trip = merge(alltrips);
-      INSERT INTO Deliveries(deliveryId, vehicle, day, noCustomers, trip, trajectory)
+      INSERT INTO Deliveries(DeliveryId, VehicleId, day, noCustomers, trip, trajectory)
         VALUES (delivId, j, aDay, noSegments - 1, trip, trajectory(trip));
       delivId = delivId + 1;
       alltrips = '{}';
@@ -1209,7 +1214,7 @@ FOR i IN 1..noDays LOOP
   aDay = aDay + interval '1 day';
 END LOOP;
 </programlisting>
-			We start by creating the tables <varname>Deliveries</varname> and <varname>Segments</varname>. Then, the procedure simply loops for each day (excepted Sundays) and for each vehicle and generates the deliveries. For this, we first set the start time of a delivery trip by adding to 7 am a random non-zero duration of 120 minutes using a uniform distribution. Then, for every couple of source and destination nodes in a segment, we call the function <varname>create_trip</varname> that we have seen previously to generate the trip. We add a delivery time between 10 and 60 minutes using a bounded Gaussian distribution before starting the trip to the next customer or the return trip to the warehouse and then insert the trip into the <varname>Segments</varname> table.
+			We start by creating the tables <varname>Deliveries</varname> and <varname>Segments</varname>. Then, the procedure simply loops for each day (excepted Sundays) and for each vehicle and generates the deliveries. For this, we first set the start time of a delivery trip by adding to 7 am a random non-zero duration of 120 minutes using a uniform distribution. Then, for every couple of source and destination nodes in a segment, we call the function <varname>create_trip</varname> that we have seen previously to generate the Trip. We add a delivery time between 10 and 60 minutes using a bounded Gaussian distribution before starting the trip to the next customer or the return trip to the warehouse and then insert the trip into the <varname>Segments</varname> table.
 		</para>
 		<para>
 			<xref linkend="deliveries1" /> and <xref linkend="deliveries2" /> show visualizations of the data generated for the deliveries scenario.
@@ -1270,11 +1275,11 @@ INSERT INTO RoadTypes VALUES
 DROP TABLE IF EXISTS Roads;
 CREATE TABLE Roads AS
 SELECT osm_id, admin_level, bridge, cutting, highway, junction, name, oneway, operator,
-ref, route, surface, toll, tracktype, tunnel, width, way AS geom
+ref, route, surface, toll, tracktype, tunnel, width, way AS Geom
 FROM planet_osm_line
 WHERE highway IN (SELECT type FROM RoadTypes);
 
-CREATE INDEX Roads_geom_idx ON Roads USING GiST(geom);
+CREATE INDEX Roads_geom_idx ON Roads USING GiST(Geom);
 </programlisting>
 			</para>
 			<para>
@@ -1283,21 +1288,21 @@ CREATE INDEX Roads_geom_idx ON Roads USING GiST(geom);
 DROP TABLE IF EXISTS Intersections;
 CREATE TABLE Intersections AS
 WITH Temp1 AS (
-  SELECT ST_Intersection(a.geom, b.geom) AS geom
+  SELECT ST_Intersection(a.Geom, b.Geom) AS Geom
   FROM Roads a, Roads b
-  WHERE a.osm_id &lt; b.osm_id AND ST_Intersects(a.geom, b.geom) ),
+  WHERE a.osm_id &lt; b.osm_id AND ST_Intersects(a.Geom, b.Geom) ),
 Temp2 AS (
-  SELECT DISTINCT geom
+  SELECT DISTINCT Geom
   FROM Temp1
-  WHERE geometrytype(geom) = 'POINT'
+  WHERE geometrytype(Geom) = 'POINT'
   UNION
-  SELECT (ST_DumpPoints(geom)).geom
+  SELECT (ST_DumpPoints(Geom)).Geom
   FROM Temp1
-  WHERE geometrytype(geom) = 'MULTIPOINT' )
-SELECT ROW_NUMBER() OVER () AS id, geom
+  WHERE geometrytype(Geom) = 'MULTIPOINT' )
+SELECT ROW_NUMBER() OVER () AS id, Geom
 FROM Temp2;
 
-CREATE INDEX Intersections_geom_idx ON Intersections USING GIST(geom);
+CREATE INDEX Intersections_geom_idx ON Intersections USING GIST(Geom);
 </programlisting>
 				The temporary table <varname>Temp1</varname> computes all intersections between two different roads, while the temporary table <varname>Temp2</varname> selects all intersections of type point and splits the intersections of type multipoint into the component points with the function <varname>ST_DumpPoints</varname>. Finally, the last query adds a sequence identifier to the resulting intersections.
 			</para>
@@ -1306,18 +1311,18 @@ CREATE INDEX Intersections_geom_idx ON Intersections USING GIST(geom);
 				<programlisting language="sql" xml:space="preserve">
 DROP TABLE IF EXISTS Segments;
 CREATE TABLE Segments AS
-SELECT DISTINCT osm_id, (ST_Dump(ST_Split(R.geom, I.geom))).geom
+SELECT DISTINCT osm_id, (ST_Dump(ST_Split(R.Geom, I.Geom))).Geom
 FROM Roads R, Intersections I
-WHERE ST_Intersects(R.Geom, I.geom);
+WHERE ST_Intersects(R.Geom, I.Geom);
 
-CREATE INDEX Segments_geom_idx ON Segments USING GIST(geom);
+CREATE INDEX Segments_geom_idx ON Segments USING GIST(Geom);
 </programlisting>
 				The function <varname>ST_Split</varname> breaks the geometry of a road using an intersection and the function <varname>ST_Dump</varname> obtains the individual segments resulting from the splitting. However, as shown in the following query, there are duplicate segments with distinct <varname>osm_id</varname>.
 				<programlisting language="sql" xml:space="preserve">
 SELECT S1.osm_id, S2.osm_id
 FROM Segments S1, Segments S2
-WHERE S1.osm_id &lt; S2.osm_id AND st_intersects(S1.geom, S2.geom) AND 
-  ST_Equals(S1.geom, S2.geom);
+WHERE S1.osm_id &lt; S2.osm_id AND ST_Intersects(S1.Geom, S2.Geom) AND 
+  ST_Equals(S1.Geom, S2.Geom);
 -- 490493551  740404156
 -- 490493551  740404157
 </programlisting>
@@ -1325,14 +1330,14 @@ WHERE S1.osm_id &lt; S2.osm_id AND st_intersects(S1.geom, S2.geom) AND
 				<programlisting language="sql" xml:space="preserve">
 DELETE FROM Segments S1
 USING Segments S2
-WHERE S1.osm_id > S2.osm_id AND ST_Equals(S1.geom, S2.geom);
+WHERE S1.osm_id > S2.osm_id AND ST_Equals(S1.Geom, S2.Geom);
 </programlisting>
 				We can obtain some characteristics of the segments with the following queries.
 				<programlisting language="sql" xml:space="preserve">
-SELECT DISTINCT geometrytype(geom) FROM Segments;
+SELECT DISTINCT geometrytype(Geom) FROM Segments;
 -- "LINESTRING"
 
-SELECT min(ST_NPoints(geom)), max(ST_NPoints(geom)) FROM Segments;
+SELECT MIN(ST_NPoints(Geom)), max(ST_NPoints(Geom)) FROM Segments;
 -- 2	283
 </programlisting>
 			</para>
@@ -1341,29 +1346,29 @@ SELECT min(ST_NPoints(geom)), max(ST_NPoints(geom)) FROM Segments;
 				<programlisting language="sql" xml:space="preserve">
 DROP TABLE IF EXISTS TempNodes;
 CREATE TABLE TempNodes AS
-WITH Temp(geom) AS (
-  SELECT ST_StartPoint(geom) FROM Segments UNION
-  SELECT ST_EndPoint(geom) FROM Segments )
-SELECT ROW_NUMBER() OVER () AS id, geom
+WITH Temp(Geom) AS (
+  SELECT ST_StartPoint(Geom) FROM Segments UNION
+  SELECT ST_EndPoint(Geom) FROM Segments )
+SELECT ROW_NUMBER() OVER () AS id, Geom
 FROM Temp;
 
-CREATE INDEX TempNodes_geom_idx ON TempNodes USING GIST(geom);
+CREATE INDEX TempNodes_geom_idx ON TempNodes USING GIST(Geom);
 </programlisting>
 				The above query select as nodes the start and the end points of the segments and assigns to each of them a sequence identifier. We construct next the set of edges of our graph as follows.
 				<programlisting language="sql" xml:space="preserve">
 DROP TABLE IF EXISTS Edges;
 CREATE TABLE Edges(id bigint, osm_id bigint, tag_id int, length_m float, source bigint,
   target bigint, cost_s float, reverse_cost_s float, one_way int, maxspeed float,
-  priority float, geom geometry);
-INSERT INTO Edges(id, osm_id, source, target, geom, length_m)
-SELECT ROW_NUMBER() OVER () AS id, S.osm_id, N1.id AS source, N2.id AS target, S.geom,
-  ST_Length(S.geom) AS length_m
-FROM Segments S, TempNodes N1, TempNodes N2
-WHERE ST_Intersects(ST_StartPoint(S.geom), N1.geom) AND
-  ST_Intersects(ST_EndPoint(S.geom), N2.geom);
+  priority float, Geom geometry);
+INSERT INTO Edges(id, osm_id, source, target, Geom, length_m)
+SELECT ROW_NUMBER() OVER () AS id, S.osm_id, n1.id AS source, n2.id AS target, S.Geom,
+  ST_Length(S.Geom) AS length_m
+FROM Segments S, TempNodes n1, TempNodes n2
+WHERE ST_Intersects(ST_StartPoint(S.Geom), n1.Geom) AND
+  ST_Intersects(ST_EndPoint(S.Geom), n2.Geom);
 
 CREATE UNIQUE INDEX Edges_id_idx ON Edges USING BTREE(id);
-CREATE INDEX Edges_geom_index ON Edges USING GiST(geom);
+CREATE INDEX Edges_geom_index ON Edges USING GiST(Geom);
 </programlisting>
 				The above query connects the segments obtained previously to the source and target nodes. We can verify that all edges were connected correctly to their source and target nodes using the following query.
 				<programlisting language="sql" xml:space="preserve">
@@ -1374,14 +1379,14 @@ SELECT count(*) FROM Edges WHERE source IS NULL OR target IS NULL;
 			<para>
 				Now we can fill the other attributes of the edges. We start first with the attributes <varname>tag_id</varname>, <varname>priority</varname>, and <varname>maxspeed</varname>, which are obtained from the table <varname>RoadTypes</varname> using the attribute <varname>highway</varname>.
 				<programlisting language="sql" xml:space="preserve">
-UPDATE Edges E
-SET tag_id = T.id, priority = T.priority, maxspeed = T.maxSpeed
-FROM Roads R, RoadTypes T
-WHERE E.osm_id = R.osm_id AND R.highway = T.type;
+UPDATE Edges e
+SET tag_id = t.id, priority = t.priority, maxspeed = t.maxSpeed
+FROM Roads R, RoadTypes t
+WHERE e.osm_id = R.osm_id AND R.highway = t.type;
 </programlisting>
 				We continue with the attribute <varname>one_way</varname> according to the <ulink url="https://wiki.openstreetmap.org/wiki/Key:oneway">semantics</ulink> stated in the OSM documentation.
 				<programlisting language="sql" xml:space="preserve">
-UPDATE Edges E
+UPDATE Edges e
 SET one_way = CASE
   WHEN R.oneway = 'yes' OR R.oneway = 'true' OR R.oneway = '1' THEN 1 -- Yes
   WHEN R.oneway = 'no' OR R.oneway = 'false' OR R.oneway = '0' THEN 2 -- No
@@ -1390,19 +1395,19 @@ SET one_way = CASE
   WHEN R.oneway IS NULL THEN 0 -- Unknown
   END
 FROM Roads R
-WHERE E.osm_id = R.osm_id;
+WHERE e.osm_id = R.osm_id;
 </programlisting>
 				We compute the implied one way restriction based on OSM documentation as follows.
 				<programlisting language="sql" xml:space="preserve">
-UPDATE Edges E
+UPDATE Edges e
 SET one_way = 1
 FROM Roads R
-WHERE E.osm_id = R.osm_id AND R.oneway IS NULL AND
+WHERE e.osm_id = R.osm_id AND R.oneway IS NULL AND
   (R.junction = 'roundabout' OR R.highway = 'motorway');
 </programlisting>
 				Finally, we compute the cost and reverse cost in seconds according to the length and the maximum speed of the edge.
 				<programlisting language="sql" xml:space="preserve">
-UPDATE Edges E SET
+UPDATE Edges e SET
 cost_s = CASE
   WHEN one_way = -1 THEN - length_m / (maxspeed / 3.6)
   ELSE length_m / (maxspeed / 3.6)
@@ -1426,14 +1431,14 @@ LargestComponent AS (
   SELECT component, count(*) FROM Components
   GROUP BY component ORDER BY count(*) DESC LIMIT 1 ),
 Connected AS (
-  SELECT geom
-  FROM TempNodes N, LargestComponent L, Components C
-  WHERE N.id = C.node AND C.component = L.component )
-SELECT ROW_NUMBER() OVER () AS id, geom
+  SELECT Geom
+  FROM TempNodes n, LargestComponent L, Components C
+  WHERE n.id = C.node AND C.component = L.component )
+SELECT ROW_NUMBER() OVER () AS id, Geom
 FROM Connected;
 
 CREATE UNIQUE INDEX Nodes_id_idx ON Nodes USING BTREE(id);
-CREATE INDEX Nodes_geom_idx ON Nodes USING GiST(geom);
+CREATE INDEX Nodes_geom_idx ON Nodes USING GiST(Geom);
 </programlisting>
 				The temporary table <varname>Components</varname> is obtained by calling the function <varname>pgr_strongComponents</varname> from pgRouting, the temporary table <varname>LargestComponent</varname> selects the largest component from the previous table, and the temporary table <varname>Connected</varname> selects all nodes that belong to the largest component. Finally, the last query assigns a sequence identifier to all nodes.
 			</para>
@@ -1442,11 +1447,11 @@ CREATE INDEX Nodes_geom_idx ON Nodes USING GiST(geom);
 				<programlisting language="sql" xml:space="preserve">
 UPDATE Edges SET source = NULL, target = NULL;
 
-UPDATE Edges E SET
-  source = N1.id, target = N2.id
-FROM Nodes N1, Nodes N2
-WHERE ST_Intersects(E.geom, N1.geom) AND ST_StartPoint(E.geom) = N1.geom AND
-  ST_Intersects(E.geom, N2.geom) AND ST_EndPoint(E.geom) = N2.geom;
+UPDATE Edges e SET
+  source = n1.id, target = n2.id
+FROM Nodes n1, Nodes n2
+WHERE ST_Intersects(e.Geom, n1.Geom) AND ST_StartPoint(e.Geom) = n1.Geom AND
+  ST_Intersects(e.Geom, n2.Geom) AND ST_EndPoint(e.Geom) = n2.Geom;
 </programlisting>
 				We first set the identifiers of the source and target nodes to NULL before connecting them to the identifiers of the node.
 
@@ -1485,11 +1490,11 @@ SELECT count(*) FROM Nodes;
 DROP TABLE IF EXISTS TempRoads;
 CREATE TABLE TempRoads AS
 SELECT osm_id, admin_level, bridge, cutting, highway, junction, name, oneway, operator,
-  ref, route, surface, toll, tracktype, tunnel, width, way AS geom
+  ref, route, surface, toll, tracktype, tunnel, width, way AS Geom
 FROM planet_osm_line
 WHERE highway IN (SELECT type FROM RoadTypes);
 -- SELECT 37045
-CREATE INDEX TempRoads_geom_idx ON TempRoads USING GiST(geom);
+CREATE INDEX TempRoads_geom_idx ON TempRoads USING GiST(Geom);
 </programlisting>
 				Then, we use the following procedure to merge the roads.
 				<programlisting language="sql" xml:space="preserve">
@@ -1502,11 +1507,11 @@ BEGIN
   -- Create tables
   DROP TABLE IF EXISTS MergedRoads;
   CREATE TABLE MergedRoads AS
-  SELECT *, '{}'::bigint[] AS path
+  SELECT *, '{}'::bigint[] AS Path
   FROM TempRoads;
-  CREATE INDEX MergedRoads_geom_idx ON MergedRoads USING GIST(geom);
+  CREATE INDEX MergedRoads_geom_idx ON MergedRoads USING GIST(Geom);
   DROP TABLE IF EXISTS Merge;
-  CREATE TABLE Merge(osm_id1 bigint, osm_id2 bigint, geom geometry);
+  CREATE TABLE Merge(osm_id1 bigint, osm_id2 bigint, Geom geometry);
   DROP TABLE IF EXISTS DeletedRoads;
   CREATE TABLE DeletedRoads(osm_id bigint);
   -- Iterate until no geometry can be extended
@@ -1517,25 +1522,25 @@ BEGIN
     DELETE FROM Merge;
     INSERT INTO Merge
     SELECT R1.osm_id AS osm_id1, R2.osm_id AS osm_id2,
-      ST_LineMerge(ST_Union(R1.geom, R2.geom)) AS geom
+      ST_LineMerge(ST_Union(R1.Geom, R2.Geom)) AS Geom
     FROM MergedRoads R1, TempRoads R2
     WHERE R1.osm_id &lt;&gt; R2.osm_id AND R1.highway = R2.highway AND
-      R1.oneway = R2.oneway AND ST_Intersects(R1.geom, R2.geom) AND
-      ST_EndPoint(R1.geom) = ST_StartPoint(R2.geom) AND NOT EXISTS (
+      R1.oneway = R2.oneway AND ST_Intersects(R1.Geom, R2.Geom) AND
+      ST_EndPoint(R1.Geom) = ST_StartPoint(R2.Geom) AND NOT EXISTS (
         SELECT * FROM TempRoads R3
         WHERE osm_id NOT IN (SELECT osm_id FROM DeletedRoads) AND
           R3.osm_id &lt;&gt; R1.osm_id AND R3.osm_id &lt;&gt; R2.osm_id AND
-          ST_Intersects(R3.geom, ST_StartPoint(R2.geom)) ) AND
-      geometryType(ST_LineMerge(ST_Union(R1.geom, R2.geom))) = 'LINESTRING'
-      AND NOT St_Equals(ST_LineMerge(ST_Union(R1.geom, R2.geom)), R1.geom);
+          ST_Intersects(R3.Geom, ST_StartPoint(R2.Geom)) ) AND
+      geometryType(ST_LineMerge(ST_Union(R1.Geom, R2.Geom))) = 'LINESTRING'
+      AND NOT St_Equals(ST_LineMerge(ST_Union(R1.Geom, R2.Geom)), R1.Geom);
     -- Exit if there is no more roads to extend
     SELECT count(*) INTO cnt FROM Merge;
     RAISE INFO 'Extended % roads', cnt;
     EXIT WHEN cnt = 0;
     -- Extend the geometries
     UPDATE MergedRoads R SET
-      geom = M.geom,
-      path = R.path || osm_id2
+      Geom = M.Geom,
+      Path = R.Path || osm_id2
     FROM Merge M
     WHERE R.osm_id = M.osm_id1;
     -- Keep track of redundant roads
@@ -1554,7 +1559,7 @@ END; $$
 </programlisting>
 			</para>
 			<para>
-				The procedure starts by creating a table <varname>MergedRoads</varname> obtained by adding a column <varname>path</varname> to the table <varname>TempRoads</varname> created before. This column keeps track of the identifiers of the roads that are merged with the current one and is initialized to an empty array. It also creates two tables <varname>Merge</varname> and <varname>DeletedRoads</varname> that will contain, respectively, the result of merging two roads, and the identifiers of the roads that will be deleted at the end of the process. The procedure then iterates while there is at least one road that can be extended with the geometry of another one to which it connects to. More precisely, a road can be extended with the geometry of another one if they are of the same type and the same direction (as indicated by the attributes <varname>highway</varname> and <varname>one_way</varname>), the end point of the road is the start point of the other road, and this common point is not a crossing, that is, there is no other road that starts and this common point. Notice that we only merge roads if their resulting geometry is a linestring and we avoid infinite loops by verifying that the merge of the two roads is different from the original geometry. After that, we update the roads with the new geometries and add the identifier of the road used to extend the geometry into the <varname>path</varname> attribute and the <varname>DeletedRoads</varname> table. After exiting the loop, the procedure finishes by removing unnecessary roads.
+				The procedure starts by creating a table <varname>MergedRoads</varname> obtained by adding a column <varname>Path</varname> to the table <varname>TempRoads</varname> created before. This column keeps track of the identifiers of the roads that are merged with the current one and is initialized to an empty array. It also creates two tables <varname>Merge</varname> and <varname>DeletedRoads</varname> that will contain, respectively, the result of merging two roads, and the identifiers of the roads that will be deleted at the end of the process. The procedure then iterates while there is at least one road that can be extended with the geometry of another one to which it connects to. More precisely, a road can be extended with the geometry of another one if they are of the same type and the same direction (as indicated by the attributes <varname>highway</varname> and <varname>one_way</varname>), the end point of the road is the start point of the other road, and this common point is not a crossing, that is, there is no other road that starts and this common point. Notice that we only merge roads if their resulting geometry is a linestring and we avoid infinite loops by verifying that the merge of the two roads is different from the original geometry. After that, we update the roads with the new geometries and add the identifier of the road used to extend the geometry into the <varname>Path</varname> attribute and the <varname>DeletedRoads</varname> table. After exiting the loop, the procedure finishes by removing unnecessary roads.
 			</para>
 			<para>
 The above procedure iterates 20 times for the largest segment that can be assembled, which is located in the ring-road around Brussels between two exits. It takes 15 minutes to execute in my laptop.
@@ -1583,11 +1588,11 @@ INFO:  Extended 0 roads
 				After we apply the above procedure to merge the roads, we are ready to create a new set of roads from which we can construct the graph.
 				<programlisting language="sql" xml:space="preserve">
 CREATE TABLE Roads AS
-SELECT osm_id || path AS osm_id, admin_level, bridge, cutting, highway, junction, name,
-  oneway, operator, ref, route, surface, toll, tracktype, tunnel, width, geom
+SELECT osm_id || Path AS osm_id, admin_level, bridge, cutting, highway, junction, name,
+  oneway, operator, ref, route, surface, toll, tracktype, tunnel, width, Geom
 FROM MergedRoads;
 
-CREATE INDEX Roads_geom_idx ON Roads USING GiST(geom);
+CREATE INDEX Roads_geom_idx ON Roads USING GiST(Geom);
 </programlisting>
 				Notice that now the attribute <varname>osm_id</varname> is an array of OSM identifiers (which are big integers), whereas in the previous section it was a single big integer.
 			</para>
