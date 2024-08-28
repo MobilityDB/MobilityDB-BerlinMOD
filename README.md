@@ -58,9 +58,8 @@ The generator has two scenarios, the original one from BerlinMOD, and another on
 
 BerlinMOD synthetic data using OSM data from Brussels.
 
-|--------------|:--------:|:----:|:-----:|:----:|:----:|
 | Scale Factor | Vehicles | Days | Trips | File | Size |
-|--------------|---------:|-----:|------:|-----:|-----:|
+|--------------|---------:|-----:|------:|-----|-----:|
 | SF 0.1 |   632 | 11 |  18,910 | [brussels_sf0.1.zip](https://docs.mobilitydb.com/pub/brussels_sf0.1.zip) | 5.5 MB |
 | SF 0.2 |   894 | 15 |  35,319 | [brussels_sf0.2.zip](https://docs.mobilitydb.com/pub/brussels_sf0.2.zip) | 9.6 MB |
 | SF 0.5 | 1,414 | 22 |  81,584 | [brussels_sf0.5.zip](https://docs.mobilitydb.com/pub/brussels_sf0.5.zip) | 2.2 GB |
@@ -71,7 +70,7 @@ Deliveries synthetic data using OSM data from Brussels.
 
 
 | Scale Factor | Warehouses | Vehicles | Customers | Days | Deliveries | File | Size |
-|--------------|-----------:|---------:|----------:|------|-----------:|-----:|-----:|
+|--------------|-----------:|---------:|----------:|------|-----------:|-----|-----:|
 | SF 0.1       |  32 |   632 |  3,162 | 11 |  6,320 | [deliveries_sf0.1.zip](https://docs.mobilitydb.com/pub/deliveries_sf0.1.zip) | 1.4 GB |
 | SF 0.2       |  45 |   894 |  4,472 | 15 | 11,622 | [deliveries_sf0.2.zip](https://docs.mobilitydb.com/pub/deliveries_sf0.2.zip) | 2.6 GB |
 | SF 0.5       |  71 | 1,414 |  7,071 | 22 | 26,866 | [deliveries_sf0.5.zip](https://docs.mobilitydb.com/pub/deliveries_sf0.5.zip) | 6.1 GB |
