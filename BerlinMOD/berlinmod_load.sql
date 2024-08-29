@@ -128,6 +128,41 @@ BEGIN
 
 --------------------------------------------------------------
 
+  RAISE NOTICE 'Creating table RoadSegments';
+  DROP TABLE IF EXISTS RoadSegments;
+  CREATE TABLE RoadSegments (
+    SegmentId bigint PRIMARY KEY,
+    Name text, 
+    OsmId bigint,
+    TagId integer,
+    SegmentLength float,
+    SourceNode bigint, 
+    TargetNode bigint,
+    SourceOsm bigint,
+    TargetOsm bigint,
+    TimeSecsFwd float,
+    TimeSecsBwd float,
+    OneWay integer,
+    MaxSpeedFwd float,
+    MaxSpeedBwd float, 
+    Priority float, 
+    SegmentGeo geometry
+  );
+  EXECUTE format('COPY RoadSegments(SegmentId, Name, OsmId, TagId, '
+    'SegmentLength, SourceNode, TargetNode, SourceOsm, TargetOsm, '
+    'TimeSecsFwd, TimeSecsBwd, OneWay, MaxSpeedFwd, MaxSpeedBwd, '
+    'Priority, SegmentGeo) FROM ''%sroadsegments.csv'' '
+    'DELIMITER '','' CSV HEADER', fullpath);
+  IF gist THEN
+    CREATE INDEX RoadSegments_SegmentGeo_gist_idx ON RoadSegments
+      USING gist(SegmentGeo);
+  ELSE
+    CREATE INDEX RoadSegments_SegmentGeo_spgist_idx ON RoadSegments
+      USING spgist(SegmentGeo);
+  END IF;
+
+--------------------------------------------------------------
+
   RAISE NOTICE 'Creating table Vehicles';
   DROP TABLE IF EXISTS Vehicles CASCADE;
   CREATE TABLE Vehicles
