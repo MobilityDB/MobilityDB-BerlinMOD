@@ -295,21 +295,6 @@ BEGIN
 
 --------------------------------------------------------------
 
-  RAISE NOTICE 'Creating table DeliveriesInput';
-  DROP TABLE IF EXISTS DeliveriesInput CASCADE;
-  CREATE TABLE DeliveriesInput (
-    DeliveryId integer NOT NULL,
-    VehicleId integer NOT NULL REFERENCES Vehicles(VehicleId),
-    StartDate date,
-    NoCustomers int,
-    Point geometry(Point, 3857) NOT NULL,
-    T timestamptz NOT NULL,
-    PRIMARY KEY (DeliveryId, T)
-  );
-  EXECUTE format('COPY DeliveriesInput(DeliveryId, VehicleId, StartDate, '
-    'NoCustomers, Point, T) FROM ''%sdeliveriesinput.csv'' DELIMITER '','' '
-    'CSV HEADER', fullpath);
-
   RAISE NOTICE 'Creating table Deliveries';
   DROP TABLE IF EXISTS Deliveries CASCADE;
   CREATE TABLE Deliveries (
@@ -320,11 +305,18 @@ BEGIN
     Trip tgeompoint,
     Trajectory geometry
   );
-  INSERT INTO Deliveries(DeliveryId, VehicleId, StartDate, NoCustomers, Trip)
-  SELECT DeliveryId, VehicleId, StartDate, NoCustomers,
-    tgeompointSeq(array_agg(tgeompoint(Point, T) ORDER BY T))
-  FROM DeliveriesInput
-  GROUP BY VehicleId, DeliveryId, StartDate, NoCustomers;
+  EXECUTE format('COPY Deliveries(DeliveryId, VehicleId, StartDate, '
+    'NoCustomers) FROM ''%sdeliveries.csv'' DELIMITER '','' CSV HEADER',
+    fullpath);
+
+  WITH Temp AS (
+    SELECT DeliveryId, merge(array_agg(Trip ORDER BY Trip)) AS Trip
+    FROM Segments 
+    GROUP BY DeliveryId )
+  UPDATE Deliveries d 
+  SET Trip = t.trip
+  FROM Temp t
+  WHERE d.DeliveryId = t.DeliveryId;
   UPDATE Deliveries SET Trajectory = trajectory(Trip);
 
   IF gist THEN
