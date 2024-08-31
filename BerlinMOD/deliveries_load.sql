@@ -116,15 +116,17 @@ BEGIN
   DROP TABLE IF EXISTS Warehouses CASCADE;
   CREATE TABLE Warehouses (
     WarehouseId integer PRIMARY KEY,
-    Geom geometry(Point, 3857) NOT NULL,
+    WarehouseGeo geometry(Point, 3857) NOT NULL,
     MunicipalityId integer REFERENCES Municipalities(MunicipalityId)
   );
-  EXECUTE format('COPY Warehouses(WarehouseId, Geom, MunicipalityId) '
+  EXECUTE format('COPY Warehouses(WarehouseId, WarehouseGeo, MunicipalityId) '
     'FROM ''%swarehouses.csv'' DELIMITER '','' CSV HEADER', fullpath);
   IF gist THEN
-    CREATE INDEX Warehouses_Geom_gist_idx ON Warehouses USING gist(Geom);
+    CREATE INDEX Warehouses_WarehouseGeo_gist_idx ON Warehouses
+      USING gist(WarehouseGeo);
   ELSE
-    CREATE INDEX Warehouses_Geom_spgist_idx ON Warehouses USING spgist(Geom);
+    CREATE INDEX Warehouses_WarehouseGeo_spgist_idx ON Warehouses
+      USING spgist(WarehouseGeo);
   END IF;
 
 --------------------------------------------------------------
@@ -321,8 +323,12 @@ BEGIN
 
   IF gist THEN
     CREATE INDEX Deliveries_Trip_gist_idx ON Deliveries USING gist(trip);
+    CREATE INDEX Deliveries_Trajectory_gist_idx ON Deliveries
+      USING gist(Trajectory);
   ELSE
     CREATE INDEX Deliveries_Trip_spgist_idx ON Deliveries USING spgist(trip);
+    CREATE INDEX Deliveries_Trajectory_spgist_idx ON Deliveries
+      USING spgist(Trajectory);
   END IF;
 
   CREATE VIEW Delivery1 AS SELECT * FROM Deliveries LIMIT 100;

@@ -86,9 +86,9 @@ BEGIN
     'DELIMITER '','' CSV HEADER', fullpath);
 
   IF gist THEN
-    CREATE INDEX Points_geom_gist_idx ON Points USING gist(Geom);
+    CREATE INDEX Points_Geom_gist_idx ON Points USING gist(Geom);
   ELSE
-    CREATE INDEX Points_geom_spgist_idx ON Points USING spgist(Geom);
+    CREATE INDEX Points_Geom_spgist_idx ON Points USING spgist(Geom);
   END IF;
   
   /* There are NO duplicate points in Points
@@ -116,9 +116,9 @@ BEGIN
     'FROM ''%sregions.csv'' DELIMITER '','' CSV HEADER', fullpath);
   
   IF gist THEN
-    CREATE INDEX Regions_geom_gist_idx ON Regions USING gist (Geom);
+    CREATE INDEX Regions_Geom_gist_idx ON Regions USING gist(Geom);
   ELSE
-    CREATE INDEX Regions_geom_spgist_idx ON Regions USING spgist (Geom);
+    CREATE INDEX Regions_Geom_spgist_idx ON Regions USING spgist(Geom);
   END IF;
 
   CREATE VIEW Regions1 (RegionId, Geom) AS
@@ -126,6 +126,32 @@ BEGIN
   FROM Regions
   LIMIT 10;
 
+--------------------------------------------------------------
+
+  CREATE TABLE Municipalities
+  (
+    MunicipalityId int PRIMARY KEY, 
+    MunicipalityName text UNIQUE,
+    Population int,
+    PercPop float,
+    PopDensityKm2 int, 
+    NoEnterp int,
+    PercEnterp float,
+    MunicipalityGeo geometry
+  );
+
+  EXECUTE format('COPY Municipalities(MunicipalityId, MunicipalityName, '
+    'Population, PercPop, PopDensityKm2, NoEnterp, PercEnterp, MunicipalityGeo)'
+    'FROM ''%smunicipalities.csv'' DELIMITER '','' CSV HEADER', fullpath);
+  
+  IF gist THEN
+    CREATE INDEX Municipalities_MunicipalityGeo_gist_idx ON Regions
+      USING gist(MunicipalityGeo);
+  ELSE
+    CREATE INDEX Regions_MunicipalityGeo_spgist_idx ON Regions
+      USING spgist(MunicipalityGeo);
+  END IF;
+   
 --------------------------------------------------------------
 
   RAISE NOTICE 'Creating table RoadSegments';
@@ -189,7 +215,7 @@ BEGIN
   EXECUTE format('COPY Licences(LicenceId, Licence, VehicleId) '
     'FROM ''%slicences.csv'' DELIMITER '','' CSV HEADER', fullpath);
 
-  CREATE INDEX Licences_VehId_idx ON Licences USING btree (VehicleId);
+  CREATE INDEX Licences_VehId_idx ON Licences USING btree(VehicleId);
 
   /* There are duplicate licences in Licences, e.g., in SF 0.005
   SELECT COUNT(*)
@@ -248,9 +274,11 @@ BEGIN
   CREATE INDEX Trips_VehId_idx ON Trips USING btree(VehicleId);
 
   IF gist THEN
-    CREATE INDEX Trips_gist_idx ON Trips USING gist(trip);
+    CREATE INDEX Trips_Trip_gist_idx ON Trips USING gist(Trip);
+    CREATE INDEX Trips_Trajectory_gist_idx ON Trips USING gist(Trajectory);
   ELSE
-    CREATE INDEX Trips_spgist_idx ON Trips USING spgist(trip);
+    CREATE INDEX Trips_Trip_spgist_idx ON Trips USING spgist(Trip);
+    CREATE INDEX Trips_Trajectory_spgist_idx ON Trips USING spgist(Trajectory);
   END IF;
   
   DROP VIEW IF EXISTS Trips1;
