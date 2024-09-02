@@ -43,7 +43,7 @@ FROM Connected;
 
 CREATE UNIQUE INDEX Nodes_NodeId_idx ON Nodes USING btree(NodeId);
 CREATE INDEX Nodes_osm_id_idx ON Nodes USING btree(OsmId);
-CREATE INDEX Nodes_geom_idx ON NODES USING gist(Geom);
+CREATE INDEX Nodes_geom_gist_idx ON NODES USING gist(Geom);
 
 UPDATE RoadSegments r SET
 SourceNode = (SELECT NodeId FROM Nodes n WHERE n.OsmId = r.SourceOsm),
@@ -52,7 +52,7 @@ TargetNode = (SELECT NodeId FROM Nodes n WHERE n.OsmId = r.TargetOsm);
 -- Delete the edges whose source or target node has been removed
 DELETE FROM RoadSegments WHERE SourceNode IS NULL OR TargetNode IS NULL;
 
-CREATE INDEX RoadSegments_segmentGeo_index ON RoadSegments USING gist(SegmentGeo);
+CREATE INDEX RoadSegments_SegmentGeo_gist_idx ON RoadSegments USING gist(SegmentGeo);
 
 /*
 -- The following were obtained FROM the OSM file extracted on March 26, 2023
@@ -72,8 +72,8 @@ SELECT COUNT(*) FROM Nodes;
 
 DROP TABLE IF EXISTS Municipalities;
 CREATE TABLE Municipalities(MunicipalityId int PRIMARY KEY, 
-  MunicipalityName text, Population int, PercPop float, PopDensityKm2 int, 
-  NoEnterp int, PercEnterp float);
+  MunicipalityName text UNIQUE, Population int, PercPop float,
+  PopDensityKm2 int, NoEnterp int, PercEnterp float);
 INSERT INTO Municipalities VALUES
 (1,'Anderlecht',118241,0.10,6680,6460,0.08),
 (2,'Auderghem - Oudergem',33313,0.03,3701,2266,0.03),
@@ -118,7 +118,7 @@ SET MunicipalityGeo = (
   SELECT ST_Union(GeomPoly) FROM MunicipalitiesGeo g
   WHERE m.MunicipalityName = g.MunicipalityName);
 
-CREATE INDEX Municipalities_MunicipalityGeo_idx ON Municipalities 
+CREATE INDEX Municipalities_MunicipalityGeo_gist_idx ON Municipalities 
 USING gist(MunicipalityGeo);
 
 -- Clean up tables
@@ -133,7 +133,7 @@ SELECT MunicipalityId, MunicipalityId, Population, PercPop,
     BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS CumulProb, MunicipalityGeo
 FROM Municipalities;
 
-CREATE INDEX HomeRegions_geom_idx ON HomeRegions USING gist(Geom);
+CREATE INDEX HomeRegions_geom_gist_idx ON HomeRegions USING gist(Geom);
 
 DROP TABLE IF EXISTS WorkRegions;
 CREATE TABLE WorkRegions(RegionId, Priority, Weight, Prob, CumulProb, Geom) AS
@@ -142,7 +142,7 @@ SELECT MunicipalityId, MunicipalityId, NoEnterp, PercEnterp,
     BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS CumulProb, MunicipalityGeo
 FROM Municipalities;
 
-CREATE INDEX WorkRegions_geom_idx ON WorkRegions USING gist(Geom);
+CREATE INDEX WorkRegions_geom_gist_idx ON WorkRegions USING gist(Geom);
 
 DROP TABLE IF EXISTS HomeNodes;
 CREATE TABLE HomeNodes AS

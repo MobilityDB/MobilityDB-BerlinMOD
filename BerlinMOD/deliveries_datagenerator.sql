@@ -548,10 +548,10 @@ BEGIN
 
   RAISE NOTICE 'Creating indexes on table Customers';
   IF lower(indexType) = 'gist' THEN
-    CREATE INDEX IF NOT EXISTS Points_CustomerGeo_gist_idx ON Customers
+    CREATE INDEX IF NOT EXISTS Customers_CustomerGeo_gist_idx ON Customers
       USING gist(CustomerGeo);
   ELSE
-    CREATE INDEX IF NOT EXISTS Points_CustomerGeo_spgist_idx ON Customers
+    CREATE INDEX IF NOT EXISTS Customers_CustomerGeo_spgist_idx ON Customers
       USING spgist(CustomerGeo);
   END IF;
 
