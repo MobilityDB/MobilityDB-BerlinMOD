@@ -234,6 +234,7 @@ BEGIN
     SeqNo int,
     Trip tgeompoint NOT NULL,
     Trajectory geometry,
+    UNIQUE(VehicleId, StartDate, SeqNo)
     FOREIGN KEY (VehicleId) REFERENCES Vehicles(VehicleId) 
   );
   
