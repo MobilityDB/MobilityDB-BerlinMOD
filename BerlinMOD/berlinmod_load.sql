@@ -145,10 +145,10 @@ BEGIN
     'FROM ''%smunicipalities.csv'' DELIMITER '','' CSV HEADER', fullpath);
   
   IF gist THEN
-    CREATE INDEX Municipalities_MunicipalityGeo_gist_idx ON Regions
+    CREATE INDEX Municipalities_MunicipalityGeo_gist_idx ON Municipalities
       USING gist(MunicipalityGeo);
   ELSE
-    CREATE INDEX Regions_MunicipalityGeo_spgist_idx ON Regions
+    CREATE INDEX Municipalities_MunicipalityGeo_spgist_idx ON Municipalities
       USING spgist(MunicipalityGeo);
   END IF;
    
@@ -260,7 +260,7 @@ BEGIN
     SeqNo int,
     Trip tgeompoint NOT NULL,
     Trajectory geometry,
-    UNIQUE(VehicleId, StartDate, SeqNo)
+    UNIQUE (VehicleId, StartDate, SeqNo),
     FOREIGN KEY (VehicleId) REFERENCES Vehicles(VehicleId) 
   );
   
