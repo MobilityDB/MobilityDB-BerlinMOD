@@ -148,7 +148,7 @@ BEGIN
     CREATE INDEX Municipalities_MunicipalityGeo_gist_idx ON Municipalities
       USING GIST(MunicipalityGeo);
   ELSE
-    CREATE INDEX Regions_MunicipalityGeo_spgist_idx ON Municipalities
+    CREATE INDEX Municipalities_MunicipalityGeo_spgist_idx ON Municipalities
       USING SPGIST(MunicipalityGeo);
   END IF;
    
