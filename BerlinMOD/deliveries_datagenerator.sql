@@ -51,6 +51,8 @@ functions are executed using the following tables
 *  Regions(RegionId int primary key, Geom geometry)
 *  Instants(InstantId int primary key, Instant timestamptz)
 *  Periods(PeriodId int primary key, Period tstzspan)
+*  Date(DateId serial primary key, Date date, WeekNo int, MonthNo int, 
+      MonthName text, Quarter int, Year int)
 
 In addition the following work tables are created
 
@@ -644,7 +646,7 @@ BEGIN
   UPDATE Date SET
     WeekNo = EXTRACT(week FROM Date),
     MonthNo = EXTRACT(month FROM Date),
-    MonthName = TO_CHAR(Date, 'Month'),
+    MonthName = TRIM(TO_CHAR(Date, 'Month')),
     Quarter = EXTRACT(quarter FROM Date),
     Year = EXTRACT(year FROM Date);
 

@@ -177,8 +177,8 @@ BEGIN
   DROP TABLE IF EXISTS Customers CASCADE;
   CREATE TABLE Customers (
     CustomerId integer PRIMARY KEY,
-    MunicipalityId integer REFERENCES Municipalities(MunicipalityId),
-    CustomerGeo geometry(Point, 3857) NOT NULL
+    CustomerGeo geometry(Point, 3857) NOT NULL,
+    MunicipalityId integer REFERENCES Municipalities(MunicipalityId)
   );
   EXECUTE format('COPY Customers(CustomerId, CustomerGeo, MunicipalityId) '
     ' FROM ''%scustomers.csv'' DELIMITER '','' CSV HEADER', fullpath);
