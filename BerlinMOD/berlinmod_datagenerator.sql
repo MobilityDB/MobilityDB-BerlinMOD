@@ -1089,7 +1089,7 @@ SELECT berlinmod_createTrips(2, 2, '2020-05-10', 'Fastest Path', false, 'C');
 -- Main Function
 -------------------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION berlinmod_datagenerator(
+CREATE OR REPLACE FUNCTION berlinmod_generate(
   scaleFactor float DEFAULT NULL,
   noVehicles int DEFAULT NULL, noDays int DEFAULT NULL,
   startDay date DEFAULT NULL, pathMode text DEFAULT NULL,

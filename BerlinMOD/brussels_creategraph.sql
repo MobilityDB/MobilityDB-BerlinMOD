@@ -95,7 +95,7 @@ BEGIN
   DROP TABLE Merge;
   DROP TABLE DeletedRoads;
   RETURN;
-END; $$
+END; $$;
 
 /*-----------------------------------------------------------------------------
 The following function creates the Roads table from which the network topology
