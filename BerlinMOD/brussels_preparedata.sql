@@ -95,22 +95,15 @@ INSERT INTO Municipalities VALUES
 (18,'Woluwe-Saint-Lambert - Sint-Lambrechts-Woluwe',55216,0.05,7669,3590,0.04),
 (19,'Woluwe-Saint-Pierre - Sint-Pieters-Woluwe',41217,0.03,4631,2859,0.04);
 
--- Compute the geometry of the Municipalities from the boundaries in planet_osm_line
+-- Compute the geometry of the Municipalities from the boundaries in planet_osm_polygon
 
 DROP TABLE IF EXISTS MunicipalitiesGeo;
-CREATE TABLE MunicipalitiesGeo(MunicipalityName, Geom) AS
+CREATE TABLE MunicipalitiesGeo(MunicipalityName, GeomPoly) AS
 SELECT name, way
-FROM planet_osm_line
+FROM planet_osm_polygon
 WHERE name IN ( SELECT MunicipalityName FROM Municipalities );
 
--- The geometries of the Municipalities are of type Linestring. They need to be
--- converted into polygons.
-
-ALTER TABLE MunicipalitiesGeo ADD COLUMN GeomPoly geometry;
-UPDATE MunicipalitiesGeo
-SET GeomPoly = ST_MakePolygon(Geom);
-
--- Disjoint components of Ixelles and Saint-Gilles are encoded as two different
+-- Disjoint components of some municipalities which are encoded as two or more different
 -- features. For this reason ST_Union is needed to make a multipolygon
 ALTER TABLE Municipalities ADD COLUMN MunicipalityGeo geometry;
 UPDATE Municipalities m
