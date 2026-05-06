@@ -1,6 +1,16 @@
+/*-----------------------------------------------------------------------------
+-- Deliveries Export
+-------------------------------------------------------------------------------
+
+This file is part of MobilityDB.
+Copyright(c) 2020-2026, Université libre de Bruxelles and MobilityDB
+contributors
+
+-----------------------------------------------------------------------------*/
+
 /******************************************************************************
  * Exports the Brussels synthetic dataset obtained from the BerlinMOD generator
- * in CSV format 
+ * in CSV format
  * https://github.com/MobilityDB/MobilityDB-BerlinMOD
  * into MobilityDB using projected (2D) coordinates with SRID 3857
  * https://epsg.io/3857

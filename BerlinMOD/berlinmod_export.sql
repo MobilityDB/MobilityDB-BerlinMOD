@@ -1,6 +1,16 @@
+/*-----------------------------------------------------------------------------
+-- BerlinMOD Export
+-------------------------------------------------------------------------------
+
+This file is part of MobilityDB.
+Copyright(c) 2020-2026, Université libre de Bruxelles and MobilityDB
+contributors
+
+-----------------------------------------------------------------------------*/
+
 /******************************************************************************
  * Exports the Brussels synthetic dataset obtained from the BerlinMOD generator
- * in CSV format 
+ * in CSV format
  * https://github.com/MobilityDB/MobilityDB-BerlinMOD
  * into MobilityDB using projected (2D) coordinates with SRID 3857
  * https://epsg.io/3857
@@ -99,6 +109,84 @@ BEGIN
 
 -------------------------------------------------------------------------------
 
+  RETURN 'The End';
+END;
+$$ LANGUAGE 'plpgsql';
+
+-------------------------------------------------------------------------------
+
+/******************************************************************************
+ * Exports a cross-platform–compatible subset of the BerlinMOD dataset in CSV
+ * format, suitable for loading into MobilityDuck (DuckDB) and MobilitySpark
+ * (Apache Spark) using the portable SQL dialect (RFC #861).
+ *
+ * Schema produced:
+ *   vehicles.csv       : vehId, licence, type, model
+ *   trips.csv          : tripId, vehId, trip   -- tgeompoint as WKT text
+ *   query_licences.csv : licenceId, licence
+ *   query_instants.csv : instantId, instant
+ *   query_points.csv   : pointId, geom          -- geometry as WKT text
+ *
+ * Parameters:
+ * - fullpath: directory path (with trailing slash) where CSV files are written.
+ *
+ * Example:
+ *     \i berlinmod_export.sql
+ *     SELECT berlinmod_portability_export('/home/mobilitydb/portability/');
+ *****************************************************************************/
+
+DROP FUNCTION IF EXISTS berlinmod_portability_export;
+CREATE OR REPLACE FUNCTION berlinmod_portability_export(fullpath text)
+RETURNS text AS $$
+DECLARE
+  startTime timestamptz;
+  endTime   timestamptz;
+BEGIN
+  startTime = clock_timestamp();
+  RAISE INFO '------------------------------------------------------------------';
+  RAISE INFO 'Exporting BerlinMOD data in cross-platform portability schema';
+  RAISE INFO 'Target: %', fullpath;
+  RAISE INFO 'Execution started at %', startTime;
+  RAISE INFO '------------------------------------------------------------------';
+
+  RAISE INFO 'Exporting vehicles.csv';
+  EXECUTE format(
+    'COPY (SELECT VehicleId AS vehId, Licence AS licence,
+                  VehicleType AS type, Model AS model
+           FROM Vehicles ORDER BY VehicleId)
+     TO ''%svehicles.csv'' DELIMITER '','' CSV HEADER', fullpath);
+
+  RAISE INFO 'Exporting trips.csv (tgeompoint as WKT text)';
+  EXECUTE format(
+    'COPY (SELECT TripId AS tripId, VehicleId AS vehId,
+                  asText(Trip) AS trip
+           FROM Trips ORDER BY TripId)
+     TO ''%strips.csv'' DELIMITER '','' CSV HEADER', fullpath);
+
+  RAISE INFO 'Exporting query_licences.csv';
+  EXECUTE format(
+    'COPY (SELECT LicenceId AS licenceId, Licence AS licence
+           FROM Licences ORDER BY LicenceId)
+     TO ''%squery_licences.csv'' DELIMITER '','' CSV HEADER', fullpath);
+
+  RAISE INFO 'Exporting query_instants.csv';
+  EXECUTE format(
+    'COPY (SELECT InstantId AS instantId, Instant AS instant
+           FROM Instants ORDER BY InstantId)
+     TO ''%squery_instants.csv'' DELIMITER '','' CSV HEADER', fullpath);
+
+  RAISE INFO 'Exporting query_points.csv (geometry as WKT text)';
+  EXECUTE format(
+    'COPY (SELECT PointId AS pointId, ST_AsText(Geom) AS geom
+           FROM Points ORDER BY PointId)
+     TO ''%squery_points.csv'' DELIMITER '','' CSV HEADER', fullpath);
+
+  endTime = clock_timestamp();
+  RAISE INFO '------------------------------------------------------------------';
+  RAISE INFO 'Execution started at %', startTime;
+  RAISE INFO 'Execution finished at %', endTime;
+  RAISE INFO 'Execution time %', endTime - startTime;
+  RAISE INFO '------------------------------------------------------------------';
   RETURN 'The End';
 END;
 $$ LANGUAGE 'plpgsql';
