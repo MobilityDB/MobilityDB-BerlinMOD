@@ -13,6 +13,7 @@ script included alongside it.
 | 2026-05-11 | MobilityDB / PostgreSQL 17 | 17 R-queries × index matrix (none / GiST / SP-GiST) at BerlinMOD scalefactor 0.005 | [`MobilityDB_rqueries_2026-05-11.md`](MobilityDB_rqueries_2026-05-11.md) | [`run_full_bench.sh`](run_full_bench.sh) |
 | 2026-05-11 | Cross-platform readiness | Chapter 1 — work for MobilityDuck and MobilitySpark | [`CrossPlatform_th3index_readiness_2026-05-11.md`](CrossPlatform_th3index_readiness_2026-05-11.md) | — |
 | 2026-05-11 | Cross-platform readiness | R-queries — work for MobilityDuck and MobilitySpark | [`CrossPlatform_rqueries_readiness_2026-05-11.md`](CrossPlatform_rqueries_readiness_2026-05-11.md) | — |
+| 2026-05-11 | MobilityDuck | R-queries UDF audit — all required functions registered; supersedes the MobilityDuck function-gap entries in the readiness doc | [`MobilityDuck_rqueries_audit_2026-05-11.md`](MobilityDuck_rqueries_audit_2026-05-11.md) | — |
 
 ## Beta testing
 
