@@ -66,20 +66,20 @@ All three platforms must return identical row counts.  Reference numbers
 |---:|---:|
 | Q1 | 72 |
 | Q2 | 1 |
-| Q3 | 0 |
+| Q3 | 6 |
 | Q4 | 80 |
-| Q5 | 30 |
+| Q5 | 100 |
 | Q6 | 0 |
 | Q7 | 26 |
-| Q8 | 39 |
+| Q8 | 75 |
 | Q9 | 94 |
-| Q10 | 4 |
+| Q10 | 21 |
 | Q11 | 0 |
 | Q12 | 0 |
-| Q13 | 425 |
-| Q14 | 2 |
+| Q13 | 278 |
+| Q14 | 1 |
 | Q15 | 118 |
-| Q16 | 9 |
+| Q16 | 2 |
 | Q17 | 1 |
 
 Both the standard portable variant and the th3index variant must
