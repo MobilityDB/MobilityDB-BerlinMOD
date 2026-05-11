@@ -15,6 +15,7 @@ script included alongside it.
 | 2026-05-11 | Cross-platform readiness | R-queries — work for MobilityDuck and MobilitySpark | [`CrossPlatform_rqueries_readiness_2026-05-11.md`](CrossPlatform_rqueries_readiness_2026-05-11.md) | — |
 | 2026-05-11 | MobilityDuck | R-queries UDF audit — all required functions registered; supersedes the MobilityDuck function-gap entries in the readiness doc | [`MobilityDuck_rqueries_audit_2026-05-11.md`](MobilityDuck_rqueries_audit_2026-05-11.md) | — |
 | 2026-05-11 | MobilitySpark | R-queries UDF audit — all required functions registered on mainline; th3index variant on PR #9 (CI-blocked on JMEOS regen) | [`MobilitySpark_rqueries_audit_2026-05-11.md`](MobilitySpark_rqueries_audit_2026-05-11.md) | — |
+| 2026-05-11 | Three-platform | Per-query timing comparison + bar charts | [`CrossPlatform_timings_2026-05-11.md`](CrossPlatform_timings_2026-05-11.md) | per-platform drivers |
 
 ## Beta testing
 
