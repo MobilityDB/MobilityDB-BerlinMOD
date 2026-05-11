@@ -7,7 +7,7 @@ PR #940 lift framework helper.
 **Dataset**: BerlinMOD scalefactor 0.005 — 1620 trips × 100 vehicles
 × 100 regions × 100 points × 100 periods × 100 instants.  Parameter
 subsets `Licences1`, `Licences2`, `Instants1`, `Periods1`, `Points1`,
-`Regions1` (each LIMIT 10).
+`Regions1` (each 10 rows, `ORDER BY <PrimaryKey> LIMIT 10`).
 **Driver**: `SELECT berlinmod_R_queries(1, false)` — the canonical
 PL/pgSQL harness from `BerlinMOD/berlinmod_r_queries.sql`, which
 captures `EXPLAIN (ANALYZE, FORMAT JSON)` timings per query.
@@ -40,57 +40,60 @@ captures `EXPLAIN (ANALYZE, FORMAT JSON)` timings per query.
 
 ## Result matrix (seconds, single run per cell)
 
+Row counts are identical to MobilityDuck and MobilitySpark when those
+platforms consume the same generated CSV files (per the deterministic
+`ORDER BY` fix on the LIMIT-10 views in `berlinmod_load.sql`).
+
 | Q | rows | none | GiST(trip + trajectory) | SP-GiST(trip + trajectory) |
 |---|---:|---:|---:|---:|
-| Q1  | 72  |   2.74 |   0.79 |   0.78 |
-| Q2  | 1   |   0.15 |   0.13 |   0.09 |
-| Q3  | 0   |   6.17 |   4.69 |   8.50 |
-| Q4  | 80  |  15.78 |  13.43 |  13.60 |
-| Q5  | 30  | 269.11 | 238.89 | 235.03 |
-| Q6  | 0   |  36.68 |   9.12 |   4.50 |
-| Q7  | 26  |  11.59 |  11.77 |  11.20 |
-| Q8  | 39  |   1.09 |   1.12 |   1.30 |
-| Q9  | 94  |  30.83 |  12.84 |  11.70 |
-| Q10 | 4   |  57.10 |   9.21 |   8.76 |
-| Q11 | 0   |   3.07 |   3.61 |   2.81 |
-| Q12 | 0   |   2.97 |   2.88 |   2.84 |
-| Q13 | 425 |  53.79 |   6.18 |   5.92 |
-| Q14 | 2   |  23.98 |   0.50 |   0.48 |
-| Q15 | 118 |  26.58 |   5.05 |   4.73 |
-| Q16 | 9   |  16.02 |  16.17 |  15.66 |
-| Q17 | 1   |  11.85 |  12.01 |  11.73 |
-| **Total** | — | **569.51** | **348.40** | **339.61** |
-
-Identical row counts across all three configurations.
+| Q1  | 72  |   2.45 |   0.78 |   2.68 |
+| Q2  | 1   |   0.20 |   0.15 |   0.08 |
+| Q3  | 6   |   5.25 |   5.70 |   6.26 |
+| Q4  | 80  |  13.69 |  15.19 |  11.11 |
+| Q5  | 100 |  89.30 |  80.61 |  83.07 |
+| Q6  | 0   |   5.91 |   4.23 |   3.53 |
+| Q7  | 26  |  10.48 |   9.24 |  10.29 |
+| Q8  | 75  |   0.94 |   1.18 |   1.07 |
+| Q9  | 94  |  30.69 |   9.81 |  11.06 |
+| Q10 | 21  |  51.50 |   6.46 |   7.16 |
+| Q11 | 0   |   2.76 |   2.31 |   2.73 |
+| Q12 | 0   |   2.51 |   2.37 |   2.49 |
+| Q13 | 278 |  27.92 |   4.55 |   5.13 |
+| Q14 | 1   |  22.62 |   0.44 |   0.45 |
+| Q15 | 118 |  32.87 |   4.13 |   4.37 |
+| Q16 | 2   |  21.68 |  16.35 |  16.50 |
+| Q17 | 1   |  13.51 |   9.74 |   9.08 |
+| **Total** | — | **334.30** | **173.23** | **177.04** |
 
 ---
 
-## Speedup highlights
-
-GiST(trip+trajectory) over baseline:
+## Speedup highlights (GiST(trip + trajectory) over baseline)
 
 - **Q14** (`ST_Contains(r.Geom, valueAtTimestamp(t.Trip, i.Instant))`)
-  — 48× speedup.  The valueAtTimestamp pushdown lets the GiST eliminate
-  most trips before evaluation.
+  — 51× speedup.  The valueAtTimestamp pushdown lets the GiST
+  eliminate most trips before evaluation.
+- **Q10** (`tDwithin(t1.Trip, t2.Trip, 3.0)` against expanded bbox)
+  — 8.0× on the trip×trip join.
+- **Q15** (trajectory-vs-point during period) — 8.0×.
 - **Q13** (`ST_Intersects(trajectory(atTime(t.Trip, p.Period)), r.Geom)`)
-  — 8.7×.  GiST on `trajectory` is the active index.
-- **Q10** (`tDwithin(t1.Trip, t2.Trip, 3.0)`) — 6.2× on the trip×trip
-  join, GiST(trip) on both sides.
-- **Q15** (trajectory-vs-point during period) — 5.3×.
-- **Q6** (`eDwithin(t1.Trip, t2.Trip, 10.0)` for truck pairs) — 4.0×.
-- **Q9** (atTime + length aggregation) — 2.4×.
+  — 6.1×.
+- **Q9** (atTime + length aggregation) — 3.1×.
+- **Q4** — 0.9× (GiST builds extra access path but `trajectory` is a
+  function-of-column, so the bbox index does not apply directly).
 
-SP-GiST(trip+trajectory) shows the same shape with a slight edge on
-Q6 (8.1× vs 4.0×) and Q14 (49.7× vs 47.7×), and a slight regression
-on Q3.  Total runtime is within 2.5 % of GiST, in run-to-run noise.
+SP-GiST is within run-to-run noise of GiST on the total (177.04 vs
+173.23 s) and trades wins per query (faster on Q4 / Q6 / Q17, slower
+on Q1).
 
-## Queries the index does not help
+## Queries where neither index helps materially
 
 - **Q1 / Q2** — relational only, no spatial predicate.
-- **Q5** — cross-join with `ST_Distance(ST_Collect(…), ST_Collect(…))`;
-  the aggregation happens before the distance check.
-- **Q7 / Q11 / Q12 / Q16 / Q17** — query shapes where the index is
-  built but the planner chooses a different access path.
+- **Q3** — temporal value-at predicate; GiST adds slight overhead.
+- **Q5** — `ST_Distance(ST_Collect(...), ST_Collect(...))` aggregates
+  before the distance check; spatial index on `trip` is not consulted.
+- **Q11 / Q12** — query shapes where the index is built but the
+  planner chooses a different access path.
+- **Q16** — cross-join query; minor improvement.
 
 ---
 
@@ -99,11 +102,9 @@ on Q3.  Total runtime is within 2.5 % of GiST, in run-to-run noise.
 - **The h3 cell-set prefilter clause.**  Adding
   `everIntersectsH3IndexSet_Th3Index(geoToH3IndexSet(R.Geom, 7), T.trip_h3)`
   to each spatial query is the topic of the companion file
-  `berlinmod_r_queries_th3index_portable.sql`.  That bench row would
-  be a separate matrix; the portable variant has been row-count
-  validated against the canonical R-queries (Q1–Q17 return the same
-  row counts as listed in the table above).
-- **Three-platform parity.**  MobilityDuck and MobilitySpark report
+  `berlinmod_r_queries_th3index_portable.sql`.  Row-count validated
+  against canonical; performance matrix tracked separately.
+- **Three-platform timings.**  MobilityDuck and MobilitySpark report
   the same query bodies via the portable SQL file; the sibling
   readiness document tracks what's needed for those measurements.
 
@@ -121,7 +122,7 @@ indexes on `trips.trip` and `trips.trajectory` between runs.  See
 
 ---
 
-## Companion files in this PR
+## Companion files
 
 - `berlinmod_r_queries_portable.sql` — same 17 queries, portable
   dialect (PG-specific operators replaced with function-call form;
@@ -130,5 +131,4 @@ indexes on `trips.trip` and `trips.trajectory` between runs.  See
   cell-set prefilter on spatial predicates.  Row-count validated;
   prefilter is sound.
 - `BETA_TESTING.md` — tester recipe and report-back template.
-- `CrossPlatform_rqueries_readiness_2026-05-11.md` — work inventory
-  for replicating this bench on MobilityDuck and MobilitySpark.
+- `ThreePlatform_beta_status_2026-05-11.md` — cross-platform status.
