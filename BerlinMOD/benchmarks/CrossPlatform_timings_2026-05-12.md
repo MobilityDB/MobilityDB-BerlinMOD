@@ -31,6 +31,21 @@ Q10:21 Q11:0 Q12:0 Q13:278 Q14:1  Q15:118 Q16:2 Q17:1
 
 ---
 
+## Side-by-side grouped chart (all three platforms, log scale)
+
+![Standard matrix grouped bar chart](cross_platform_standard.svg)
+
+Same numbers as the side-by-side detail table below.  Y axis is
+log-scaled so Q5 / Q10 do not flatten the cheap queries.  Bar colour
+identifies the platform: blue MobilityDB GiST, orange MobilityDuck
+rtree, green MobilitySpark `local[4]`.  Bars with an "n/a" annotation
+are deferred to the th3index prefilter matrix below.
+
+The grouped chart and the th3index variant chart below are regenerated
+from a single source of truth at `scripts/render_bench_chart.py`
+(matplotlib).  Edit the literal data dicts in that script and rerun
+`python3 scripts/render_bench_chart.py` to refresh both SVGs.
+
 ## Per-platform bar charts
 
 ### MobilityDB on PostgreSQL 17.8 — GiST(trip + trajectory)
@@ -144,6 +159,16 @@ long tail and report them separately from the other 15.
   per-row stderr warning I/O on the mixed-SRID predicate path; the
   cross-platform `th3index` matrix below documents the prefilter shape
   that would prune those rows when the JMEOS jar gains h3 symbols.
+
+## Side-by-side grouped chart — `th3index` prefilter variant (log scale)
+
+![Th3index prefilter grouped bar chart](cross_platform_th3index.svg)
+
+Trip-side cross-join queries only (Q4, Q5, Q6, Q7, Q10).  Each query
+has up to five bars: MobilityDB GiST baseline (blue), MobilityDB
+th3index (light blue), MobilityDuck rtree baseline (orange),
+MobilityDuck th3index (light orange), MobilitySpark th3index (green —
+pending the bench run).
 
 ## Cross-platform `th3index` prefilter matrix
 
