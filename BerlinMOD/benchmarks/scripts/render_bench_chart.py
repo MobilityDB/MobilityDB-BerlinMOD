@@ -52,12 +52,11 @@ STANDARD: list[Series] = [
     }),
     Series("MobilitySpark local[4]", "#2ca02c", {
         "Q1": 0.55, "Q2": 45.59, "Q3": 50.47, "Q4": 64.87, "Q5": 508.44,
-        "Q6": 5.05, "Q7": 42.47, "Q8": 0.08, "Q9": 37.27, "Q10": 926.32,
-        # Q11-Q17 deferred to the th3index matrix on Spark (per-row
-        # stderr pathology on mixed-SRID predicates dominates the
-        # standard variant timings; the prefilter avoids that path).
-        "Q11": None, "Q12": None, "Q13": None, "Q14": None, "Q15": None,
-        "Q16": None, "Q17": None,
+        "Q6": 5.05, "Q7": 42.47, "Q8": 0.08, "Q9": 37.27,
+        # Q10-Q17 pending rerun: the prior numbers were captured before
+        # the MEOS noexit handler stopped writing per-call to stderr.
+        "Q10": None, "Q11": None, "Q12": None, "Q13": None, "Q14": None,
+        "Q15": None, "Q16": None, "Q17": None,
     }),
 ]
 

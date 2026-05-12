@@ -37,10 +37,11 @@ Q10:21 Q11:0 Q12:0 Q13:278 Q14:1  Q15:118 Q16:2 Q17:1
 ![Standard matrix grouped bar chart](cross_platform_standard.svg)
 
 Same numbers as the side-by-side detail table below.  Y axis is
-log-scaled so Q5 / Q10 do not flatten the cheap queries.  Bar colour
-identifies the platform: blue MobilityDB GiST, orange MobilityDuck
-rtree, green MobilitySpark `local[4]`.  Bars with an "n/a" annotation
-are deferred to the th3index prefilter matrix below.
+log-scaled (1 ms floor) so Q5 does not flatten the cheap queries.
+Bar colour identifies the platform: blue MobilityDB GiST, orange
+MobilityDuck rtree, green MobilitySpark `local[4]`.  Bars marked `n/a`
+are MobilitySpark Q10–Q17, pending rerun on the silent-noexit MEOS
+build.
 
 The grouped chart and the th3index variant chart below are regenerated
 from a single source of truth at `scripts/render_bench_chart.py`
@@ -55,46 +56,20 @@ from a single source of truth at `scripts/render_bench_chart.py`
 | Q2  |   0.15 |  0.00 |  45.59 |
 | Q3  |   5.70 |  0.41 |  50.47 |
 | Q4  |  15.19 |  0.79 |  64.87 |
-| Q5  |  80.61 | 81.34 | 508.44 (†) |
+| Q5  |  80.61 | 81.34 | 508.44 |
 | Q6  |   4.23 |  0.31 |   5.05 |
 | Q7  |   9.24 |  0.68 |  42.47 |
 | Q8  |   1.18 |  0.14 |   0.08 |
 | Q9  |   9.81 |  6.19 |  37.27 |
-| Q10 |   6.46 |  6.24 | 926.32 (‡) |
-| Q11 |   2.31 |  0.62 | (‡) |
-| Q12 |   2.37 |  0.65 | (‡) |
-| Q13 |   4.55 |  7.54 | (‡) |
-| Q14 |   0.44 |  0.54 | (‡) |
-| Q15 |   4.13 |  7.49 | (‡) |
-| Q16 |  16.35 |  3.28 | (‡) |
-| Q17 |   9.74 |  0.70 | (‡) |
-| **Total (Q1–Q10)** | **123.74** | **96.06** | **1729.97** |
-
-**(‡) Q10 through Q17 on MobilitySpark** exercise spatial cross-joins
-over the BerlinMOD geometry × geography mixture.  Each mixed-SRID
-comparison emits a per-row warning on the Spark task stderr, and at
-~3 M rows per query the stderr I/O alone dominates the wall-clock.
-This is a Spark-harness logging-configuration pathology and is not a
-characteristic of the spatial kernel itself.  An h3-cell prefilter on
-`trip_h3` would prune most mixed-SRID pairs before the comparison
-fires; that path becomes available on MobilitySpark when the JMEOS
-jar gains h3 symbols.
-
-**(†) Q5 on MobilitySpark**: the wall time is dominated by the synchronous
-nearest-approach-distance cross-join.  Every pair of trips runs
-`nearestApproachDistance(t1.trip, t2.trip)`, which scans the shared time
-extent instant by instant.
-
-**Q10 / Q11 wall-time pathology on MobilitySpark**: the cross-join
-predicate on Q10 and Q11 produces a `Operation on mixed SRID` row-
-level error for each `geom × geog` pair in the input.  The bench
-harness writes one stderr line per error row; the resulting ~3 M
-stderr writes per query dominate the wall-clock and the per-row
-runtime is not representative of the SQL itself.  MobilityDB and
-MobilityDuck short-circuit this path differently (PostgreSQL raises
-the error once and skips; DuckDB swallows it via the columnar
-schema).  Beta testers running these two queries should expect the
-long tail and report them separately from the other 15.
+| Q10 |   6.46 |  6.24 | pending rerun |
+| Q11 |   2.31 |  0.62 | pending rerun |
+| Q12 |   2.37 |  0.65 | pending rerun |
+| Q13 |   4.55 |  7.54 | pending rerun |
+| Q14 |   0.44 |  0.54 | pending rerun |
+| Q15 |   4.13 |  7.49 | pending rerun |
+| Q16 |  16.35 |  3.28 | pending rerun |
+| Q17 |   9.74 |  0.70 | pending rerun |
+| **Total Q1–Q9** | **126.89** | **89.88** | **754.79** |
 
 ## Reading the chart
 
@@ -109,10 +84,12 @@ long tail and report them separately from the other 15.
   Q11, Q12, Q14, Q17).  DuckDB's vectorized columnar engine has lower
   per-query overhead on small data, even without a spatial index.
 - **MobilitySpark on `local[4]`** parallelises the spatial cross-join
-  queries (Q2, Q5, Q10, Q11) across four task threads, scaling roughly
-  linearly with the thread count.  Q10–Q17 cross-join wall-times are
-  most representative under the th3index prefilter (see the matrix
-  below); the prefilter UDFs run via direct JNR-FFI bindings.
+  queries (Q2, Q5) across four task threads, scaling roughly linearly
+  with the thread count.  The Q10–Q17 cell entries are flagged
+  `pending rerun` because the prior numbers were captured before the
+  MEOS noexit handler was changed to stop writing per-call to stderr;
+  the new measurements will replace those cells on the next bench
+  pass.
 
 ## Side-by-side grouped chart — `th3index` prefilter variant (log scale)
 
