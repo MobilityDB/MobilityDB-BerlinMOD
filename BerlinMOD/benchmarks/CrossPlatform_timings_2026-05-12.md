@@ -112,7 +112,7 @@ long tail and report them separately from the other 15.
 - **MobilityDuck wins on cheap queries** (Q1, Q2, Q3, Q4, Q6, Q7, Q8,
   Q11, Q12, Q14, Q17).  DuckDB's vectorized columnar engine has lower
   per-query overhead on small data, even without a spatial index.
-- **MobilitySpark on `local[4]`** parallelises the GEOS-heavy cross-join
+- **MobilitySpark on `local[4]`** parallelises the spatial cross-join
   queries (Q2, Q5, Q10, Q11) across four task threads, scaling roughly
   linearly with the thread count.
 
