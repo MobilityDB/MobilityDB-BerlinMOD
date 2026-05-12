@@ -170,13 +170,15 @@ scale factor.
   operator class on `trip_h3`.  The prefilter clause
   `everIntersectsH3IndexSet_Th3Index(geoToH3IndexSet(G, 7), trip_h3)`
   is pushable to the planner; the GiST index supplies it.
-- **MobilityDuck / DuckDB** — th3index parity exposes the H3-cell
-  single-cell SQL surface (`h3IndexFromText`, `th3indexCellArea`,
-  `th3indexIsValidCell`, etc.) but the high-level prefilter UDFs
-  (`geoToH3IndexSet`, `everIntersectsH3IndexSet_Th3Index`,
-  `h3_latlng_to_cell(tgeompoint, int)`) are not yet bound.  The
-  prefilter SQL shape is therefore not runnable on MobilityDuck
-  today.
+- **MobilityDuck / DuckDB** — th3index parity exposes the H3 cell
+  type (`H3INDEX`), the temporal H3 cell index type (`TH3INDEX`),
+  the trajectory→cell-sequence constructor (`th3index(tgeompoint,
+  int)`), and the trip×trip temporal-equality prefilter
+  (`everEq(TH3INDEX, TH3INDEX)`).  The trip×trip prefilter SQL
+  shape (Q6, Q10) runs.  The static-geometry prefilter UDFs
+  (`geoToH3IndexSet`, `everIntersectsH3IndexSet_Th3Index`) for
+  trip×static cross-joins (Q4, Q7, Q11, Q12, Q15, Q17) are not yet
+  bound on MobilityDuck.
 - **MobilitySpark / Spark** — th3index UDFs depend on h3 symbols in
   JMEOS; the current JMEOS jar exposes temporal and spatial APIs
   but not the h3 family.  The prefilter SQL shape is therefore not
@@ -211,17 +213,15 @@ reduction across these two queries.
 
 | Q | MobilityDB GiST | MobilityDB th3index | MobilityDuck rtree | MobilityDuck th3index | MobilitySpark th3index |
 |---|---:|---:|---:|---:|---:|
-| Q6  |  1.95 s | 0.05 s |  0.31 s | not runnable | not runnable |
-| Q10 | 43.46 s | 1.83 s |  6.24 s | not runnable | not runnable |
-| Total Q6+Q10 | 45.41 s | 1.88 s | 6.55 s | — | — |
+| Q6  |  1.95 s | 0.05 s |  0.31 s |  0.06 s | not runnable |
+| Q10 | 43.46 s | 1.83 s |  6.24 s |  1.73 s | not runnable |
+| Total Q6+Q10 | 45.41 s | 1.88 s | 6.55 s | 1.79 s | — |
 
-MobilityDuck's columnar zone-map filter on the trip bounding box
-already pushes the trip×trip cross-join cost below the MobilityDB
-GiST baseline on Q6/Q10.  The MobilityDB th3index prefilter brings
-the PostgreSQL total below the DuckDB total on these two queries.
-Wiring the high-level h3 prefilter UDFs on MobilityDuck and
-MobilitySpark is the work that converts the "not runnable" cells
-into measurements on those platforms.
+The th3index prefilter brings MobilityDuck's trip×trip cross-join
+totals into the same range as MobilityDB's: 1.79 s vs 1.88 s on
+Q6+Q10 combined.  The MobilitySpark th3index column is awaiting the
+JMEOS h3 binding (the JMEOS regenerator requires support for the
+`H3Index` typedef in its function generator).
 
 ## Reproduce
 
