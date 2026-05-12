@@ -7,9 +7,10 @@ This document is split in two parts:
    the DuckDB rtree on the trip bounding box, MobilitySpark with no
    spatial index (the bare cross-join cost on `local[4]`).
 2. **Cross-platform `th3index` prefilter matrix** (see the section at
-   the bottom — currently pending the data regeneration with the
-   `trip_h3` column).  For MobilitySpark this is the only available
-   acceleration path on the cross-join queries.
+   the bottom) — temporal H3-cell index on `trip` accelerating the
+   trip×trip cross-join queries.  Currently runnable on MobilityDB;
+   MobilityDuck and MobilitySpark expose the underlying h3 type but
+   not the high-level prefilter UDFs yet.
 
 **Date**: 2026-05-12
 **Dataset**: BerlinMOD scalefactor 0.005, 1620 trips × 141 vehicles
@@ -68,9 +69,11 @@ xychart-beta
     bar [0.55, 45.59, 50.47, 64.87, 508.44, 5.05, 42.47, 0.08, 37.27, 926.32]
 ```
 
-Q1–Q10 total: **1729.97 s**.  Q11–Q17 wall-times are deferred to the
-`th3index` matrix; the prefilter is the deployment-recommended path
-on Spark for cross-join queries.
+Q1–Q10 total: **1729.97 s**.  Q11–Q17 wall-times are dominated by
+the same per-row mixed-SRID stderr pathology described under the
+side-by-side detail table; see the cross-platform status table for
+the trip×trip cross-join cells where the h3 prefilter would apply
+once the JMEOS jar gains h3 symbols.
 
 ---
 
@@ -102,10 +105,10 @@ over the BerlinMOD geometry × geography mixture.  Each mixed-SRID
 comparison emits a per-row warning on the Spark task stderr, and at
 ~3 M rows per query the stderr I/O alone dominates the wall-clock.
 This is a Spark-harness logging-configuration pathology and is not a
-characteristic of the spatial kernel itself.  The th3index prefilter
-matrix at the bottom of this document is the deployment-recommended
-configuration for cross-join queries on MobilitySpark — see the next
-section for how to rerun once the trip_h3-enriched data lands.
+characteristic of the spatial kernel itself.  An h3-cell prefilter on
+`trip_h3` would prune most mixed-SRID pairs before the comparison
+fires; that path becomes available on MobilitySpark when the JMEOS
+jar gains h3 symbols.
 
 **(†) Q5 on MobilitySpark**: the wall time is dominated by the synchronous
 nearest-approach-distance cross-join.  Every pair of trips runs
@@ -139,35 +142,115 @@ long tail and report them separately from the other 15.
   queries (Q2, Q5, Q10, Q11) across four task threads, scaling roughly
   linearly with the thread count.  Q10–Q17 wall-times are bloated by
   per-row stderr warning I/O on the mixed-SRID predicate path; the
-  th3index prefilter matrix below is the deployment-recommended
-  configuration on Spark.
+  cross-platform `th3index` matrix below documents the prefilter shape
+  that would prune those rows when the JMEOS jar gains h3 symbols.
 
-## Cross-platform `th3index` prefilter matrix (pending)
+## Cross-platform `th3index` prefilter matrix
 
-`th3index` is the only acceleration path on the cross-join queries
-(Q2, Q4, Q5, Q6, Q10) for MobilitySpark and the recommended path on
-the same queries for MobilityDB and MobilityDuck.  Setup requires:
+`th3index` is a temporal H3-cell index of each trip's trajectory at
+H3 resolution 7.  The prefilter prunes trip×trip and trip×static
+pairs whose H3-cell footprints do not intersect, before the precise
+spatial predicate is evaluated.
 
-- MobilityDB build with the `th3index` type registered.
-- MobilityDuck build with the `th3index` parity port.
-- MobilitySpark build with the `Th3IndexUDFs.java` and the prefilter
-  variants of the Spark q*.sql files.
-- BerlinMOD data files regenerated with the `trip_h3` column.
+The cross-join queries on which the prefilter has a defined shape
+are **Q4, Q6, Q7, Q10, Q11, Q12, Q15, Q17** (one or both sides
+spatial; precise predicate is `ST_Intersects`, `eDwithin`,
+`tDwithin`, or `valueAtTimestamp =`).  Q1, Q2, Q3, Q8, Q9 are
+relational or time-only — no spatial cross-join.  Q5 is an
+aggregated `ST_Collect`-based cross-join (the static-set prefilter
+form does not apply).  Q13, Q14, Q16 cross-join against
+`Regions1`; at sf 0.005 the regions are large relative to the
+city extent and the H3 cell-set covers most of the trajectory
+universe, so the prefilter is overhead-neutral at best on this
+scale factor.
 
-Once the data regeneration lands, this section will carry a side-by-
-side row for each query across all three platforms in both the
-unprefiltered and th3index-prefiltered configurations.
+### Setup per platform
+
+- **MobilityDB / PostgreSQL** — `th3index` type registered, GiST
+  operator class on `trip_h3`.  The prefilter clause
+  `everIntersectsH3IndexSet_Th3Index(geoToH3IndexSet(G, 7), trip_h3)`
+  is pushable to the planner; the GiST index supplies it.
+- **MobilityDuck / DuckDB** — th3index parity exposes the H3-cell
+  single-cell SQL surface (`h3IndexFromText`, `th3indexCellArea`,
+  `th3indexIsValidCell`, etc.) but the high-level prefilter UDFs
+  (`geoToH3IndexSet`, `everIntersectsH3IndexSet_Th3Index`,
+  `h3_latlng_to_cell(tgeompoint, int)`) are not yet bound.  The
+  prefilter SQL shape is therefore not runnable on MobilityDuck
+  today.
+- **MobilitySpark / Spark** — th3index UDFs depend on h3 symbols in
+  JMEOS; the current JMEOS jar exposes temporal and spatial APIs
+  but not the h3 family.  The prefilter SQL shape is therefore not
+  runnable on MobilitySpark today.
+
+### MobilityDB cross-join results — sf 0.005, GiST(trip)+GiST(trajectory)+GiST(trip_h3)
+
+Same-session apples-to-apples run (PostgreSQL 17.8, warm cache, 1
+run per query):
+
+| Q | GiST baseline | th3index prefilter | Notes |
+|---|---:|---:|---|
+| Q4  |  5.07 s |  5.62 s | overhead-neutral at sf 0.005; GiST(trajectory) already tight on the 10 query points |
+| Q5  | 76.48 s | 86.60 s | static-set prefilter not applicable (aggregated ST_Collect) |
+| Q6  |  1.95 s |  0.05 s | **39× speedup**; trip×trip cross-join, no spatial index on the joining axis |
+| Q7  |  not run |  5.03 s | — |
+| Q10 | 43.46 s |  1.83 s | **24× speedup**; trip×trip `tDwithin` cross-join, no joining-side index |
+| Q11 |  not run |  1.78 s | — |
+| Q12 |  not run |  1.76 s | — |
+| Q13 |  not run | 15.89 s | overhead at this scale; region-side cells cover most of the city |
+| Q14 |  not run | 13.25 s | same — region-side coverage |
+| Q15 |  not run |  3.86 s | — |
+| Q16 |  not run | 14.59 s | same — region-side coverage |
+| Q17 |  not run |  5.01 s | — |
+
+The trip×trip cross-joins (**Q6 and Q10**) are where the prefilter
+pays off on MobilityDB at this scale factor: a combined wall-time of
+**45.41 s** without the prefilter, **1.88 s** with it — **24×**
+reduction across these two queries.
+
+### Cross-platform status — trip×trip cross-join queries
+
+| Q | MobilityDB GiST | MobilityDB th3index | MobilityDuck rtree | MobilityDuck th3index | MobilitySpark th3index |
+|---|---:|---:|---:|---:|---:|
+| Q6  |  1.95 s | 0.05 s |  0.31 s | not runnable | not runnable |
+| Q10 | 43.46 s | 1.83 s |  6.24 s | not runnable | not runnable |
+| Total Q6+Q10 | 45.41 s | 1.88 s | 6.55 s | — | — |
+
+MobilityDuck's columnar zone-map filter on the trip bounding box
+already pushes the trip×trip cross-join cost below the MobilityDB
+GiST baseline on Q6/Q10.  The MobilityDB th3index prefilter brings
+the PostgreSQL total below the DuckDB total on these two queries.
+Wiring the high-level h3 prefilter UDFs on MobilityDuck and
+MobilitySpark is the work that converts the "not runnable" cells
+into measurements on those platforms.
 
 ## Reproduce
 
-Per-platform driver scripts:
+Per-platform driver scripts and SQL files:
 
-- **MobilityDB**: [`run_full_bench.sh`](run_full_bench.sh) — `psql -d <db> -c "SELECT berlinmod_R_queries(1, false);"`
-- **MobilityDuck**: see [`MobilityDuck_rqueries_audit_2026-05-11.md`](MobilityDuck_rqueries_audit_2026-05-11.md) — `duckdb <db>` + portable SQL file
-- **MobilitySpark**: `berlinmod/bench/bench_mspark.sh` in `MobilitySpark-parity/`.  The Spark master defaults to `local[4]`; override with `SPARK_MASTER=local[N]`.  Runs the full 17-query suite with `BerlinMODBench <data_dir> <output.json> <runs>`.
+- **MobilityDB standard index**:
+  [`run_full_bench.sh`](run_full_bench.sh) drives
+  `psql -d <db> -c "SELECT berlinmod_R_queries(1, false);"` across the
+  `none`, `gist`, `spgist` index configurations.
+- **MobilityDB th3index prefilter**:
+  [`berlinmod_th3index_setup.sql`](../berlinmod_th3index_setup.sql)
+  adds the `trip_h3` column, populates it with
+  `h3_latlng_to_cell(Trip, 7)`, and builds the GiST index.  Then
+  source
+  [`berlinmod_r_queries_th3index_portable.sql`](../berlinmod_r_queries_th3index_portable.sql)
+  to run the prefiltered Q1–Q17 in dialect-portable form.  Requires
+  MobilityDB built with `-DH3=ON`.
+- **MobilityDuck**: `duckdb <db>` then load the MobilityDuck
+  extension and source
+  [`berlinmod_r_queries_th3index_portable.sql`](../berlinmod_r_queries_th3index_portable.sql)
+  once the high-level h3 prefilter UDFs are bound.  The single-cell
+  h3 surface is available today on the `feat/parity-th3index` branch.
+- **MobilitySpark**: `berlinmod/bench/bench_mspark.sh` in the
+  MobilitySpark working tree, with `--master local[4]` (the
+  default).  The th3index prefilter q*.sql files exist on the
+  `perf/spark-mt-and-binary` branch but are gated on JMEOS gaining
+  h3 symbols.
 
 Raw output:
 
-- [`raw_output_rqueries_2026-05-11.txt`](raw_output_rqueries_2026-05-11.txt) — MobilityDB
-- (TODO) `raw_output_mspark_local4_2026-05-12.txt` — MobilitySpark `local[4]` full 17-query run
+- [`raw_output_rqueries_2026-05-11.txt`](raw_output_rqueries_2026-05-11.txt) — MobilityDB standard index matrix
 
