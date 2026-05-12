@@ -93,7 +93,7 @@ def render(series: list[Series], queries: list[str], out: Path, title: str) -> N
     x = np.arange(n)
 
     fig, ax = plt.subplots(figsize=(max(8, n * 0.9), 5.0), dpi=120)
-    floor = 0.01  # log-scale lower bound; render missing values just below
+    floor = 0.001  # log-scale lower bound (1 ms); render missing values at floor
 
     for i, s in enumerate(series):
         offsets = x - 0.4 + width * (i + 0.5)
