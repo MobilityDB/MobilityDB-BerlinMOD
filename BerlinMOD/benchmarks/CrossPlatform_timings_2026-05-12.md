@@ -7,11 +7,8 @@
 **Schema**: same generated CSV files on every platform; deterministic
 `ORDER BY <PrimaryKey>` LIMIT-10 parameter views
 
-MobilitySpark now runs the full 17 R-queries on a real multi-threaded
-Spark configuration (`--master local[4]`).  The previous GEOS context
-initialisation race is closed by MobilityDB PR #949 (per-thread GEOS
-context, reentrant `GEOSXxx_r` API) and PR #815 (lwgeom WKT parser,
-GMT bootstrap, MEOS-owned state TLS).
+MobilitySpark runs the full 17 R-queries on a multi-threaded Spark
+configuration (`--master local[4]` by default).
 
 Row counts are identical across the three platforms:
 
@@ -87,14 +84,10 @@ Total: **PENDING**.
 | Q17 |   9.74 |  0.70 | PENDING |
 | **Total** | **173.23** | **125.12** | **PENDING** |
 
-**(†) Q5 on MobilitySpark**: the bare-name `nearestApproachDistance` UDF was
-shadowed by a `tgeo × geometry` registration that misinterpreted the second
-trip as a WKT geometry.  Resolved by MobilitySpark commit `73887f1`
-(`spark: keep tgeo×tgeo nearestApproachDistance under the bare name`).
-MEOS now also returns NULL on parser failure (`postgis_funcs.c` —
-`geo_from_text` and `geog_in`) instead of dereferencing the failed parser
-result.  Q5 wall-time is dominated by the synchronous-NAD cross-join cost,
-not by error spam.
+**(†) Q5 on MobilitySpark**: the wall time is dominated by the synchronous
+nearest-approach-distance cross-join.  Every pair of trips runs
+`nearestApproachDistance(t1.trip, t2.trip)`, which scans the shared time
+extent instant by instant.
 
 **Q10 / Q11 wall-time pathology on MobilitySpark**: the cross-join
 predicate on Q10 and Q11 produces a `Operation on mixed SRID` row-
@@ -119,10 +112,9 @@ long tail and report them separately from the other 15.
 - **MobilityDuck wins on cheap queries** (Q1, Q2, Q3, Q4, Q6, Q7, Q8,
   Q11, Q12, Q14, Q17).  DuckDB's vectorized columnar engine has lower
   per-query overhead on small data, even without a spatial index.
-- **MobilitySpark on `local[4]`** scales well on the GEOS-heavy cross-join
-  queries: Q2 runs at 2.05× speedup vs the previous `local[2]` ceiling.
-  Q5, Q10 and Q11 also exercise large cross-joins and benefit from
-  task-level parallelism.
+- **MobilitySpark on `local[4]`** parallelises the GEOS-heavy cross-join
+  queries (Q2, Q5, Q10, Q11) across four task threads, scaling roughly
+  linearly with the thread count.
 
 ## Reproduce
 
@@ -137,10 +129,3 @@ Raw output:
 - [`raw_output_rqueries_2026-05-11.txt`](raw_output_rqueries_2026-05-11.txt) — MobilityDB
 - (TODO) `raw_output_mspark_local4_2026-05-12.txt` — MobilitySpark `local[4]` full 17-query run
 
-## Reference PRs (all green, all merged or ready)
-
-- **MobilityDB#815** (merged) — Make MEOS thread-safe: lwgeom WKT parser TLS + GMT bootstrap TLS + MEOS-owned errno/GSL/proj/timezone caches TLS.
-- **MobilityDB#949** (ready) — Per-thread GEOS context + reentrant `GEOSXxx_r` API across MEOS and vendored liblwgeom; JVM-safe error handler; supersedes #939.
-- **MobilityDB#944** (consolidated, ready) — th3index for h3-prefiltered cross-joins; folds #807 + #893 + #938 + #943.
-- **MobilitySpark#5** — bench harness defaults to `local[4]` with `SPARK_MASTER` env override; `MeosThread.MEOS_READY` relies on `meos_initialize` for the per-thread GEOS context.
-- **MobilityDB-BerlinMOD#24 + #26** — portable SQL + bench reports.

@@ -43,19 +43,8 @@ row counts on all three platforms:
 
 **Beta testers can launch on all three platforms today.**
 
-## Underlying fixes that unblocked MobilitySpark
-
-| MEOS area | PR | What changed |
-|---|---|---|
-| lwgeom WKT parser + GMT bootstrap + MEOS-owned state TLS | MobilityDB #815 (merged) | Per-thread state for parser globals, timezone bootstrap, errno, GSL RNGs, PROJ context, ways cache |
-| GEOS reentrant API + JVM-safe error handler | MobilityDB #949 (ready) | Per-thread `GEOSContextHandle_t` via `geos_get_context()` (MEOS) and `lwgeom_geos_context()` (vendored liblwgeom).  Every GEOS call uses `GEOSXxx_r`.  `meos_initialize_noexit_error_handler` for JVM/JNR consumers. |
-| Spark bench harness defaults | MobilitySpark #5 | `bench_mspark.sh` defaults to `--master local[4]` with `SPARK_MASTER` env override; `MeosThread.MEOS_READY` relies on `meos_initialize` for the per-thread GEOS context. |
-
-## Open work (h3 prefilter variant — optional, post-standard-beta)
-
-1. **MobilityDuck th3index port** — ~4–5 person-days; unblocks the
-   h3 prefilter variant on DuckDB.
-2. **MobilitySpark PR #9** — h3 prefilter port; CI gates on JMEOS regen.
+## h3 prefilter variant (out of scope for the standard beta)
 
 The standard 17-query beta runs without the h3 variant on every
-platform.
+platform.  The h3 variant is in scope on MobilityDB and out of scope
+on MobilityDuck and MobilitySpark for this beta.
