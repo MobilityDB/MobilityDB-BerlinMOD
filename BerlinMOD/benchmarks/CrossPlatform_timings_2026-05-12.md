@@ -46,52 +46,6 @@ from a single source of truth at `scripts/render_bench_chart.py`
 (matplotlib).  Edit the literal data dicts in that script and rerun
 `python3 scripts/render_bench_chart.py` to refresh both SVGs.
 
-## Per-platform bar charts
-
-### MobilityDB on PostgreSQL 17.8 — GiST(trip + trajectory)
-
-```mermaid
-xychart-beta
-    title "MobilityDB / PostgreSQL 17 — seconds (GiST trip + trajectory)"
-    x-axis ["Q1","Q2","Q3","Q4","Q5","Q6","Q7","Q8","Q9","Q10","Q11","Q12","Q13","Q14","Q15","Q16","Q17"]
-    y-axis "Seconds" 0 --> 90
-    bar [0.78, 0.15, 5.70, 15.19, 80.61, 4.23, 9.24, 1.18, 9.81, 6.46, 2.31, 2.37, 4.55, 0.44, 4.13, 16.35, 9.74]
-```
-
-Total: **173.23 s**.
-
-### MobilityDuck on DuckDB — zone-map filtering
-
-```mermaid
-xychart-beta
-    title "MobilityDuck / DuckDB — seconds"
-    x-axis ["Q1","Q2","Q3","Q4","Q5","Q6","Q7","Q8","Q9","Q10","Q11","Q12","Q13","Q14","Q15","Q16","Q17"]
-    y-axis "Seconds" 0 --> 90
-    bar [0.01, 0.00, 0.41, 0.79, 81.34, 0.31, 0.68, 0.14, 6.19, 6.24, 0.62, 0.65, 7.54, 0.54, 7.49, 3.28, 0.70]
-```
-
-Total: **125.12 s**.
-
-### MobilitySpark on Apache Spark 3.5 — `--master local[4]`
-
-<!-- TIMINGS_PLACEHOLDER — replaced when bench completes -->
-
-```mermaid
-xychart-beta
-    title "MobilitySpark / Spark 3.5 (local[4]) — seconds (Q1–Q10)"
-    x-axis ["Q1","Q2","Q3","Q4","Q5","Q6","Q7","Q8","Q9","Q10"]
-    y-axis "Seconds" 0 --> 1000
-    bar [0.55, 45.59, 50.47, 64.87, 508.44, 5.05, 42.47, 0.08, 37.27, 926.32]
-```
-
-Q1–Q10 total: **1729.97 s**.  Q11–Q17 wall-times are dominated by
-the same per-row mixed-SRID stderr pathology described under the
-side-by-side detail table; see the cross-platform status table for
-the trip×trip cross-join cells where the h3 prefilter would apply
-once the JMEOS jar gains h3 symbols.
-
----
-
 ## Side-by-side detail (seconds; lower is better)
 
 | Q | MobilityDB GiST | MobilityDuck | MobilitySpark `local[4]` |
