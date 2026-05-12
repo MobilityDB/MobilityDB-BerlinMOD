@@ -48,12 +48,18 @@ Capture wall-clock time per statement via DuckDB's `.timer on` directive.
 ### MobilitySpark / Spark SQL
 
 ```
-spark-submit --master local[2] BerlinMODBench --queries r_queries_portable
-spark-submit --master local[2] BerlinMODBench --queries r_queries_th3index_portable
+bash berlinmod/bench/bench_mspark.sh                    # defaults to --master local[4]
+SPARK_MASTER=local[8] bash berlinmod/bench/bench_mspark.sh  # tune per host
 ```
 
-**`local[2]` is a correctness constraint, not a tuning knob — see
-`feedback_mobilityspark_local2_constraint.md`.  Do not raise it.**
+The bench harness defaults to `--master local[4]` (validated end-to-
+end against MobilityDB#815 + MobilityDB#949 + MobilitySpark#5).
+Higher counts work on the C-level threaded smoke test (16 threads ×
+20k × 5 = 0 errors) but are not formally validated in the bench
+matrix; set `SPARK_MASTER=local[N]` to tune for your host.
+
+Q5 is currently skipped on Spark — a pre-existing `geo_from_text`
+parse path crashes the JVM (separate from the thread-safety work).
 
 ---
 
@@ -139,10 +145,10 @@ If any query fails to execute, attach the error message.
 |---|---|
 | Scalefactor | 0.005 (1620 trips) |
 | OS | Ubuntu 24.04 |
-| MobilityDB | feat/h3-static-geo-coverage (PR #938) |
+| MobilityDB | master + PR #815 (merged) + PR #949 (thread-safe MEOS + GEOS reentrant) + PR #944 (consolidated th3index) |
 | MobilityDuck | th3index branch (when ready) |
-| MobilitySpark | PR #9 (Th3IndexUDFs) |
-| JMEOS | 1.4 (regen against feat/h3-static-geo-coverage) |
+| MobilitySpark | PR #5 (BerlinMOD bench, `local[4]` default) + PR #9 (Th3IndexUDFs, h3 variant) |
+| JMEOS | 1.4 (regen against MEOS 1.4) |
 | PG version | 17.8 |
 | DuckDB version | 1.x with `spatial` extension |
 | Spark version | 3.5.x |

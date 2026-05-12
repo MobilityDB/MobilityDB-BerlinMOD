@@ -72,12 +72,12 @@ Total: **PENDING**.
 | Q2  |   0.15 |  0.00 |  45.59 |
 | Q3  |   5.70 |  0.41 |  50.47 |
 | Q4  |  15.19 |  0.79 |  64.87 |
-| Q5  |  80.61 | 81.34 | n/a (†) |
+| Q5  |  80.61 | 81.34 | 508.44 (†) |
 | Q6  |   4.23 |  0.31 |   5.05 |
 | Q7  |   9.24 |  0.68 |  42.47 |
 | Q8  |   1.18 |  0.14 |   0.08 |
 | Q9  |   9.81 |  6.19 |  37.27 |
-| Q10 |   6.46 |  6.24 | PENDING |
+| Q10 |   6.46 |  6.24 | 926.32 |
 | Q11 |   2.31 |  0.62 | PENDING |
 | Q12 |   2.37 |  0.65 | PENDING |
 | Q13 |   4.55 |  7.54 | PENDING |
@@ -87,10 +87,25 @@ Total: **PENDING**.
 | Q17 |   9.74 |  0.70 | PENDING |
 | **Total** | **173.23** | **125.12** | **PENDING** |
 
-**(†) Q5 on MobilitySpark**: aborts in `geo_from_text` (a pre-existing
-parse-error path that returns invalid geometry, then SEGVs).  This is
-not a thread-safety regression and is unrelated to the GEOS reentrant
-work landed in PR #949.  Open issue separate from this beta.
+**(†) Q5 on MobilitySpark**: the bare-name `nearestApproachDistance` UDF was
+shadowed by a `tgeo × geometry` registration that misinterpreted the second
+trip as a WKT geometry.  Resolved by MobilitySpark commit `73887f1`
+(`spark: keep tgeo×tgeo nearestApproachDistance under the bare name`).
+MEOS now also returns NULL on parser failure (`postgis_funcs.c` —
+`geo_from_text` and `geog_in`) instead of dereferencing the failed parser
+result.  Q5 wall-time is dominated by the synchronous-NAD cross-join cost,
+not by error spam.
+
+**Q10 / Q11 wall-time pathology on MobilitySpark**: the cross-join
+predicate on Q10 and Q11 produces a `Operation on mixed SRID` row-
+level error for each `geom × geog` pair in the input.  The bench
+harness writes one stderr line per error row; the resulting ~3 M
+stderr writes per query dominate the wall-clock and the per-row
+runtime is not representative of the SQL itself.  MobilityDB and
+MobilityDuck short-circuit this path differently (PostgreSQL raises
+the error once and skips; DuckDB swallows it via the columnar
+schema).  Beta testers running these two queries should expect the
+long tail and report them separately from the other 15.
 
 ## Reading the chart
 
