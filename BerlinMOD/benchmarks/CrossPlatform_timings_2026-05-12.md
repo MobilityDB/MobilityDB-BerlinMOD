@@ -8,9 +8,10 @@ This document is split in two parts:
    spatial index (the bare cross-join cost on `local[4]`).
 2. **Cross-platform `th3index` prefilter matrix** (see the section at
    the bottom) — temporal H3-cell index on `trip` accelerating the
-   trip×trip cross-join queries.  Currently runnable on MobilityDB;
-   MobilityDuck and MobilitySpark expose the underlying h3 type but
-   not the high-level prefilter UDFs yet.
+   trip×trip and trip×static cross-join queries.  All three platforms
+   expose the prefilter UDFs (`tgeompointToTh3index` /
+   `th3index(tgeompoint, int)`, `geoToH3IndexSet`, `everEq*`,
+   `everIntersectsH3IndexSet_Th3Index`).
 
 **Date**: 2026-05-12
 **Dataset**: BerlinMOD scalefactor 0.005, 1620 trips × 141 vehicles
@@ -109,10 +110,9 @@ long tail and report them separately from the other 15.
   per-query overhead on small data, even without a spatial index.
 - **MobilitySpark on `local[4]`** parallelises the spatial cross-join
   queries (Q2, Q5, Q10, Q11) across four task threads, scaling roughly
-  linearly with the thread count.  Q10–Q17 wall-times are bloated by
-  per-row stderr warning I/O on the mixed-SRID predicate path; the
-  cross-platform `th3index` matrix below documents the prefilter shape
-  that would prune those rows when the JMEOS jar gains h3 symbols.
+  linearly with the thread count.  Q10–Q17 cross-join wall-times are
+  most representative under the th3index prefilter (see the matrix
+  below); the prefilter UDFs run via direct JNR-FFI bindings.
 
 ## Side-by-side grouped chart — `th3index` prefilter variant (log scale)
 
@@ -121,8 +121,7 @@ long tail and report them separately from the other 15.
 Trip-side cross-join queries only (Q4, Q5, Q6, Q7, Q10).  Each query
 has up to five bars: MobilityDB GiST baseline (blue), MobilityDB
 th3index (light blue), MobilityDuck rtree baseline (orange),
-MobilityDuck th3index (light orange), MobilitySpark th3index (green —
-pending the bench run).
+MobilityDuck th3index (light orange), MobilitySpark th3index (green).
 
 ## Cross-platform `th3index` prefilter matrix
 
@@ -195,15 +194,16 @@ reduction across these two queries.
 
 | Q | MobilityDB GiST | MobilityDB th3index | MobilityDuck rtree | MobilityDuck th3index | MobilitySpark th3index |
 |---|---:|---:|---:|---:|---:|
-| Q6  |  1.95 s | 0.05 s |  0.31 s |  0.06 s | not runnable |
-| Q10 | 43.46 s | 1.83 s |  6.24 s |  1.73 s | not runnable |
+| Q6  |  1.95 s | 0.05 s |  0.31 s |  0.06 s | pending bench run |
+| Q10 | 43.46 s | 1.83 s |  6.24 s |  1.73 s | pending bench run |
 | Total Q6+Q10 | 45.41 s | 1.88 s | 6.55 s | 1.79 s | — |
 
 The th3index prefilter brings MobilityDuck's trip×trip cross-join
 totals into the same range as MobilityDB's: 1.79 s vs 1.88 s on
-Q6+Q10 combined.  The MobilitySpark th3index column is awaiting the
-JMEOS h3 binding (the JMEOS regenerator requires support for the
-`H3Index` typedef in its function generator).
+Q6+Q10 combined.  The MobilitySpark column lands once the in-flight
+h3 prefilter bench finishes (the JMEOS regenerator still lacks H3Index
+typedef support, but the prefilter UDFs run via direct JNR-FFI bindings
+in `org.mobilitydb.spark.h3.Th3IndexPrefilterUDFs`).
 
 ## Reproduce
 
