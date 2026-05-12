@@ -137,10 +137,10 @@ def render(series: list[Series], queries: list[str], out: Path, title: str) -> N
 
 def main() -> int:
     here = Path(__file__).parent.parent
-    queries_std = [f"Q{i}" for i in range(1, 11)]
+    queries_std = [f"Q{i}" for i in range(1, 18)]
     queries_th3 = ["Q4", "Q5", "Q6", "Q7", "Q10"]
     render(STANDARD, queries_std, here / "cross_platform_standard.svg",
-           "BerlinMOD R-queries Q1-Q10 — standard index per platform "
+           "BerlinMOD R-queries Q1-Q17 — standard index per platform "
            "(sf 0.005)")
     render(TH3INDEX, queries_th3, here / "cross_platform_th3index.svg",
            "BerlinMOD trip-side cross-join queries — th3index prefilter "
