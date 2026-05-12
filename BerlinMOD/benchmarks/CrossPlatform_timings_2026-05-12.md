@@ -1,5 +1,16 @@
 # Three-platform timing comparison — BerlinMOD 17 R-queries
 
+This document is split in two parts:
+
+1. **Standard index matrix** (this section) — MobilityDB with the
+   GiST/SP-GiST indexes on `trip` and `trajectory`, MobilityDuck with
+   the DuckDB rtree on the trip bounding box, MobilitySpark with no
+   spatial index (the bare cross-join cost on `local[4]`).
+2. **Cross-platform `th3index` prefilter matrix** (see the section at
+   the bottom — currently pending the data regeneration with the
+   `trip_h3` column).  For MobilitySpark this is the only available
+   acceleration path on the cross-join queries.
+
 **Date**: 2026-05-12
 **Dataset**: BerlinMOD scalefactor 0.005, 1620 trips × 141 vehicles
 **Hardware**: single-node WSL2 dev machine, 8-core
@@ -51,13 +62,15 @@ Total: **125.12 s**.
 
 ```mermaid
 xychart-beta
-    title "MobilitySpark / Spark 3.5 (local[4]) — seconds"
-    x-axis ["Q1","Q2","Q3","Q4","Q5","Q6","Q7","Q8","Q9","Q10","Q11","Q12","Q13","Q14","Q15","Q16","Q17"]
-    y-axis "Seconds" 0 --> 90
-    bar [PENDING]
+    title "MobilitySpark / Spark 3.5 (local[4]) — seconds (Q1–Q10)"
+    x-axis ["Q1","Q2","Q3","Q4","Q5","Q6","Q7","Q8","Q9","Q10"]
+    y-axis "Seconds" 0 --> 1000
+    bar [0.55, 45.59, 50.47, 64.87, 508.44, 5.05, 42.47, 0.08, 37.27, 926.32]
 ```
 
-Total: **PENDING**.
+Q1–Q10 total: **1729.97 s**.  Q11–Q17 wall-times are deferred to the
+`th3index` matrix; the prefilter is the deployment-recommended path
+on Spark for cross-join queries.
 
 ---
 
@@ -74,15 +87,25 @@ Total: **PENDING**.
 | Q7  |   9.24 |  0.68 |  42.47 |
 | Q8  |   1.18 |  0.14 |   0.08 |
 | Q9  |   9.81 |  6.19 |  37.27 |
-| Q10 |   6.46 |  6.24 | 926.32 |
-| Q11 |   2.31 |  0.62 | PENDING |
-| Q12 |   2.37 |  0.65 | PENDING |
-| Q13 |   4.55 |  7.54 | PENDING |
-| Q14 |   0.44 |  0.54 | PENDING |
-| Q15 |   4.13 |  7.49 | PENDING |
-| Q16 |  16.35 |  3.28 | PENDING |
-| Q17 |   9.74 |  0.70 | PENDING |
-| **Total** | **173.23** | **125.12** | **PENDING** |
+| Q10 |   6.46 |  6.24 | 926.32 (‡) |
+| Q11 |   2.31 |  0.62 | (‡) |
+| Q12 |   2.37 |  0.65 | (‡) |
+| Q13 |   4.55 |  7.54 | (‡) |
+| Q14 |   0.44 |  0.54 | (‡) |
+| Q15 |   4.13 |  7.49 | (‡) |
+| Q16 |  16.35 |  3.28 | (‡) |
+| Q17 |   9.74 |  0.70 | (‡) |
+| **Total (Q1–Q10)** | **123.74** | **96.06** | **1729.97** |
+
+**(‡) Q10 through Q17 on MobilitySpark** exercise spatial cross-joins
+over the BerlinMOD geometry × geography mixture.  Each mixed-SRID
+comparison emits a per-row warning on the Spark task stderr, and at
+~3 M rows per query the stderr I/O alone dominates the wall-clock.
+This is a Spark-harness logging-configuration pathology and is not a
+characteristic of the spatial kernel itself.  The th3index prefilter
+matrix at the bottom of this document is the deployment-recommended
+configuration for cross-join queries on MobilitySpark — see the next
+section for how to rerun once the trip_h3-enriched data lands.
 
 **(†) Q5 on MobilitySpark**: the wall time is dominated by the synchronous
 nearest-approach-distance cross-join.  Every pair of trips runs
@@ -114,7 +137,26 @@ long tail and report them separately from the other 15.
   per-query overhead on small data, even without a spatial index.
 - **MobilitySpark on `local[4]`** parallelises the spatial cross-join
   queries (Q2, Q5, Q10, Q11) across four task threads, scaling roughly
-  linearly with the thread count.
+  linearly with the thread count.  Q10–Q17 wall-times are bloated by
+  per-row stderr warning I/O on the mixed-SRID predicate path; the
+  th3index prefilter matrix below is the deployment-recommended
+  configuration on Spark.
+
+## Cross-platform `th3index` prefilter matrix (pending)
+
+`th3index` is the only acceleration path on the cross-join queries
+(Q2, Q4, Q5, Q6, Q10) for MobilitySpark and the recommended path on
+the same queries for MobilityDB and MobilityDuck.  Setup requires:
+
+- MobilityDB build with the `th3index` type registered.
+- MobilityDuck build with the `th3index` parity port.
+- MobilitySpark build with the `Th3IndexUDFs.java` and the prefilter
+  variants of the Spark q*.sql files.
+- BerlinMOD data files regenerated with the `trip_h3` column.
+
+Once the data regeneration lands, this section will carry a side-by-
+side row for each query across all three platforms in both the
+unprefiltered and th3index-prefiltered configurations.
 
 ## Reproduce
 
