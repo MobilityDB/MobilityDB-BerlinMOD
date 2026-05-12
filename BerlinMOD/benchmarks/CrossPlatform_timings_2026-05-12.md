@@ -179,10 +179,13 @@ scale factor.
   `everIntersectsH3IndexSet_Th3Index`).  Both the trip×trip
   prefilter (Q6, Q10) and the trip×static prefilter (Q4, Q7, Q11,
   Q12, Q15, Q17) SQL shapes run.
-- **MobilitySpark / Spark** — th3index UDFs depend on h3 symbols in
-  JMEOS; the current JMEOS jar exposes temporal and spatial APIs
-  but not the h3 family.  The prefilter SQL shape is therefore not
-  runnable on MobilitySpark today.
+- **MobilitySpark / Spark** — the h3 prefilter UDFs
+  (`tgeompointToTh3index`, `geoToH3IndexSet`, `everEqTh3IndexTh3Index`,
+  `everIntersectsH3IndexSetTh3Index`) are bound directly via JNR-FFI
+  in `org.mobilitydb.spark.h3.Th3IndexPrefilterUDFs`, registered
+  alongside the other UDF families in `MobilitySparkSession.create`.
+  Both the trip×trip prefilter (Q5, Q6, Q10) and the trip×static
+  prefilter (Q4, Q7, Q11, Q12, Q15, Q17) SQL shapes run.
 
 ### MobilityDB cross-join results — sf 0.005, GiST(trip)+GiST(trajectory)+GiST(trip_h3)
 
