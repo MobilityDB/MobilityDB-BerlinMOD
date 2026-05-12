@@ -172,13 +172,13 @@ scale factor.
   is pushable to the planner; the GiST index supplies it.
 - **MobilityDuck / DuckDB** — th3index parity exposes the H3 cell
   type (`H3INDEX`), the temporal H3 cell index type (`TH3INDEX`),
-  the trajectory→cell-sequence constructor (`th3index(tgeompoint,
-  int)`), and the trip×trip temporal-equality prefilter
-  (`everEq(TH3INDEX, TH3INDEX)`).  The trip×trip prefilter SQL
-  shape (Q6, Q10) runs.  The static-geometry prefilter UDFs
-  (`geoToH3IndexSet`, `everIntersectsH3IndexSet_Th3Index`) for
-  trip×static cross-joins (Q4, Q7, Q11, Q12, Q15, Q17) are not yet
-  bound on MobilityDuck.
+  the static H3 cell set type (`H3INDEXSET`), the trajectory→cell-
+  sequence constructor (`th3index(tgeompoint, int)`), the trip×trip
+  temporal-equality prefilter (`everEq(TH3INDEX, TH3INDEX)`), and
+  the static-geometry prefilter UDFs (`geoToH3IndexSet`,
+  `everIntersectsH3IndexSet_Th3Index`).  Both the trip×trip
+  prefilter (Q6, Q10) and the trip×static prefilter (Q4, Q7, Q11,
+  Q12, Q15, Q17) SQL shapes run.
 - **MobilitySpark / Spark** — th3index UDFs depend on h3 symbols in
   JMEOS; the current JMEOS jar exposes temporal and spatial APIs
   but not the h3 family.  The prefilter SQL shape is therefore not
