@@ -43,28 +43,27 @@ class Series:
 
 
 # Standard matrix — all three platforms with their default index.
-# MobilityDB: GiST(trip)+GiST(trajectory)
-# MobilityDuck: DuckDB rtree on stbox
+# MobilityDB: R-tree on `trip` + R-tree on `trajectory` (GiST opclass)
+# MobilityDuck: no spatial index (DuckDB columnar full scan)
 # MobilitySpark: local[4], no spatial index
 STANDARD: list[Series] = [
-    Series("MobilityDB GiST", "#1f77b4", {
+    Series("MobilityDB R-tree", "#1f77b4", {
         "Q1": 0.78, "Q2": 0.15, "Q3": 5.70, "Q4": 15.19, "Q5": 80.61,
         "Q6": 4.23, "Q7": 9.24, "Q8": 1.18, "Q9": 9.81, "Q10": 6.46,
         "Q11": 2.31, "Q12": 2.37, "Q13": 4.55, "Q14": 0.44, "Q15": 4.13,
         "Q16": 16.35, "Q17": 9.74,
     }),
-    Series("MobilityDuck rtree", "#ff7f0e", {
+    Series("MobilityDuck (no index)", "#ff7f0e", {
         "Q1": 0.01, "Q2": 0.005, "Q3": 0.41, "Q4": 0.79, "Q5": 81.34,
         "Q6": 0.31, "Q7": 0.68, "Q8": 0.14, "Q9": 6.19, "Q10": 6.24,
         "Q11": 0.62, "Q12": 0.65, "Q13": 7.54, "Q14": 0.54, "Q15": 7.49,
         "Q16": 3.28, "Q17": 0.70,
     }),
     Series("MobilitySpark local[4]", "#2ca02c", {
-        "Q1": 0.55, "Q2": 45.59, "Q3": 50.47, "Q4": 64.87, "Q5": 508.44,
-        "Q6": 5.05, "Q7": 42.47, "Q8": 0.08, "Q9": 37.27,
-        # Q10-Q17 not yet measured for the local[4] standard-index config.
-        "Q10": None, "Q11": None, "Q12": None, "Q13": None, "Q14": None,
-        "Q15": None, "Q16": None, "Q17": None,
+        "Q1": 0.46, "Q2": 49.92, "Q3": 41.08, "Q4": 47.65, "Q5": 368.29,
+        "Q6": 3.87, "Q7": 48.36, "Q8": 0.10, "Q9": 44.05, "Q10": 1156.49,
+        "Q11": ">cap", "Q12": ">cap", "Q13": 110.57, "Q14": ">cap",
+        "Q15": 261.90, "Q16": 69.65, "Q17": 99.26,
     }),
 ]
 
@@ -73,13 +72,13 @@ STANDARD: list[Series] = [
 # MobilityDB th3index: same-session warm-cache numbers from the subagent
 # pass; MobilityDuck th3index: this session, sf 0.005.
 TH3INDEX: list[Series] = [
-    Series("MobilityDB GiST (baseline)", "#1f77b4", {
+    Series("MobilityDB R-tree (baseline)", "#1f77b4", {
         "Q4": 15.19, "Q5": 80.61, "Q6": 1.95, "Q7": 9.24, "Q10": 43.46,
     }),
     Series("MobilityDB th3index", "#aec7e8", {
         "Q4": 5.62, "Q5": 86.60, "Q6": 0.05, "Q7": 5.03, "Q10": 1.83,
     }),
-    Series("MobilityDuck rtree (baseline)", "#ff7f0e", {
+    Series("MobilityDuck (baseline, no index)", "#ff7f0e", {
         "Q4": 0.79, "Q5": 81.34, "Q6": 0.31, "Q7": 0.68, "Q10": 6.24,
     }),
     Series("MobilityDuck th3index", "#ffbb78", {
