@@ -171,21 +171,40 @@ cross-join.  Profiling on MobilityDB at sf 0.005:
 | Build the 10 + 10 collections (`ST_Collect(array_agg(trajectory))`) | 47 ms |
 | 100 `ST_Distance(MultiLine, MultiLine)` calls | ~103 s |
 
-Two SQL-level alternatives were tested and **both are worse**:
+Two SQL-level alternatives were tested and **both are worse** at
+preserving exact answers:
 
 1. **Min-of-pairs rewrite** —
    `MIN(ST_Distance(trajectory(t1), trajectory(t2)))` over the 100 × 16 × 16
-   trip pairs runs in **256 s**, 2.5× slower than the original.  GEOS
-   uses internal indexing inside one `ST_Distance` call on a
-   MultiLineString; replacing it with 14,400 small calls loses that
-   indexing and pays per-row Postgres overhead.
+   trip pairs runs in **256 s**, 2.5× slower than the original.
+   liblwgeom's internal R-tree indexing inside one `ST_Distance` call
+   on a MultiLineString is faster than 14,400 small independent calls
+   plus per-row Postgres overhead.
 2. **Materialised `trajectory` column** instead of `trajectory(Trip)`
    recompute — same ~105 s.  The recompute is not the cost.
 
-The right optimisation is a **MEOS-side fused aggregate** that uses
-each trip's `STBox` to prune trip pairs whose bounding boxes are
-already far apart before falling back to GEOS for the surviving pairs.
-Not deliverable in this bench cycle.
+The proper exact-preserving fix is a **MEOS-side fused aggregate**
+that uses each trip's `STBox` as a sound lower-bound prefilter before
+falling back to the same liblwgeom segment-pair kernel for surviving
+pairs.  This lands in [MobilityDB PR #1007](https://github.com/MobilityDB/MobilityDB/pull/1007)
+as `minDistance(tgeompoint[], tgeompoint[])`.  Verified bit-for-bit
+equivalent to `ST_Distance(ST_Collect, ST_Collect)` on the Q5
+cross-join (100/100 licence pairs match).  At BerlinMOD-Brussels
+sf 0.005 the empirical speedup is modest (~17 %: 86 s vs 103 s) because
+most trip-pair STBoxes overlap in central Brussels and the prefilter
+prunes few pairs; the speedup grows with the spatial spread of the
+dataset.  After [PR #1007](https://github.com/MobilityDB/MobilityDB/pull/1007)
+merges, the portable Q5 in
+[`berlinmod_r_queries_portable.sql`](../berlinmod_r_queries_portable.sql)
+moves to the `minDistance` form on all three platforms and this matrix
+will be re-measured.
+
+**Tolerance-based simplification is intentionally avoided.**  Wrapping
+Q5 with `maxDistSimplify(Trip, 10.0)` or `ST_Simplify(ST_Collect(...), 1.0)`
+brings the same query under 5 s, but the returned distance is then
+only correct within a Hausdorff-bounded tolerance — a different
+quantity than "minimum distance".  These primitives stay available as
+explicit user opt-ins; the bench's reference Q5 remains exact.
 
 ### Where the gaps go
 
