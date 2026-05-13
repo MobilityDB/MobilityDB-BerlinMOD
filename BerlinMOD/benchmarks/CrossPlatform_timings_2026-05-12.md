@@ -20,6 +20,12 @@ This document is split in two parts:
 **Schema**: same generated CSV files on every platform; deterministic
 `ORDER BY <PrimaryKey>` LIMIT-10 parameter views
 
+**Per-query time budget**: `cap = max(20 × slowest other platform, 30 min)`.
+A query that exceeds this budget is aborted and recorded as `>cap` in the
+matrix.  This is distinct from `n/a`, which means the query shape is not
+defined on that platform (e.g. the th3index static-set prefilter has no
+shape for Q5's aggregated `ST_Collect`).
+
 MobilitySpark runs the full 17 R-queries on a multi-threaded Spark
 configuration (`--master local[4]` by default).
 
@@ -39,9 +45,11 @@ Q10:21 Q11:0 Q12:0 Q13:278 Q14:1  Q15:118 Q16:2 Q17:1
 Same numbers as the side-by-side detail table below.  Y axis is
 log-scaled (1 ms floor) so Q5 does not flatten the cheap queries.
 Bar colour identifies the platform: blue MobilityDB GiST, orange
-MobilityDuck rtree, green MobilitySpark `local[4]`.  Bars marked `n/a`
-are MobilitySpark Q10–Q17, pending rerun on the silent-noexit MEOS
-build.
+MobilityDuck rtree, green MobilitySpark `local[4]`.  `n/a` bars are
+queries whose shape is not defined on that platform or whose number is
+not yet measured for the current platform configuration; `>cap` bars
+(hatched, drawn at the 30-min ceiling) are queries that exceeded the
+per-query time budget defined above.
 
 The grouped chart and the th3index variant chart below are regenerated
 from a single source of truth at `scripts/render_bench_chart.py`
@@ -61,14 +69,14 @@ from a single source of truth at `scripts/render_bench_chart.py`
 | Q7  |   9.24 |  0.68 |  42.47 |
 | Q8  |   1.18 |  0.14 |   0.08 |
 | Q9  |   9.81 |  6.19 |  37.27 |
-| Q10 |   6.46 |  6.24 | pending rerun |
-| Q11 |   2.31 |  0.62 | pending rerun |
-| Q12 |   2.37 |  0.65 | pending rerun |
-| Q13 |   4.55 |  7.54 | pending rerun |
-| Q14 |   0.44 |  0.54 | pending rerun |
-| Q15 |   4.13 |  7.49 | pending rerun |
-| Q16 |  16.35 |  3.28 | pending rerun |
-| Q17 |   9.74 |  0.70 | pending rerun |
+| Q10 |   6.46 |  6.24 | pending |
+| Q11 |   2.31 |  0.62 | pending |
+| Q12 |   2.37 |  0.65 | pending |
+| Q13 |   4.55 |  7.54 | pending |
+| Q14 |   0.44 |  0.54 | pending |
+| Q15 |   4.13 |  7.49 | pending |
+| Q16 |  16.35 |  3.28 | pending |
+| Q17 |   9.74 |  0.70 | pending |
 | **Total Q1–Q9** | **126.89** | **89.88** | **754.79** |
 
 ## Reading the chart
@@ -85,11 +93,8 @@ from a single source of truth at `scripts/render_bench_chart.py`
   per-query overhead on small data, even without a spatial index.
 - **MobilitySpark on `local[4]`** parallelises the spatial cross-join
   queries (Q2, Q5) across four task threads, scaling roughly linearly
-  with the thread count.  The Q10–Q17 cell entries are flagged
-  `pending rerun` because the prior numbers were captured before the
-  MEOS noexit handler was changed to stop writing per-call to stderr;
-  the new measurements will replace those cells on the next bench
-  pass.
+  with the thread count.  Q10–Q17 cells are flagged `pending` until
+  the next bench pass populates them.
 
 ## Side-by-side grouped chart — `th3index` prefilter variant (log scale)
 
@@ -171,16 +176,15 @@ reduction across these two queries.
 
 | Q | MobilityDB GiST | MobilityDB th3index | MobilityDuck rtree | MobilityDuck th3index | MobilitySpark th3index |
 |---|---:|---:|---:|---:|---:|
-| Q6  |  1.95 s | 0.05 s |  0.31 s |  0.06 s | pending bench run |
-| Q10 | 43.46 s | 1.83 s |  6.24 s |  1.73 s | pending bench run |
+| Q6  |  1.95 s | 0.05 s |  0.31 s |  0.06 s | pending |
+| Q10 | 43.46 s | 1.83 s |  6.24 s |  1.73 s | pending |
 | Total Q6+Q10 | 45.41 s | 1.88 s | 6.55 s | 1.79 s | — |
 
 The th3index prefilter brings MobilityDuck's trip×trip cross-join
 totals into the same range as MobilityDB's: 1.79 s vs 1.88 s on
-Q6+Q10 combined.  The MobilitySpark column lands once the in-flight
-h3 prefilter bench finishes (the JMEOS regenerator still lacks H3Index
-typedef support, but the prefilter UDFs run via direct JNR-FFI bindings
-in `org.mobilitydb.spark.h3.Th3IndexPrefilterUDFs`).
+Q6+Q10 combined.  On MobilitySpark the prefilter UDFs are bound via
+direct JNR-FFI in `org.mobilitydb.spark.h3.Th3IndexPrefilterUDFs`; the
+column is populated once a bench pass for that configuration is run.
 
 ## Reproduce
 
