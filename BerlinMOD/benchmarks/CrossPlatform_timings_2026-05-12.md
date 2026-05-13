@@ -133,16 +133,23 @@ The chart is regenerated from
   materialised geometry collection per licence group; neither platform
   has an applicable index path through that aggregate, and the
   Cartesian product of the 10 × 10 licence groups is the dominant cost.
-  See Q5 optimisation notes at the end of this section.
+  See [Q5 optimisation notes](#q5-optimisation-notes) below.
 - **MobilityDB wins on Q9 / Q13 / Q15** versus MobilityDuck — the
   R-tree on `trajectory` pays off on `trajectory(atTime(...))`
   predicates that MobilityDuck has to evaluate against the full
   trajectory.
 - **MobilityDuck wins on cheap queries** (Q1, Q2, Q3, Q4, Q6, Q7, Q8,
   Q11, Q12, Q14, Q17).  DuckDB's vectorised columnar engine has lower
-  per-query overhead on small data even without a spatial index.
-  Adding the MobilityDuck `TRTREE` or DuckDB-spatial `RTREE` index on
-  `Trips.trip` is a separate bench pass (in progress).
+  per-query overhead on small data even without a spatial index.  The
+  fair indexed comparison — MobilityDuck `TRTREE` on `Trips.trip` —
+  is currently blocked on an upstream assertion failure in the
+  MobilityDuck TRTREE module: `CREATE INDEX … USING TRTREE` crashes
+  with a DuckDB internal-error assertion on any table, including a
+  2-row test fixture.  Once the bug is fixed, an indexed MobilityDuck
+  column will land in this matrix.  DuckDB Spatial's built-in `RTREE`
+  works on `GEOMETRY` columns, but the portable BerlinMOD R-queries
+  operate on tgeompoint predicates so the planner has no path to a
+  `RTREE(trajectory)` index — adding one does not help.
 - **MobilitySpark on `local[4]`** pays a high per-row JNR-FFI cost on
   every UDF invocation, which dominates the trip×trip shapes
   (Q10, Q11, Q12, Q14) — three of these exceed the 30-min cap.  The
@@ -151,6 +158,34 @@ The chart is regenerated from
   MobilityDB.  The trip×trip shape is where the
   [th3index](#cross-platform-th3index-prefilter-matrix) prefilter
   changes the order of magnitude.
+
+### Q5 optimisation notes
+
+Q5 builds one MultiLineString per licence (10 + 10 collections of
+trajectories) and computes
+`ST_Distance(MultiLineString, MultiLineString)` over the 10 × 10
+cross-join.  Profiling on MobilityDB at sf 0.005:
+
+| Step | Wall time |
+|---|---:|
+| Build the 10 + 10 collections (`ST_Collect(array_agg(trajectory))`) | 47 ms |
+| 100 `ST_Distance(MultiLine, MultiLine)` calls | ~103 s |
+
+Two SQL-level alternatives were tested and **both are worse**:
+
+1. **Min-of-pairs rewrite** —
+   `MIN(ST_Distance(trajectory(t1), trajectory(t2)))` over the 100 × 16 × 16
+   trip pairs runs in **256 s**, 2.5× slower than the original.  GEOS
+   uses internal indexing inside one `ST_Distance` call on a
+   MultiLineString; replacing it with 14,400 small calls loses that
+   indexing and pays per-row Postgres overhead.
+2. **Materialised `trajectory` column** instead of `trajectory(Trip)`
+   recompute — same ~105 s.  The recompute is not the cost.
+
+The right optimisation is a **MEOS-side fused aggregate** that uses
+each trip's `STBox` to prune trip pairs whose bounding boxes are
+already far apart before falling back to GEOS for the surviving pairs.
+Not deliverable in this bench cycle.
 
 ### Where the gaps go
 
@@ -222,13 +257,50 @@ Reading:
   have a median of ~1100 instants, short enough that four boxes
   already capture the trajectory shape.
 
-The MEST extension was bumped from upstream `MobilityDB/mest` master
-during this bench pass — the `mobilitydb_mest` contrib needed a sync
-patch to match the renamed MEOS bin-spans API
-(`spanset_value_spans` → `spanset_bins`, `temporal_time_spans` →
-`temporal_time_bins`).  All opclasses (mrtree/mquadtree/mkdtree, all
-three split strategies: equisplit, segsplit, binsplit) build and run
-on the bench DB.
+The MEST extension was bumped from upstream
+[mest](https://github.com/MobilityDB/mest) master during this bench
+pass — the `mobilitydb_mest` contrib needed a sync patch to match the
+renamed MEOS bin-spans API (`spanset_value_spans` → `spanset_bins`,
+`temporal_time_spans` → `temporal_time_bins`).  All opclasses
+(mrtree / mquadtree / mkdtree, all three split strategies: equisplit,
+segsplit, binsplit) build and run on the bench DB.
+
+### MEST on the trip×region shape (Q13, Q14, Q16)
+
+The [th3index prefilter matrix](#cross-platform-th3index-prefilter-matrix)
+below notes that the H3 cell-set covers most of the trajectory universe
+at sf 0.005, so the prefilter is overhead-neutral on Q13, Q14, Q16.
+MEST handles the trip×region shape differently: each trip is sliced
+into N sub-trajectory STBoxes, so a region that does not overlap the
+trip's full bounding box is still pruned at the per-entry level.
+
+Same-session apples-to-apples (PostgreSQL 17.8, warm cache, 1 run per
+query).  Numbers in seconds.
+
+| Q | R-tree | SP-GiST quadtree | th3index | MEST mrtree N=8 | MEST mquadtree N=8 | MEST mkdtree N=8 |
+|---|---:|---:|---:|---:|---:|---:|
+| Q13 | 4.55 |  5.13 | 15.89 |  1.89 |  2.07 |  1.77 |
+| Q14 | 0.44 |  0.45 | 13.25 |  0.47 |  0.37 |  0.46 |
+| Q16 | 16.35| 16.50 | 14.59 | 18.21 | 19.04 | 21.58 |
+
+Reading:
+
+- **Q13** (trip×region cross-join, simple): MEST wins **2.4×** over
+  R-tree (1.77 s vs 4.55 s) and **9×** over the th3index prefilter.
+  The per-trip multi-entry decomposition prunes regions that don't
+  touch each sub-trajectory's STBox; the th3index loses because the
+  region's H3 cell-set covers most of the city at this scale factor.
+- **Q14** (trip-in-region at a single instant): all R-tree-family
+  indexes are within 25 % of each other at ~0.4 s.  The single-instant
+  predicate already prunes finely enough that multi-entry overhead
+  doesn't pay; th3index pays the cell-set-cover-the-city penalty.
+- **Q16** (trip×trip×region triple cross-join): MEST loses 10–30 %
+  to R-tree.  The trip×trip pair-up dominates the cost and MEST's
+  extra index entries amplify it — same shape that hurts MEST on Q5.
+
+So MEST is a clean win on the simple trip×region shape (Q13) where
+th3index is overhead-neutral, but does not help on the triple
+cross-join (Q16).
 
 ## Side-by-side grouped chart — `th3index` prefilter variant (log scale)
 
