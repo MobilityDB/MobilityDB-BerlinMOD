@@ -188,34 +188,13 @@ LOOP
   FROM Regions1 r CROSS JOIN Periods1 p
   CROSS JOIN LATERAL (
     SELECT v1.*, ROW_NUMBER() OVER () AS RowNo FROM (
-    SELECT v.Licence, trajectory(atTime(t.trip, p.Period)) <-> r.geom AS Dist
+    SELECT v.Licence, minDistance(atTime(t.trip, p.Period), r.geom) AS Dist
     FROM Trips t, Vehicles v
     WHERE t.VehicleId = v.VehicleId AND t.Trip && p.Period
-    ORDER BY trajectory(atTime(t.trip, p.Period)) <-> r.geom
+    ORDER BY minDistance(atTime(t.trip, p.Period), r.geom)
     LIMIT 3 ) AS v1 ) AS v2
   ORDER BY r.RegionId, p.PeriodId, v2.RowNo
   INTO J;
-
-  /*
-  -- Query 20
-  EXPLAIN (ANALYZE, FORMAT JSON)
-  WITH DistanceRegionVeh AS (
-    SELECT r.RegionId, p.PeriodId, p.Period, v.Licence,
-    MIN(ST_Distance(trajectory(atTime(t.Trip, p.Period)), r.geom)) AS Dist
-    FROM Regions1 r, Periods1 p, Trips t, Vehicles v
-    WHERE t.VehicleId = v.VehicleId AND t.Trip && p.Period
-    GROUP BY r.RegionId, p.PeriodId, p.Period, v.Licence
-    -- 14,100 rows in 77 seconds
-  )
-  SELECT *
-  FROM (
-    SELECT *, RANK() OVER (PARTITION BY RegionId, PeriodId ORDER BY Dist) AS Rank
-    FROM DistanceRegionVeh ) AS Tmp
-  WHERE Rank <= 10
-  ORDER BY RegionId, PeriodId, Rank
-  -- 1139 rows on 77 seconds
-  INTO J;
-  */
 
   PlanningTime := (J->0->>'Planning Time')::float;
   ExecutionTime := (J->0->>'Execution Time')::float/1000;
