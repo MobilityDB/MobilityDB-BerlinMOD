@@ -48,7 +48,7 @@ class Series:
 # MobilitySpark: local[4], no spatial index
 STANDARD: list[Series] = [
     Series("MobilityDB R-tree", "#1f77b4", {
-        "Q1": 0.78, "Q2": 0.15, "Q3": 5.70, "Q4": 15.19, "Q5": 18.86,
+        "Q1": 0.78, "Q2": 0.15, "Q3": 5.70, "Q4": 15.19, "Q5": 9.50,
         "Q6": 4.23, "Q7": 9.24, "Q8": 1.18, "Q9": 9.81, "Q10": 6.46,
         "Q11": 2.31, "Q12": 2.37, "Q13": 4.55, "Q14": 0.44, "Q15": 4.13,
         "Q16": 16.35, "Q17": 9.74,
@@ -77,7 +77,7 @@ TH3INDEX: list[Series] = [
         "Q4": 15.19, "Q5": None, "Q6": 1.95, "Q7": 9.24, "Q10": 43.46,
     }),
     Series("MobilityDB th3index", "#aec7e8", {
-        "Q4": 5.62, "Q5": 18.86, "Q6": 0.05, "Q7": 5.03, "Q10": 1.83,
+        "Q4": 5.62, "Q5": 9.50, "Q6": 0.05, "Q7": 5.03, "Q10": 1.83,
     }),
     Series("MobilityDuck (baseline, no index)", "#ff7f0e", {
         # Q5 not re-run for the canonical form (upstream icu blocker).

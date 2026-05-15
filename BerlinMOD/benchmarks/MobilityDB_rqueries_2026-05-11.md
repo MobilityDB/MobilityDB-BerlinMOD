@@ -68,8 +68,8 @@ Q5 is omitted from this index matrix.  The canonical Q5 is the
 `everEqTh3IndexTh3Index` cell-membership prefilter on `trip_h3`, so it
 is driven by the prefilter rather than by the `none` / GiST / SP-GiST
 index on `trip` and `trajectory` that the columns here vary.  The
-canonical Q5 figure on the portable th3index bench is 18.86 s on the
-single PostgreSQL process (median of 15.97 / 18.95 / 18.86).  No suite
+canonical Q5 figure on the portable th3index bench is 9.50 s on the
+single PostgreSQL process (median of 10.33 / 9.39 / 9.50).  No suite
 total is given so the table does not imply Q5 was re-run under these
 index families.
 

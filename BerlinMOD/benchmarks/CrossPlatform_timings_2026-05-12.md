@@ -79,8 +79,10 @@ this dataset, not a fixed constant.  The `query_licences` table has
 `(l1.licence, l2.licence)` admits 3019 distinct licence-string pairs
 before the prefilter.  The `everEqTh3IndexTh3Index(t1.trip_h3,
 t2.trip_h3)` cell-membership prefilter prunes pairs whose H3
-footprints never coincide; MobilitySpark returns 665 surviving
-groups.  The count is a deterministic function of the join and the
+footprints never coincide.  MobilityDB and MobilitySpark both return
+665 surviving groups on this workload (665 == 665, exact row-count
+parity, the correctness cross-check for the canonical `minDistance`
+form).  The count is a deterministic function of the join and the
 prefilter, so it is reproducible across runs and across platforms
 that materialise `trip_h3` at the same H3 resolution.
 
@@ -124,7 +126,7 @@ The chart is regenerated from
 | Q2  |   0.15 |  0.00 |  49.92 |
 | Q3  |   5.70 |  0.41 |  41.08 |
 | Q4  |  15.19 |  0.79 |  47.65 |
-| Q5  |  18.86 | 81.34 (not re-run) | 9.60 |
+| Q5  |   9.50 | 81.34 (not re-run) | 9.60 |
 | Q6  |   4.23 |  0.31 |   3.87 |
 | Q7  |   9.24 |  0.68 |  48.36 |
 | Q8  |   1.18 |  0.14 |   0.10 |
@@ -139,7 +141,7 @@ The chart is regenerated from
 | Q17 |   9.74 |  0.70 |   99.26 |
 
 Q5 is the only row re-measured for the canonical `minDistance` form.
-The MobilityDB Q5 is 18.86 s (median of 15.97 / 18.95 / 18.86), single
+The MobilityDB Q5 is 9.50 s (median of 10.33 / 9.39 / 9.50), single
 PostgreSQL process.  The MobilitySpark Q5 is 9.60 s on `local[4]`
 (median of 11.234 / 9.598 / 9.192) and 21.56 s on the `local[1]`
 single-thread reference (median of 22.714 / 21.561 / 21.488).  The
@@ -157,11 +159,15 @@ imply the non-Q5 rows were re-run.
   with an `everEqTh3IndexTh3Index(t1.trip_h3, t2.trip_h3)`
   cell-membership prefilter.  The prefilter prunes licence pairs whose
   H3 footprints never coincide before the `minDistance` kernel runs on
-  the survivors.  On the single PostgreSQL process Q5 is 18.86 s; on
-  MobilitySpark `local[4]` it is 9.60 s because the licence cross-join
-  is spread across worker threads.  Both legs run the same MEOS
-  `minDistance` kernel and the same prefilter; the difference is the
-  degree of parallelism applied to the same work.
+  the survivors.  This is the canonical `minDistance` form with the
+  th3index prefilter; both engines land near 9.5 s on the 665-row
+  workload (single PostgreSQL process 9.50 s, MobilitySpark `local[4]`
+  9.60 s, within about one percent).  This is diagnostic, not a
+  leaderboard: both legs run the same MEOS `minDistance` kernel and the
+  same prefilter, so the operator cost is shared, and the close match
+  reflects the same work at different degrees of parallelism (the
+  MobilitySpark `local[4]` figure spreads the licence cross-join across
+  worker threads; the single PostgreSQL process does not).
   See [Q5 notes](#q5-notes) below.
 - **MobilityDB wins on Q9 / Q13 / Q15** versus MobilityDuck — the
   R-tree on `trajectory` pays off on `trajectory(atTime(...))`
@@ -207,17 +213,20 @@ Measured at sf 0.005:
 
 | Engine | Q5 |
 |---|---:|
-| MobilityDB (single PostgreSQL process) | 18.86 s (median of 15.97 / 18.95 / 18.86) |
+| MobilityDB (single PostgreSQL process) | 9.50 s (median of 10.33 / 9.39 / 9.50) |
 | MobilitySpark `local[4]` | 9.60 s (median of 11.234 / 9.598 / 9.192) |
 | MobilitySpark `local[1]` (single-thread reference) | 21.56 s (median of 22.714 / 21.561 / 21.488) |
 | MobilityDuck | 81.34 s (prior value, not re-run, upstream DuckDB v1.4.4 `icu` autoload outage on amd64) |
 
-`local[4]` MobilitySpark at 9.60 s is below the single-process
-MobilityDB leg at 18.86 s because Spark parallelises the licence
-cross-join across worker threads while the single PostgreSQL backend
-evaluates it sequentially.  Both run the same MEOS `minDistance`
-kernel and the same prefilter; the gap is the degree of parallelism
-applied to the same work, not a difference in the operator.
+The single-process MobilityDB leg at 9.50 s and MobilitySpark
+`local[4]` at 9.60 s are neck-and-neck on the 665-row workload, within
+about one percent.  This is diagnostic, not competitive: both run the
+same MEOS `minDistance` kernel and the same prefilter, so the operator
+cost is shared.  The MobilitySpark `local[4]` figure parallelises the
+licence cross-join across worker threads while the single PostgreSQL
+backend evaluates it sequentially, so the close match reflects the same
+work at different degrees of parallelism, not a difference in the
+operator.
 
 **Tolerance-based simplification is intentionally avoided.**  Wrapping
 Q5 with `maxDistSimplify(Trip, 10.0)` brings the same query under 5 s,
@@ -236,7 +245,7 @@ Using the [shape categorization](#r-query-shape-categorization):
 | Trip × static (Q4/Q7/Q11/Q12/Q15/Q17) | uses R-tree on trip | full scan but vectorised | high JNR-FFI cost; Q11/Q12 hit cap |
 | Trip × trip (Q6/Q10) | R-tree on trip helps Q6, not Q10 | full scan; loses on Q10 | dominated by N×N pair-up — Q10 takes 19 min |
 | Trip × region (Q13/Q14/Q16) | R-tree on trip pays off | comparable | Q14 hits cap; Q13/Q16 minutes |
-| Aggregated cross-join (Q5) | `minDistance` + th3index prefilter; 18.86 s | prior value, not re-run (upstream icu blocker) | `minDistance` + th3index prefilter; 9.60 s on `local[4]` |
+| Aggregated cross-join (Q5) | `minDistance` + th3index prefilter; 9.50 s | prior value, not re-run (upstream icu blocker) | `minDistance` + th3index prefilter; 9.60 s on `local[4]` |
 
 ## MobilityDB intra-platform index sub-matrix — sf 0.005, prefilter-bound queries
 
@@ -279,7 +288,7 @@ Q5 is not in this sub-matrix.  The canonical Q5 is driven by the
 `everEqTh3IndexTh3Index` prefilter on the `trip_h3` column, not by the
 trip or trajectory index family this sub-matrix varies, so a per-family
 Q5 row would not measure what the column heads describe.  The canonical
-Q5 figure is 18.86 s on the single PostgreSQL process (see
+Q5 figure is 9.50 s on the single PostgreSQL process (see
 [Q5 notes](#q5-notes)).  No suite total is given here because Q5 is
 omitted.
 
@@ -408,7 +417,7 @@ run per query):
 | Q | R-tree baseline | th3index prefilter | Notes |
 |---|---:|---:|---|
 | Q4  |  5.07 s |  5.62 s | overhead-neutral; R-tree on `trajectory` already tight on the 10 query points |
-| Q5  |  not run | 18.86 s | trip×trip prefilter (`everEqTh3IndexTh3Index`) before the `minDistance` aggregate; single PostgreSQL process; median of 15.97 / 18.95 / 18.86 |
+| Q5  |  not run |  9.50 s | trip×trip prefilter (`everEqTh3IndexTh3Index`) before the `minDistance` aggregate; single PostgreSQL process; median of 10.33 / 9.39 / 9.50 |
 | Q6  |  1.95 s |  0.05 s | **39× speedup** on the trip×trip shape |
 | Q7  |  not run |  5.03 s | — |
 | Q10 | 43.46 s |  1.83 s | **24× speedup** on the trip×trip `tDwithin` shape |
