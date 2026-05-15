@@ -22,7 +22,7 @@ captures `EXPLAIN (ANALYZE, FORMAT JSON)` timings per query.
 | Q2  | Count of passenger cars | relational |
 | Q3  | Trip position at `Instants1` for `Licences1` | temporal value-at |
 | Q4  | Vehicles that ever passed each `Points` | spatial point-on-trajectory |
-| Q5  | Min distance between trip locations of two licence sets | trip-trip spatial cross-join |
+| Q5  | Minimum distance between two licence groups' trips | `minDistance(tgeompoint, tgeompoint)` aggregate over the licence cross-join with an `everEqTh3IndexTh3Index` cell-membership prefilter |
 | Q6  | Truck pairs ever within 10 m | trip-trip eDwithin |
 | Q7  | Earliest passenger-car visit per `Points` | spatial+temporal |
 | Q8  | Total distance per licence × period | trip aggregate |
@@ -50,7 +50,6 @@ platforms consume the same generated CSV files (per the deterministic
 | Q2  | 1   |   0.20 |   0.15 |   0.08 |
 | Q3  | 6   |   5.25 |   5.70 |   6.26 |
 | Q4  | 80  |  13.69 |  15.19 |  11.11 |
-| Q5  | 100 |  89.30 |  80.61 |  83.07 |
 | Q6  | 0   |   5.91 |   4.23 |   3.53 |
 | Q7  | 26  |  10.48 |   9.24 |  10.29 |
 | Q8  | 75  |   0.94 |   1.18 |   1.07 |
@@ -63,7 +62,16 @@ platforms consume the same generated CSV files (per the deterministic
 | Q15 | 118 |  32.87 |   4.13 |   4.37 |
 | Q16 | 2   |  21.68 |  16.35 |  16.50 |
 | Q17 | 1   |  13.51 |   9.74 |   9.08 |
-| **Total** | — | **334.30** | **173.23** | **177.04** |
+
+Q5 is omitted from this index matrix.  The canonical Q5 is the
+`minDistance` aggregate over the licence cross-join with an
+`everEqTh3IndexTh3Index` cell-membership prefilter on `trip_h3`, so it
+is driven by the prefilter rather than by the `none` / GiST / SP-GiST
+index on `trip` and `trajectory` that the columns here vary.  The
+canonical Q5 figure on the portable th3index bench is 18.86 s on the
+single PostgreSQL process (median of 15.97 / 18.95 / 18.86).  No suite
+total is given so the table does not imply Q5 was re-run under these
+index families.
 
 ---
 
@@ -89,8 +97,10 @@ on Q1).
 
 - **Q1 / Q2** — relational only, no spatial predicate.
 - **Q3** — temporal value-at predicate; GiST adds slight overhead.
-- **Q5** — `ST_Distance(ST_Collect(...), ST_Collect(...))` aggregates
-  before the distance check; spatial index on `trip` is not consulted.
+- **Q5** is driven by the `everEqTh3IndexTh3Index` cell-membership
+  prefilter on `trip_h3` before the `minDistance` aggregate; the
+  `none` / GiST / SP-GiST index on `trip` and `trajectory` that this
+  matrix varies is not the access path for this query.
 - **Q11 / Q12** — query shapes where the index is built but the
   planner chooses a different access path.
 - **Q16** — cross-join query; minor improvement.

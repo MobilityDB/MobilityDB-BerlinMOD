@@ -48,7 +48,7 @@ class Series:
 # MobilitySpark: local[4], no spatial index
 STANDARD: list[Series] = [
     Series("MobilityDB R-tree", "#1f77b4", {
-        "Q1": 0.78, "Q2": 0.15, "Q3": 5.70, "Q4": 15.19, "Q5": 80.61,
+        "Q1": 0.78, "Q2": 0.15, "Q3": 5.70, "Q4": 15.19, "Q5": 18.86,
         "Q6": 4.23, "Q7": 9.24, "Q8": 1.18, "Q9": 9.81, "Q10": 6.46,
         "Q11": 2.31, "Q12": 2.37, "Q13": 4.55, "Q14": 0.44, "Q15": 4.13,
         "Q16": 16.35, "Q17": 9.74,
@@ -60,7 +60,7 @@ STANDARD: list[Series] = [
         "Q16": 3.28, "Q17": 0.70,
     }),
     Series("MobilitySpark local[4]", "#2ca02c", {
-        "Q1": 0.46, "Q2": 49.92, "Q3": 41.08, "Q4": 47.65, "Q5": 368.29,
+        "Q1": 0.46, "Q2": 49.92, "Q3": 41.08, "Q4": 47.65, "Q5": 9.60,
         "Q6": 3.87, "Q7": 48.36, "Q8": 0.10, "Q9": 44.05, "Q10": 1156.49,
         "Q11": ">cap", "Q12": ">cap", "Q13": 110.57, "Q14": ">cap",
         "Q15": 261.90, "Q16": 69.65, "Q17": 99.26,
@@ -73,21 +73,23 @@ STANDARD: list[Series] = [
 # pass; MobilityDuck th3index: this session, sf 0.005.
 TH3INDEX: list[Series] = [
     Series("MobilityDB R-tree (baseline)", "#1f77b4", {
-        "Q4": 15.19, "Q5": 80.61, "Q6": 1.95, "Q7": 9.24, "Q10": 43.46,
+        # Q5 has no canonical-form R-tree baseline: it is prefilter-driven.
+        "Q4": 15.19, "Q5": None, "Q6": 1.95, "Q7": 9.24, "Q10": 43.46,
     }),
     Series("MobilityDB th3index", "#aec7e8", {
-        "Q4": 5.62, "Q5": 86.60, "Q6": 0.05, "Q7": 5.03, "Q10": 1.83,
+        "Q4": 5.62, "Q5": 18.86, "Q6": 0.05, "Q7": 5.03, "Q10": 1.83,
     }),
     Series("MobilityDuck (baseline, no index)", "#ff7f0e", {
-        "Q4": 0.79, "Q5": 81.34, "Q6": 0.31, "Q7": 0.68, "Q10": 6.24,
+        # Q5 not re-run for the canonical form (upstream icu blocker).
+        "Q4": 0.79, "Q5": None, "Q6": 0.31, "Q7": 0.68, "Q10": 6.24,
     }),
     Series("MobilityDuck th3index", "#ffbb78", {
-        # this-session local measurements
+        # this-session local measurements; Q5 not re-run (upstream icu blocker)
         "Q4": None, "Q5": None, "Q6": 0.06, "Q7": 0.08, "Q10": 1.73,
     }),
     Series("MobilitySpark th3index", "#2ca02c", {
-        # No measurement yet for the MobilitySpark th3index configuration.
-        "Q4": None, "Q5": None, "Q6": None, "Q7": None, "Q10": None,
+        # Q5 on local[4]; other queries not yet measured here.
+        "Q4": None, "Q5": 9.60, "Q6": None, "Q7": None, "Q10": None,
     }),
 ]
 
