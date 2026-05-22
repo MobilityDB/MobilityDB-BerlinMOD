@@ -122,21 +122,36 @@ $$ LANGUAGE 'plpgsql';
  *
  * Schema produced:
  *   vehicles.csv       : vehId, licence, type, model
- *   trips.csv          : tripId, vehId, trip   -- tgeompoint as WKT text
+ *   trips.csv          : tripId, vehId, trip, trip_h3
+ *                        - trip   : tgeompoint as WKT text
+ *                        - trip_h3: th3index temporal H3-cell index, hex-WKB,
+ *                                   produced by tgeompoint_to_th3index(trip, R)
+ *                                   at the chosen H3 resolution.  Used by all
+ *                                   three platforms as a spatial prefilter for
+ *                                   the cross-join family of BerlinMOD queries
+ *                                   (Q4/Q5/Q6/Q10).  R defaults to 7 (cell edge
+ *                                   ≈ 1.2 km) — sound for the 3-10 m distance
+ *                                   thresholds the queries use.
  *   query_licences.csv : licenceId, licence
  *   query_instants.csv : instantId, instant
  *   query_points.csv   : pointId, geom          -- geometry as WKT text
  *
  * Parameters:
- * - fullpath: directory path (with trailing slash) where CSV files are written.
+ * - fullpath:    directory path (with trailing slash) where CSV files are written.
+ * - h3resolution: H3 resolution for the trip_h3 column (default 7).  Use a coarser
+ *                resolution (e.g. 5 — cell edge ≈ 9 km) for an even safer
+ *                prefilter at the cost of selectivity.
  *
  * Example:
  *     \i berlinmod_export.sql
  *     SELECT berlinmod_portability_export('/home/mobilitydb/portability/');
+ *     SELECT berlinmod_portability_export('/home/mobilitydb/portability/', 7);
  *****************************************************************************/
 
 DROP FUNCTION IF EXISTS berlinmod_portability_export;
-CREATE OR REPLACE FUNCTION berlinmod_portability_export(fullpath text)
+CREATE OR REPLACE FUNCTION berlinmod_portability_export(
+    fullpath      text,
+    h3resolution  integer DEFAULT 7)
 RETURNS text AS $$
 DECLARE
   startTime timestamptz;
@@ -146,6 +161,7 @@ BEGIN
   RAISE INFO '------------------------------------------------------------------';
   RAISE INFO 'Exporting BerlinMOD data in cross-platform portability schema';
   RAISE INFO 'Target: %', fullpath;
+  RAISE INFO 'H3 resolution for trip_h3: %', h3resolution;
   RAISE INFO 'Execution started at %', startTime;
   RAISE INFO '------------------------------------------------------------------';
 
@@ -156,12 +172,13 @@ BEGIN
            FROM Vehicles ORDER BY VehicleId)
      TO ''%svehicles.csv'' DELIMITER '','' CSV HEADER', fullpath);
 
-  RAISE INFO 'Exporting trips.csv (tgeompoint as WKT text)';
+  RAISE INFO 'Exporting trips.csv (trip as WKT text + trip_h3 as hex-WKB at resolution %)', h3resolution;
   EXECUTE format(
     'COPY (SELECT TripId AS tripId, VehicleId AS vehId,
-                  asText(Trip) AS trip
+                  asText(Trip) AS trip,
+                  asHexWKB(tgeompoint_to_th3index(Trip, %s)) AS trip_h3
            FROM Trips ORDER BY TripId)
-     TO ''%strips.csv'' DELIMITER '','' CSV HEADER', fullpath);
+     TO ''%strips.csv'' DELIMITER '','' CSV HEADER', h3resolution, fullpath);
 
   RAISE INFO 'Exporting query_licences.csv';
   EXECUTE format(
