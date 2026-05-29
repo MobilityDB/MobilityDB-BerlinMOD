@@ -1,66 +1,75 @@
 # Cross-platform streaming timings — 2026-05-29
 
 Throughput of the streaming query set across the three stream platforms, per
-(query, form). The Flink column is measured; the Nebula and Kafka columns are
-not yet measured. See [`README.md`](README.md) for the query set, the streaming
-forms, and the shared result schema.
+(query, form). The Flink column is measured on the real BerlinMOD instants
+corpus; the Nebula and Kafka columns are not yet measured. See
+[`README.md`](README.md) for the query set, the streaming forms, and the shared
+result schema.
 
 ## Method
 
-Each cell runs as one streaming job over a shared synthetic BerlinMOD corpus and
-is terminated by a counting sink; throughput is input events ÷ wall-clock and
-`output rows` is the sink cardinality. The spatial predicates evaluate through
-MEOS. The Flink figures below are a 30 000-event corpus (50 vehicles × 600
-events over 600 s of event time) on a single-node Flink 1.16 local mini-cluster,
-parallelism 1, Java 21, 16-core x86-64 Linux, with libmeos built
-`-DMEOS=ON -DCBUFFER=ON -DNPOINT=ON -DPOSE=ON -DRGEO=ON`. The wall-clock includes
-the per-job mini-cluster startup (~0.7–0.8 s), so these are end-to-end job
-throughputs; the steady-state row below amortises startup over a larger corpus.
+Each cell runs as one streaming job over a shared corpus and is terminated by a
+counting sink; throughput is input events ÷ wall-clock and `output rows` is the
+sink cardinality. The spatial predicates evaluate through MEOS. The Flink figures
+are the BerlinMOD `berlinmod_instants.csv` (216 075 instants, 5 vehicles, ~11
+days), reprojected EPSG:3857→EPSG:4326 through MEOS `geo_transform` at load, on a
+single-node Flink 1.16 local mini-cluster, parallelism 1, Java 21, 16-core
+x86-64 Linux, libmeos built `-DMEOS=ON -DCBUFFER=ON -DNPOINT=ON -DPOSE=ON
+-DRGEO=ON`. The point `P`, region box, road segment, points of interest, and
+target vehicle ids are derived from the corpus (`P` = centroid), and the
+window/tick granularity is scaled to the corpus span. The harness is
+[`MobilityFlink` `BerlinMODBenchmark`](https://github.com/MobilityDB/MobilityFlink/blob/main/flink-processor/src/main/java/berlinmod/BerlinMODBenchmark.java).
 
 ## Throughput (events/s) and output rows
 
 | Query | Form | Flink events in | Flink output rows | Flink ev/s | Nebula ev/s | Kafka ev/s |
 |---|---|---:|---:|---:|---:|---:|
-| Q1 | continuous | 30000 | 50 | 13,435 | — | — |
-| Q1 | windowed | 30000 | 60 | 28,169 | — | — |
-| Q1 | snapshot | 30000 | 6000 | 33,520 | — | — |
-| Q2 | continuous | 30000 | 600 | 37,594 | — | — |
-| Q2 | windowed | 30000 | 60 | 39,894 | — | — |
-| Q2 | snapshot | 30000 | 120 | 38,810 | — | — |
-| Q3 | continuous | 30000 | 30000 | 19,023 | — | — |
-| Q3 | windowed | 30000 | 60 | 23,603 | — | — |
-| Q3 | snapshot | 30000 | 3120 | 34,722 | — | — |
-| Q4 | continuous | 30000 | 8 | 27,248 | — | — |
-| Q4 | windowed | 30000 | 480 | 26,525 | — | — |
-| Q4 | snapshot | 30000 | 960 | 27,959 | — | — |
-| Q5 | continuous | 30000 | 7171498 | 403 | — | — |
-| Q5 | windowed | 30000 | 14359 | 32,787 | — | — |
-| Q5 | snapshot | 30000 | 29640 | 27,804 | — | — |
-| Q6 | continuous | 30000 | 30000 | 29,326 | — | — |
-| Q6 | windowed | 30000 | 3000 | 31,283 | — | — |
-| Q6 | snapshot | 30000 | 6000 | 32,293 | — | — |
-| Q7 | continuous | 30000 | 15 | 23,585 | — | — |
-| Q7 | windowed | 30000 | 766 | 23,006 | — | — |
-| Q7 | snapshot | 30000 | 1790 | 20,422 | — | — |
-| Q8 | continuous | 30000 | 30000 | 28,763 | — | — |
-| Q8 | windowed | 30000 | 60 | 29,528 | — | — |
-| Q8 | snapshot | 30000 | 3720 | 36,320 | — | — |
-| Q9 | continuous | 30000 | 1199 | 39,012 | — | — |
-| Q9 | windowed | 30000 | 60 | 37,927 | — | — |
-| Q9 | snapshot | 30000 | 120 | 42,493 | — | — |
+| Q1 | continuous | 216075 | 5 | 86,154 | — | — |
+| Q1 | windowed | 216075 | 86 | 166,982 | — | — |
+| Q1 | snapshot | 216075 | 274 | 204,616 | — | — |
+| Q2 | continuous | 216075 | 61170 | 201,187 | — | — |
+| Q2 | windowed | 216075 | 50 | 210,394 | — | — |
+| Q2 | snapshot | 216075 | 71 | 219,365 | — | — |
+| Q3 | continuous | 216075 | 216075 | 73,796 | — | — |
+| Q3 | windowed | 216075 | 86 | 86,189 | — | — |
+| Q3 | snapshot | 216075 | 0 | 233,342 | — | — |
+| Q4 | continuous | 216075 | 62 | 66,403 | — | — |
+| Q4 | windowed | 216075 | 98 | 66,814 | — | — |
+| Q4 | snapshot | 216075 | 1944 | 67,042 | — | — |
+| Q5 | continuous | 216075 | 73063 | 23,586 | — | — |
+| Q5 | windowed | 216075 | 6 | 226,494 | — | — |
+| Q5 | snapshot | 216075 | 0 | 236,148 | — | — |
+| Q6 | continuous | 216075 | 216075 | 90,712 | — | — |
+| Q6 | windowed | 216075 | 203 | 81,940 | — | — |
+| Q6 | snapshot | 216075 | 274 | 97,595 | — | — |
+| Q7 | continuous | 216075 | 5 | 54,386 | — | — |
+| Q7 | windowed | 216075 | 53 | 43,180 | — | — |
+| Q7 | snapshot | 216075 | 288 | 54,967 | — | — |
+| Q8 | continuous | 216075 | 216075 | 74,948 | — | — |
+| Q8 | windowed | 216075 | 86 | 75,445 | — | — |
+| Q8 | snapshot | 216075 | 126 | 232,839 | — | — |
+| Q9 | continuous | 216075 | 107870 | 116,294 | — | — |
+| Q9 | windowed | 216075 | 22 | 233,847 | — | — |
+| Q9 | snapshot | 216075 | 95 | 217,818 | — | — |
 
-## Steady-state per-event predicate
+## Parity — streaming ≡ batch on the same MEOS predicate
 
-Q3-continuous applies one MEOS `edwithin_tgeo_geo` per event. Over a
-200 000-event corpus with the per-job startup amortised:
+The continuous form emits `predicate(event)` for every event, checked
+event-for-event against a batch pass over the same corpus through the same MEOS
+call. On the 216 075-event corpus both spatial-membership queries match exactly,
+which is the cross-family link to the 3-DB benchmark (the batch result is the
+oracle).
 
-| Query | Form | Flink events in | Flink output rows | Flink ev/s |
-|---|---|---:|---:|---:|
-| Q3 | continuous | 200000 | 200000 | 45,096 |
+| Query | Events | Streaming-true | Batch-true | Mismatches | Parity |
+|---|---:|---:|---:|---:|---|
+| Q3 (`edwithin_tgeo_geo`, within `d` of `P`) | 216075 | 56086 | 56086 | 0 | exact |
+| Q8 (`edwithin_tgeo_geo`, within `d` of segment) | 216075 | 118498 | 118498 | 0 | exact |
 
 ## Characteristics
 
 Q5-continuous enumerates every meeting pair across all vehicles on each event
-(O(V²) per event, keyed to a single subtask), producing 7 171 498 rows from
-30 000 events — the lowest throughput, inherent to the all-pairs meeting query
-rather than to the predicate path.
+(O(V²) per event, keyed to a single subtask) — the lowest throughput. The
+snapshot form is a sampled form (each vehicle's last-known position at tick
+instants), so a within-`P` snapshot can be empty when no vehicle is within `d` of
+`P` at a tick boundary even though the continuous form reports near-`P` events
+between boundaries.
