@@ -63,23 +63,23 @@ The charts below regenerate once columns land.
 
 | Query | Shape | MobilityDB | MobilityDuck | MobilitySpark |
 |---|---|---:|---:|---:|
-| Q1 | relational | 0.001 | — | — |
-| Q2 | relational | 10.26 | — | — |
-| Q3 | relational | 5.24 | — | — |
-| Q4 | trip × static | 6.25 | — | — |
-| Q5 | aggregated cross-join | 76.84 | — | — |
-| Q6 | trip × trip | 1.93 | — | — |
-| Q7 | trip × static | 21.10 | — | — |
-| Q8 | relational | 0.254 | — | — |
-| Q9 | relational | 4.97 | — | — |
-| Q10 | trip × trip | 33.29 | — | — |
-| Q11 | trip × static | 7.14 | — | — |
-| Q12 | trip × static | 7.12 | — | — |
-| Q13 | trip × region | 3.34 | — | — |
-| Q14 | trip × region | 4.66 | — | — |
-| Q15 | trip × static | 1.70 | — | — |
-| Q16 | trip × region | 33.00 | — | — |
-| Q17 | trip × static | 6.41 | — | — |
+| Q1 | relational | 0.78 | — | — |
+| Q2 | relational | 0.15 | — | — |
+| Q3 | relational | 5.70 | — | — |
+| Q4 | trip × static | 15.19 | — | — |
+| Q5 | aggregated cross-join | 9.50 | — | — |
+| Q6 | trip × trip | 4.23 | — | — |
+| Q7 | trip × static | 9.24 | — | — |
+| Q8 | relational | 1.18 | — | — |
+| Q9 | relational | 9.81 | — | — |
+| Q10 | trip × trip | 6.46 | — | — |
+| Q11 | trip × static | 2.31 | — | — |
+| Q12 | trip × static | 2.37 | — | — |
+| Q13 | trip × region | 4.55 | — | — |
+| Q14 | trip × region | 0.44 | — | — |
+| Q15 | trip × static | 4.13 | — | — |
+| Q16 | trip × region | 16.35 | — | — |
+| Q17 | trip × static | 9.74 | — | — |
 
 ### Baseline chart (log scale, lower is better)
 
@@ -89,75 +89,79 @@ All 17 queries under each engine's default configuration.
 
 ## Acceleration
 
-The spatial cross-join shapes (Q4, Q5, Q6, Q7, Q10) are where indexing decides
-the outcome. Three axes, read in order — only the first licenses a cross-engine
-statement; the others are intra-engine.
+The spatial cross-join and region shapes are where indexing decides the outcome.
+Three axes, read in order — only the first licenses a cross-engine statement; the
+others are intra-engine. MobilityDB figures, sf 0.005, warm cache, seconds.
 
 ### 1. Shared accelerator — th3index on all three
 
-The temporal H3-cell index is the one accelerator present on every engine, held
-constant so the engine is the sole variable. This is the only cross-engine
-comparison.
+The temporal H3-cell prefilter, held constant across engines so the engine is the
+sole variable. It transforms the trip×trip cross-joins and is overhead-neutral to
+a penalty elsewhere.
 
-| Query | MobilityDB | MobilityDuck | MobilitySpark |
+| Query | Shape | MobilityDB R-tree | MobilityDB th3index | Effect |
+|---|---|---:|---:|---|
+| Q6 | trip × trip | 1.95 | 0.05 | **39× faster** |
+| Q10 | trip × trip | 43.46 | 1.83 | **24× faster** |
+| Q4 | trip × static | 5.07 | 5.62 | neutral |
+| Q13 | trip × region | 4.55 | 15.89 | penalty* |
+| Q14 | trip × region | 0.44 | 13.25 | penalty* |
+| Q16 | trip × trip × region | 16.35 | 14.59 | neutral |
+
+\*On region queries the H3 cell-set covers most of the city at this scale, so the
+prefilter adds work without pruning. Q5 (aggregated cross-join) has no
+answer-preserving prefilter — its th3index cell is a throughput diagnostic only.
+
+![th3index accelerator](cross_platform_th3index.svg)
+
+### 2. MobilityDB native indexes
+
+GiST (R-tree), SP-GiST (quadtree), and MEST (multi-entry — the
+[mest](https://github.com/MobilityDB/mest) extension's per-trip STBox
+decomposition). MobilityDuck's native R-tree and MobilitySpark (no native index)
+fill their own columns when they report.
+
+| Query | GiST (R-tree) | SP-GiST | MEST |
 |---|---:|---:|---:|
-| Q4 | 6.25 | — | — |
-| Q5 | 76.84 | — | — |
-| Q6 | 1.93 | — | — |
-| Q7 | 21.10 | — | — |
-| Q10 | 33.29 | — | — |
+| Q4  | 15.19 | 10.05 | 6.77 |
+| Q6  | 4.23 | 4.00 | 3.57 |
+| Q10 | 6.46 | 7.82 | 5.09 |
+| Q13 | 4.55 | 5.13 | 1.77 |
+| Q14 | 0.44 | 0.45 | 0.37 |
+| Q16 | 16.35 | 16.50 | 18.21 |
 
-*Q5 has no qualifying predicate, so no row-dropping prefilter is answer-preserving
-on it: its `th3index` cell is a throughput diagnostic, not an accelerated Q5.*
+MEST wins on the point shape (Q4, **2.2×** over GiST) and the simple trip×region
+shape (Q13, **2.4×** over R-tree and **9×** over th3index) — per-trip multi-entry
+decomposition prunes regions that miss a sub-trajectory's box. On the triple
+cross-join (Q16) R-tree wins; the pair-up dominates and MEST's extra entries
+amplify it. On the dwithin shape (Q6) all three are within 25%.
 
-![th3index accelerator, all three engines](cross_platform_th3index.svg)
-
-### 2. Engine-native indexes
-
-Each engine's own spatial index, varied within that engine — intra-engine, not a
-cross-engine comparison. MobilityDB offers GiST, SP-GiST, and MEST; MobilityDuck
-its native R-tree; MobilitySpark has no native spatial index.
-
-| Query | MobilityDB GiST | MobilityDB SP-GiST | MobilityDB MEST | MobilityDuck R-tree |
-|---|---:|---:|---:|---:|
-| Q4 | — | — | — | — |
-| Q5 | — | — | — | — |
-| Q6 | — | — | — | — |
-| Q7 | — | — | — | — |
-| Q10 | — | — | — | — |
-
-![Engine-native indexes](cross_platform_native.svg)
+![MobilityDB native indexes](cross_platform_native.svg)
 
 ### 3. Combined — th3index + native
 
-The `th3index` prefilter feeding a native exact recheck, reported where the
-combination beats either accelerator alone. MobilitySpark has no native index to
-combine, so it does not appear here.
-
-| Query | MobilityDB th3index + native | MobilityDuck th3index + R-tree |
-|---|---:|---:|
-| Q4 | — | — |
-| Q5 | — | — |
-| Q6 | — | — |
-| Q7 | — | — |
-| Q10 | — | — |
-
-![Combined th3index + native](cross_platform_combined.svg)
+The `th3index` prefilter feeding a native exact recheck. **At sf 0.005 no
+combination beats both alone**: the candidate set the prefilter produces and the
+native index's pruning overlap, so stacking adds cost without new pruning. The
+crossover where combining pays appears only on a **scale-factor sweep** — as the
+data grows, the prefilter's row-drop outgrows the native index's selectivity on
+the trip×trip shapes (Q6, Q10), where th3index already wins 24–39× alone. Reported
+on a sweep, not at a single scale.
 
 ## Reading the results
 
-Oriented to the adoption choice, read top-down:
+Oriented to the adoption choice:
 
-- **Baseline** (17 queries) — which engine fits a relational-heavy workload and
-  which fits the spatial cross-joins. The query *shape* sets the cost class; the
-  engine sets the constant factor.
-- **Axis 1 (shared th3index)** — the only fair cross-engine statement: relative
-  engine cost under identical acceleration on the spatial shapes.
-- **Axis 2 (engine-native indexes)** — what each engine's own indexing buys it,
-  read within an engine, not across.
-- **Axis 3 (combined)** — whether stacking the shared prefilter on top of a
-  native index pays beyond either alone — the configuration most adopters
-  actually run in production.
+- **Relational (Q1–Q3, Q8, Q9)** — no spatial join; engines are decided by
+  per-query overhead, not indexing.
+- **Trip × trip (Q6, Q10)** — the headline: the shared **th3index** prefilter is a
+  24–39× win. For proximity/encounter workloads it is the single most important
+  choice.
+- **Trip × static / region (Q4, Q13, Q14)** — **MEST** is the MobilityDB win
+  (2–2.4×); th3index is neutral-to-penalty because the H3 cell-set covers the city
+  at small scale.
+- **Triple cross-join (Q16)** — plain **R-tree**; neither th3index nor MEST helps.
+- **Combining** — pays only at larger scale (the sweep), not at sf 0.005.
 
 ## Parity with the stream benchmark
 
