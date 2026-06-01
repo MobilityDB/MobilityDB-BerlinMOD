@@ -78,7 +78,7 @@ flink,Q3,snapshot,30000,3120,34722,
 
 - **Flink** — [`BerlinMODBenchmark`](https://github.com/MobilityDB/MobilityFlink/blob/main/flink-processor/src/main/java/berlinmod/BerlinMODBenchmark.java); figures in [`benchmark-results.md`](https://github.com/MobilityDB/MobilityFlink/blob/main/flink-processor/docs/benchmark-results.md).
 - **Nebula** — `systest -b -g benchmark` → [bench.nebula.stream](https://bench.nebula.stream); queries in [`MobilityNebula/Queries`](https://github.com/MobilityDB/MobilityNebula/tree/main/Queries).
-- **Kafka** — shares the Flink `MEOSBridge` over JMEOS.
+- **Kafka** — [`EmbeddedBrokerBenchmark`](https://github.com/MobilityDB/MobilityKafka/blob/main/kafka-streams-app/src/test/java/berlinmod/EmbeddedBrokerBenchmark.java) over an in-process `EmbeddedKafkaCluster`; shares the Flink `MEOSBridge` over JMEOS; figures in [`benchmark.md`](https://github.com/MobilityDB/MobilityKafka/blob/main/kafka-streams-app/docs/benchmark.md).
 
 The cross-platform comparison is in
 [`CrossPlatform_streaming_timings_2026-05-29.md`](CrossPlatform_streaming_timings_2026-05-29.md).
