@@ -168,14 +168,20 @@ is the cross-family correctness link. This batch result is the oracle.
 
 ## Contributing your numbers
 
-Each engine owns one column of the Results grid.
+Each engine fills the grids that apply to it, leaving the rest as `—`.
 
-1. Run the R-query suite on your engine (harness under [Reproduce](#reproduce)),
-   producing one time per query.
-2. Fill your engine's column in the **Results** grid.
-3. Add your series to
+1. **Baseline** — run the 17 R-queries under your default config; fill your
+   engine's column in the **Results** grid.
+2. **Axis 1 (shared th3index)** — re-run the spatial shapes (Q4, Q5, Q6, Q7, Q10)
+   with the `th3index` accelerator; fill your engine's column.
+3. **Axis 2 (native indexes)** — for each native spatial index your engine offers
+   (MobilityDB: GiST / SP-GiST / MEST; MobilityDuck: R-tree), fill that column.
+   MobilitySpark has no native spatial index and stays `—`.
+4. **Axis 3 (combined)** — where your engine has both, run `th3index` + native and
+   fill the column where it beats either alone.
+5. Add your series to
    [`scripts/render_bench_chart.py`](scripts/render_bench_chart.py) and run
-   `python3 scripts/render_bench_chart.py` to replace the empty charts.
+   `python3 scripts/render_bench_chart.py` so the charts replace the placeholders.
 
 ## Reproduce
 
