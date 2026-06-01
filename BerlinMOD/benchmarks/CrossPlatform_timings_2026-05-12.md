@@ -81,22 +81,83 @@ The charts below regenerate once columns land.
 | Q16 | trip × region | 33.00 | — | — |
 | Q17 | trip × static | 6.41 | — | — |
 
-### Charts (log scale, lower is better)
+### Baseline chart (log scale, lower is better)
 
-Baseline across all 17 queries, and the `th3index` accelerator on the cross-join
-shapes where it applies.
+All 17 queries under each engine's default configuration.
 
 ![Three-platform baseline](cross_platform_standard.svg)
 
-![Three-platform th3index accelerator](cross_platform_th3index.svg)
+## Acceleration
+
+The spatial cross-join shapes (Q4, Q5, Q6, Q7, Q10) are where indexing decides
+the outcome. Three axes, read in order — only the first licenses a cross-engine
+statement; the others are intra-engine.
+
+### 1. Shared accelerator — th3index on all three
+
+The temporal H3-cell index is the one accelerator present on every engine, held
+constant so the engine is the sole variable. This is the only cross-engine
+comparison.
+
+| Query | MobilityDB | MobilityDuck | MobilitySpark |
+|---|---:|---:|---:|
+| Q4 | 6.25 | — | — |
+| Q5 | 76.84 | — | — |
+| Q6 | 1.93 | — | — |
+| Q7 | 21.10 | — | — |
+| Q10 | 33.29 | — | — |
+
+*Q5 has no qualifying predicate, so no row-dropping prefilter is answer-preserving
+on it: its `th3index` cell is a throughput diagnostic, not an accelerated Q5.*
+
+![th3index accelerator, all three engines](cross_platform_th3index.svg)
+
+### 2. Engine-native indexes
+
+Each engine's own spatial index, varied within that engine — intra-engine, not a
+cross-engine comparison. MobilityDB offers GiST, SP-GiST, and MEST; MobilityDuck
+its native R-tree; MobilitySpark has no native spatial index.
+
+| Query | MobilityDB GiST | MobilityDB SP-GiST | MobilityDB MEST | MobilityDuck R-tree |
+|---|---:|---:|---:|---:|
+| Q4 | — | — | — | — |
+| Q5 | — | — | — | — |
+| Q6 | — | — | — | — |
+| Q7 | — | — | — | — |
+| Q10 | — | — | — | — |
+
+![Engine-native indexes](cross_platform_native.svg)
+
+### 3. Combined — th3index + native
+
+The `th3index` prefilter feeding a native exact recheck, reported where the
+combination beats either accelerator alone. MobilitySpark has no native index to
+combine, so it does not appear here.
+
+| Query | MobilityDB th3index + native | MobilityDuck th3index + R-tree |
+|---|---:|---:|
+| Q4 | — | — |
+| Q5 | — | — |
+| Q6 | — | — |
+| Q7 | — | — |
+| Q10 | — | — |
+
+![Combined th3index + native](cross_platform_combined.svg)
 
 ## Reading the results
 
-Filled once the runs land, oriented to the adoption choice: which engine fits a
-relational-heavy workload, which fits the spatial cross-joins, and how much the
-shared `th3index` accelerator closes the gap on the cross-join shapes (Q4–Q7,
-Q10). The query shape (above), not the engine, sets the cost class; the engine
-sets the constant factor.
+Oriented to the adoption choice, read top-down:
+
+- **Baseline** (17 queries) — which engine fits a relational-heavy workload and
+  which fits the spatial cross-joins. The query *shape* sets the cost class; the
+  engine sets the constant factor.
+- **Axis 1 (shared th3index)** — the only fair cross-engine statement: relative
+  engine cost under identical acceleration on the spatial shapes.
+- **Axis 2 (engine-native indexes)** — what each engine's own indexing buys it,
+  read within an engine, not across.
+- **Axis 3 (combined)** — whether stacking the shared prefilter on top of a
+  native index pays beyond either alone — the configuration most adopters
+  actually run in production.
 
 ## Parity with the stream benchmark
 
