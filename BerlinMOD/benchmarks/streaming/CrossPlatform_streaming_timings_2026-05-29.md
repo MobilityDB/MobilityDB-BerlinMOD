@@ -59,6 +59,20 @@ once the application has read the whole input topic. The harness is
 | Q9 | windowed | 216075 | 22 | 233,847 | — | 90,636 |
 | Q9 | snapshot | 216075 | 95 | 217,818 | — | 94,729 |
 
+## Throughput charts (events/s, log scale, higher is better)
+
+One grouped bar chart per streaming form, Flink against Kafka on the same corpus.
+The Nebula column is not yet measured and is omitted from the bars. The charts
+are regenerated from
+[`scripts/render_streaming_chart.py`](scripts/render_streaming_chart.py) — run
+`python3 scripts/render_streaming_chart.py` to refresh all three SVGs.
+
+![Continuous-form streaming throughput, Flink vs Kafka](streaming_continuous.svg)
+
+![Windowed-form streaming throughput, Flink vs Kafka](streaming_windowed.svg)
+
+![Snapshot-form streaming throughput, Flink vs Kafka](streaming_snapshot.svg)
+
 ## Parity — streaming ≡ batch on the same MEOS predicate
 
 The continuous form emits `predicate(event)` for every event, checked
