@@ -122,36 +122,30 @@ $$ LANGUAGE 'plpgsql';
  *
  * Schema produced:
  *   vehicles.csv       : vehId, licence, type, model
- *   trips.csv          : tripId, vehId, trip, trip_h3
- *                        - trip   : tgeompoint as hex-WKB (EWKB, SRID 3857)
- *                        - trip_h3: th3index temporal H3-cell index, hex-WKB,
- *                                   produced by h3_latlng_to_cell(trip, R) on the
- *                                   trip in EPSG:4326 at the chosen H3 resolution.
- *                                   Used by all three platforms as a spatial
- *                                   prefilter for the cross-join family of
- *                                   BerlinMOD queries (Q4/Q5/Q6/Q10).  R defaults
- *                                   to 7 (cell edge ≈ 1.2 km) — sound for the
- *                                   3-10 m distance thresholds the queries use.
+ *   trips.csv          : tripId, vehId, trip
+ *                        - trip   : tgeompoint as hex-EWKB (SRID 3857 preserved)
+ *
+ * The th3index spatial prefilter is not shipped in the CSV: each platform derives
+ * the trip_h3 column at ingest with h3_latlng_to_cell(trip, R), an O(1)-per-point
+ * conversion through the shared MEOS kernel (same vendored libh3), so the cells are
+ * identical on every engine. berlinmod_th3index_setup.sql adds and populates the
+ * column (densifying form, sound for the eIntersects/eContains prefilter) and builds
+ * its GiST index for the cross-join family (Q4/Q5/Q6/Q10) at resolution 7.
  *   query_licences.csv : licenceId, licence
  *   query_instants.csv : instantId, instant
  *   query_points.csv   : pointId, geom          -- geometry as WKT text
  *
  * Parameters:
  * - fullpath:    directory path (with trailing slash) where CSV files are written.
- * - h3resolution: H3 resolution for the trip_h3 column (default 7).  Use a coarser
- *                resolution (e.g. 5 — cell edge ≈ 9 km) for an even safer
- *                prefilter at the cost of selectivity.
  *
  * Example:
  *     \i berlinmod_export.sql
  *     SELECT berlinmod_portability_export('/home/mobilitydb/portability/');
- *     SELECT berlinmod_portability_export('/home/mobilitydb/portability/', 7);
  *****************************************************************************/
 
 DROP FUNCTION IF EXISTS berlinmod_portability_export;
 CREATE OR REPLACE FUNCTION berlinmod_portability_export(
-    fullpath      text,
-    h3resolution  integer DEFAULT 7)
+    fullpath      text)
 RETURNS text AS $$
 DECLARE
   startTime timestamptz;
@@ -161,7 +155,6 @@ BEGIN
   RAISE INFO '------------------------------------------------------------------';
   RAISE INFO 'Exporting BerlinMOD data in cross-platform portability schema';
   RAISE INFO 'Target: %', fullpath;
-  RAISE INFO 'H3 resolution for trip_h3: %', h3resolution;
   RAISE INFO 'Execution started at %', startTime;
   RAISE INFO '------------------------------------------------------------------';
 
@@ -172,13 +165,12 @@ BEGIN
            FROM Vehicles ORDER BY VehicleId)
      TO ''%svehicles.csv'' DELIMITER '','' CSV HEADER', fullpath);
 
-  RAISE INFO 'Exporting trips.csv (trip as hex-WKB + trip_h3 as hex-WKB at resolution %)', h3resolution;
+  RAISE INFO 'Exporting trips.csv (trip as hex-EWKB, SRID 3857)';
   EXECUTE format(
     'COPY (SELECT TripId AS tripId, VehicleId AS vehId,
-                  asHexEWKB(Trip) AS trip,
-                  asHexWKB(h3_latlng_to_cell(transform(Trip, 4326), %s)) AS trip_h3
+                  asHexEWKB(Trip) AS trip
            FROM Trips ORDER BY TripId)
-     TO ''%strips.csv'' DELIMITER '','' CSV HEADER', h3resolution, fullpath);
+     TO ''%strips.csv'' DELIMITER '','' CSV HEADER', fullpath);
 
   RAISE INFO 'Exporting query_licences.csv';
   EXECUTE format(

@@ -21,9 +21,12 @@ What it does:
      predicates can be pushed down by the planner.
   4. Re-analyses the table.
 
-This script is MobilityDB/PostgreSQL specific.  The cross-platform
-loaders for MobilityDuck and MobilitySpark read `trip_h3` directly
-from the shared CSV produced by `berlinmod_portability_export()`.
+This script is MobilityDB/PostgreSQL specific.  Each platform derives
+`trip_h3` at ingest the same way — `h3_latlng_to_cell(trip, 7)` is an
+O(1)-per-point conversion through the shared MEOS kernel (the same
+vendored libh3), so the cells are identical on every engine.  The
+MobilityDuck and MobilitySpark loaders run the equivalent step in their
+own dialect; the column is not carried in the shared CSV.
 
 -----------------------------------------------------------------------------*/
 
