@@ -123,15 +123,15 @@ $$ LANGUAGE 'plpgsql';
  * Schema produced:
  *   vehicles.csv       : vehId, licence, type, model
  *   trips.csv          : tripId, vehId, trip, trip_h3
- *                        - trip   : tgeompoint as WKT text
+ *                        - trip   : tgeompoint as hex-WKB (EWKB, SRID 3857)
  *                        - trip_h3: th3index temporal H3-cell index, hex-WKB,
- *                                   produced by tgeompoint_to_th3index(trip, R)
- *                                   at the chosen H3 resolution.  Used by all
- *                                   three platforms as a spatial prefilter for
- *                                   the cross-join family of BerlinMOD queries
- *                                   (Q4/Q5/Q6/Q10).  R defaults to 7 (cell edge
- *                                   ≈ 1.2 km) — sound for the 3-10 m distance
- *                                   thresholds the queries use.
+ *                                   produced by h3_latlng_to_cell(trip, R) on the
+ *                                   trip in EPSG:4326 at the chosen H3 resolution.
+ *                                   Used by all three platforms as a spatial
+ *                                   prefilter for the cross-join family of
+ *                                   BerlinMOD queries (Q4/Q5/Q6/Q10).  R defaults
+ *                                   to 7 (cell edge ≈ 1.2 km) — sound for the
+ *                                   3-10 m distance thresholds the queries use.
  *   query_licences.csv : licenceId, licence
  *   query_instants.csv : instantId, instant
  *   query_points.csv   : pointId, geom          -- geometry as WKT text
@@ -172,11 +172,11 @@ BEGIN
            FROM Vehicles ORDER BY VehicleId)
      TO ''%svehicles.csv'' DELIMITER '','' CSV HEADER', fullpath);
 
-  RAISE INFO 'Exporting trips.csv (trip as WKT text + trip_h3 as hex-WKB at resolution %)', h3resolution;
+  RAISE INFO 'Exporting trips.csv (trip as hex-WKB + trip_h3 as hex-WKB at resolution %)', h3resolution;
   EXECUTE format(
     'COPY (SELECT TripId AS tripId, VehicleId AS vehId,
-                  asText(Trip) AS trip,
-                  asHexWKB(tgeompoint_to_th3index(Trip, %s)) AS trip_h3
+                  asHexEWKB(Trip) AS trip,
+                  asHexWKB(h3_latlng_to_cell(transform(Trip, 4326), %s)) AS trip_h3
            FROM Trips ORDER BY TripId)
      TO ''%strips.csv'' DELIMITER '','' CSV HEADER', h3resolution, fullpath);
 
