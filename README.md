@@ -12,6 +12,14 @@ This repository contains code and documentation for running the
 [BerlinMOD](https://secondo-database.github.io/BerlinMOD/BerlinMOD.html)
 benchmark on MobilityDB.
 
+### For contributors and reviewers
+
+- Reviewing a pull request? See the
+  [PR Reviewer Guide](doc/contributing/reviewer-guide.md) — tier ranking,
+  dependency chain (this repo + MobilityDB + MobilityDuck + MobilitySpark
+  + JMEOS) and the standards checklist. Reviewers landing in any of the
+  five ecosystem repos find the same canonical structure at the same path.
+
 ## 1. Requirements
 
 - [PostgreSQL](https://www.postgresql.org/) 14 or later
