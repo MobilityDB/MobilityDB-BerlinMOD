@@ -126,7 +126,7 @@ $$ LANGUAGE 'plpgsql';
  *                        - trip   : tgeompoint as hex-EWKB (SRID 3857 preserved)
  *
  * The th3index spatial prefilter is not shipped in the CSV: each platform derives
- * the trip_h3 column at ingest with h3_latlng_to_cell(trip, R), an O(1)-per-point
+ * the trip_h3 column at ingest with tgeompoint_to_th3index(trip, R), an O(1)-per-point
  * conversion through the shared MEOS kernel (same vendored libh3), so the cells are
  * identical on every engine. berlinmod_th3index_setup.sql adds and populates the
  * column (densifying form, sound for the eIntersects/eContains prefilter) and builds

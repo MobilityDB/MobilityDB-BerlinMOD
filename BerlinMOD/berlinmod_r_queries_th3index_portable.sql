@@ -22,7 +22,7 @@ prefilter applies via the point form.
 
 Prerequisites:
   - The `Trips` table carries a `trip_h3 th3index` column populated at
-    H3 resolution 7 via `h3_latlng_to_cell(transform(Trip, 4326), 7)`.
+    H3 resolution 7 via `tgeompoint_to_th3index(transform(Trip, 4326), 7)`.
     The shared CSV produced by `berlinmod_portability_export()`
     contains it; loaders on each platform unpack it.
   - The static-geometry → H3 cell-set public API is registered:
