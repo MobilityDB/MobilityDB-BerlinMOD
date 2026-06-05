@@ -209,3 +209,71 @@ END;
 $$ LANGUAGE 'plpgsql';
 
 -------------------------------------------------------------------------------
+
+/******************************************************************************
+ * Exports the BerlinMOD trips as a stream of point events for the streaming
+ * benchmark (Apache Flink, Kafka Streams, NebulaStream). Each trip's tgeompoint
+ * is unnested into its composing instants; the per-event H3 cell is computed
+ * once here so every streaming engine inherits it from the dataset rather than
+ * recomputing it.
+ *
+ * Schema produced:
+ *   instants.csv : tripId, vehId, day, seqno, geom, t, h3_cell
+ *                  - geom    : the event point geometry (EWKB, SRID 3857)
+ *                  - t       : event timestamp
+ *                  - h3_cell : the H3 cell of the event point at the chosen
+ *                              resolution, from geotoh3cell(geom in 4326, R).
+ *                              R defaults to 7 (cell edge ≈ 1.2 km).
+ *
+ * Parameters:
+ * - fullpath:     directory path (with trailing slash) where the CSV is written.
+ * - h3resolution: H3 resolution for the h3_cell column (default 7).
+ *
+ * Example:
+ *     \i berlinmod_export.sql
+ *     SELECT berlinmod_instants_export('/home/mobilitydb/portability/');
+ *****************************************************************************/
+
+DROP FUNCTION IF EXISTS berlinmod_instants_export;
+CREATE OR REPLACE FUNCTION berlinmod_instants_export(
+    fullpath      text,
+    h3resolution  integer DEFAULT 7)
+RETURNS text AS $$
+DECLARE
+  startTime timestamptz;
+  endTime   timestamptz;
+BEGIN
+  startTime = clock_timestamp();
+  RAISE INFO '------------------------------------------------------------------';
+  RAISE INFO 'Exporting BerlinMOD trips as point events (streaming form)';
+  RAISE INFO 'Target: %', fullpath;
+  RAISE INFO 'H3 resolution for h3_cell: %', h3resolution;
+  RAISE INFO 'Execution started at %', startTime;
+  RAISE INFO '------------------------------------------------------------------';
+
+  RAISE INFO 'Exporting instants.csv (point events + per-event h3_cell at resolution %)', h3resolution;
+  EXECUTE format(
+    'COPY (
+       WITH Inst(TripId, VehicleId, Inst, SeqNo) AS (
+         SELECT t.TripId, t.VehicleId, u.inst, u.seqno
+         FROM Trips t, unnest(instants(t.Trip)) WITH ORDINALITY AS u(inst, seqno) )
+       SELECT TripId AS tripId, VehicleId AS vehId,
+              (getTimestamp(Inst))::date AS day, SeqNo AS seqno,
+              getValue(Inst) AS geom,
+              getTimestamp(Inst) AS t,
+              geotoh3cell(ST_Transform(getValue(Inst), 4326), %s) AS h3_cell
+       FROM Inst
+       ORDER BY TripId, SeqNo)
+     TO ''%sinstants.csv'' DELIMITER '','' CSV HEADER', h3resolution, fullpath);
+
+  endTime = clock_timestamp();
+  RAISE INFO '------------------------------------------------------------------';
+  RAISE INFO 'Execution started at %', startTime;
+  RAISE INFO 'Execution finished at %', endTime;
+  RAISE INFO 'Execution time %', endTime - startTime;
+  RAISE INFO '------------------------------------------------------------------';
+  RETURN 'The End';
+END;
+$$ LANGUAGE 'plpgsql';
+
+-------------------------------------------------------------------------------
