@@ -1,24 +1,45 @@
 /*-----------------------------------------------------------------------------
--- BerlinMOD Chapter 1 Queries -- Portable Dialect
+-- BerlinMOD Chapter 1 Queries -- Portable Dialect with th3index Prefilter
 -------------------------------------------------------------------------------
 
 This file is part of MobilityDB.
 Copyright(c) 2020-2026, Université libre de Bruxelles and MobilityDB
 contributors
 
-This file contains a portable version of the BerlinMOD Chapter 1 queries
-(Q1-Q6) using named functions instead of MobilityDB-specific infix operators.
-It targets the cross-platform SQL dialect established for the edge-to-cloud
-portability initiative, compatible with MobilityDB (PostgreSQL) and
-MobilityDuck (DuckDB).
+This is a th3index-accelerated sibling of
+`berlinmod_chapter1_queries_portable.sql`.  The published portable
+file is kept unchanged so the book's listings remain authoritative.
+This variant adds an H3-cell prefilter on top of the same predicates
+for the cross-platform edge-to-cloud benchmark.
 
-Operator-to-function mapping applied:
-  &&  (stbox overlap)    -> eIntersects() or overlaps()
-  @>  (contains)        -> contains()
-  <-> (distance)        -> distance()
+Prerequisites:
+  - Run `berlinmod_th3index_setup.sql` once to add and populate the
+    `trip_h3 th3index` column and its GiST index.
+  - The static-geometry → H3 cell-set public API
+    (`geoToH3Cell`, `geoToH3IndexSet`, `everIntersectsH3IndexSet_Th3Index`)
+    must be installed on the target.
 
-The schema assumed is:
-  Trips(TripId, VehId, Trip tgeompoint, Licence, VehicleType, Model)
+Prefilter pattern (single recipe across geometry types):
+
+  everIntersectsH3IndexSet_Th3Index(geoToH3IndexSet(G, 7), T.trip_h3)
+    AND <semantic predicate on the moving point>
+
+  `geoToH3IndexSet` covers any GEOMETRY (POINT/LINESTRING/POLYGON/MULTI*/
+  GeometryCollection) by an H3 cell set at the chosen resolution.
+  `everIntersectsH3IndexSet_Th3Index` returns TRUE iff the trip's
+  th3index path ever lies in any of those cells.  The prefilter is
+  sound for `eIntersects`/`eContains`/spatial-overlap predicates at
+  any resolution — a trip can only satisfy them if it ever crosses a
+  cell that covers part of the static geometry.
+
+  On MobilityDB the GiST index on `Trips(trip_h3)` accelerates the
+  prefilter.  On DuckDB / Spark the column itself is the prefilter
+  mechanism (no spatial index API).
+
+The schema assumed is the same as the published portable file plus
+the `trip_h3` column added by the setup script:
+  Trips(TripId, VehId, Trip tgeompoint, trip_h3 th3index,
+        Licence, VehicleType, Model)
   Vehicles(VehicleId, Licence, VehicleType, Model)
   Points(PointId, PosX, PosY, Geom geometry(Point,3857))
   Regions(RegionId, RegionName, Geom geometry(Polygon,3857))
@@ -67,8 +88,8 @@ ANALYZE;
 
 -- Q1. List the vehicles that have passed at a region from Regions.
 --
--- Original:  stbox(T.Trip) && stbox(R.Geom) AND ST_Intersects(trajectory(T.Trip), R.Geom)
--- Portable:  eIntersects(trajectory(T.Trip), R.Geom) subsumes the bbox filter
+-- Published portable: eIntersects(trajectory(T.Trip), R.Geom)
+-- th3index-accel:     same + cell-set prefilter on R.Geom × T.trip_h3
 
 \echo '-----------'
 \echo '| Query 1 |'
@@ -76,14 +97,20 @@ ANALYZE;
 
 SELECT DISTINCT R.RegionId, T.VehId
 FROM Trips T, Regions10 R
-WHERE eIntersects(trajectory(T.Trip), R.Geom)
+WHERE everIntersectsH3IndexSet_Th3Index(geoToH3IndexSet(R.Geom, 7), T.trip_h3)
+  AND eIntersects(trajectory(T.Trip), R.Geom)
 ORDER BY R.RegionId, T.VehId;
 
 -- Q2. List the vehicles that were within a region from Regions during a period
 -- from Periods.
 --
--- Original:  T.Trip && stbox(R.Geom, P.Period) AND eintersects(atTime(T.Trip, P.Period), R.Geom)
--- Portable:  eIntersects(atTime(T.Trip, P.Period), R.Geom)
+-- Published portable: eIntersects(atTime(T.Trip, P.Period), R.Geom)
+-- th3index-accel:     same + cell-set prefilter on R.Geom × T.trip_h3
+--
+-- The prefilter compares the full trip's th3index to the region cell
+-- set — sound because if the trip clipped to P.Period intersects R.Geom,
+-- then the unclipped trip's cells also intersect.  Refinement by Period
+-- is left to the `atTime` call.
 
 \echo '-----------'
 \echo '| Query 2 |'
@@ -91,14 +118,15 @@ ORDER BY R.RegionId, T.VehId;
 
 SELECT R.RegionId, P.PeriodId, T.VehId
 FROM Trips T, Regions10 R, Periods10 P
-WHERE eIntersects(atTime(T.Trip, P.Period), R.Geom)
+WHERE everIntersectsH3IndexSet_Th3Index(geoToH3IndexSet(R.Geom, 7), T.trip_h3)
+  AND eIntersects(atTime(T.Trip, P.Period), R.Geom)
 ORDER BY R.RegionId, P.PeriodId, T.VehId;
 
 -- Q3. List the pairs of vehicles that were both located within a region from
 -- Regions during a period from Periods.
 --
--- Original:  T1.Trip && stbox(...) AND eintersects(atTime(T1.Trip, P.Period), R.Geom) AND ...
--- Portable:  eIntersects(atTime(...), R.Geom) for both trips
+-- Published portable: eIntersects on both trips against R.Geom
+-- th3index-accel:     same + cell-set prefilter on BOTH trips
 
 \echo '-----------'
 \echo '| Query 3 |'
@@ -107,14 +135,17 @@ ORDER BY R.RegionId, P.PeriodId, T.VehId;
 SELECT DISTINCT T1.VehId AS VehId1, T2.VehId AS VehId2, R.RegionId, P.PeriodId
 FROM Trips T1, Trips100 T2, Regions10 R, Periods10 P
 WHERE T1.VehId < T2.VehId
+  AND everIntersectsH3IndexSet_Th3Index(geoToH3IndexSet(R.Geom, 7), T1.trip_h3)
+  AND everIntersectsH3IndexSet_Th3Index(geoToH3IndexSet(R.Geom, 7), T2.trip_h3)
   AND eIntersects(atTime(T1.Trip, P.Period), R.Geom)
   AND eIntersects(atTime(T2.Trip, P.Period), R.Geom)
 ORDER BY T1.VehId, T2.VehId, R.RegionId, P.PeriodId;
 
 -- Q4. List the first time at which a vehicle visited a point in Points.
 --
--- Original:  T.Trip && stbox(P.Geom) AND ST_Contains(trajectory(T.Trip), P.Geom)
--- Portable:  eContains(trajectory(T.Trip), P.Geom)
+-- Published portable: eContains(trajectory(T.Trip), P.Geom)
+-- th3index-accel:     same + cell-set prefilter on P.Geom × T.trip_h3
+--                     (POINT geometry → singleton cell set)
 
 \echo '-----------'
 \echo '| Query 4 |'
@@ -123,14 +154,16 @@ ORDER BY T1.VehId, T2.VehId, R.RegionId, P.PeriodId;
 SELECT T.VehId, P.PointId,
   MIN(startTimestamp(atValues(T.Trip, P.Geom))) AS Instant
 FROM Trips T, Points10 P
-WHERE eContains(trajectory(T.Trip), P.Geom)
+WHERE everIntersectsH3IndexSet_Th3Index(geoToH3IndexSet(P.Geom, 7), T.trip_h3)
+  AND eContains(trajectory(T.Trip), P.Geom)
 GROUP BY T.VehId, P.PointId;
 
 -- Temporal Aggregate Queries
 
 -- Q5. Compute how many vehicles were active at each period in Periods.
 --
--- The overlap operator && on tstzspan is standard across platforms.
+-- Time-only query — no spatial geometry to prefilter against.  Identical
+-- to the published portable form.
 
 \echo '-----------'
 \echo '| Query 5 |'
@@ -146,7 +179,8 @@ ORDER BY P.PeriodId;
 -- Q6. For each region in Regions, give the window temporal count of trips
 -- with a 10-minute interval.
 --
--- atGeometry and wCount are available in MobilityDB and MobilityDuck.
+-- Published portable: eIntersects(trajectory(T.Trip), R.Geom) + atGeometry
+-- th3index-accel:     same + cell-set prefilter on R.Geom × T.trip_h3
 
 \echo '-----------'
 \echo '| Query 6 |'
@@ -155,7 +189,8 @@ ORDER BY P.PeriodId;
 SELECT R.RegionId,
   numInstants(wCount(atGeometry(T.Trip, R.Geom), interval '10 min'))
 FROM Trips T, Regions10 R
-WHERE eIntersects(trajectory(T.Trip), R.Geom)
+WHERE everIntersectsH3IndexSet_Th3Index(geoToH3IndexSet(R.Geom, 7), T.trip_h3)
+  AND eIntersects(trajectory(T.Trip), R.Geom)
 GROUP BY R.RegionId
 HAVING wCount(atGeometry(T.Trip, R.Geom), interval '10 min') IS NOT NULL
 ORDER BY R.RegionId;

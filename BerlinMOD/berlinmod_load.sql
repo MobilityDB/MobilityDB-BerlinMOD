@@ -49,8 +49,9 @@ BEGIN
   */
 
   CREATE VIEW Instants1 (InstantId, Instant) AS
-  SELECT InstantId, Instant 
+  SELECT InstantId, Instant
   FROM Instants
+  ORDER BY InstantId
   LIMIT 10;
 
 --------------------------------------------------------------
@@ -81,6 +82,7 @@ BEGIN
   CREATE VIEW Periods1 (PeriodId, Period) AS
   SELECT PeriodId, Period
   FROM Periods
+  ORDER BY PeriodId
   LIMIT 10;
 
 --------------------------------------------------------------
@@ -111,6 +113,7 @@ BEGIN
   CREATE VIEW Points1 (PointId, Geom) AS
   SELECT PointId, Geom
   FROM Points
+  ORDER BY PointId
   LIMIT 10;
 
 --------------------------------------------------------------
@@ -134,6 +137,7 @@ BEGIN
   CREATE VIEW Regions1 (RegionId, Geom) AS
   SELECT RegionId, Geom
   FROM Regions
+  ORDER BY RegionId
   LIMIT 10;
 
 --------------------------------------------------------------
@@ -236,11 +240,13 @@ BEGIN
   CREATE VIEW Licences1 (LicenceId, Licence, VehicleId) AS
   SELECT LicenceId, Licence, VehicleId
   FROM Licences
+  ORDER BY LicenceId
   LIMIT 10;
 
   CREATE VIEW Licences2 (LicenceId, Licence, VehicleId) AS
   SELECT LicenceId, Licence, VehicleId
   FROM Licences
+  ORDER BY LicenceId
   LIMIT 10 OFFSET 10;
 
 --------------------------------------------------------------
