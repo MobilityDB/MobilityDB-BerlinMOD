@@ -20,6 +20,28 @@ benchmark on MobilityDB.
   + JMEOS) and the standards checklist. Reviewers landing in any of the
   five ecosystem repos find the same canonical structure at the same path.
 
+Benchmark results
+-----------------
+
+Dated benchmark reports for the BerlinMOD query sets on each ecosystem
+platform (MobilityDB, MobilityDuck, MobilitySpark) live in
+**[`BerlinMOD/benchmarks/`](BerlinMOD/benchmarks/)**.  Start at the
+directory [README](BerlinMOD/benchmarks/README.md), or jump directly to:
+
+- **[BETA_TESTING.md](BerlinMOD/benchmarks/BETA_TESTING.md)** — entry
+  point for testers: query files, expected row counts, report-back
+  template.
+- **[ThreePlatform_beta_status_2026-05-11.md](BerlinMOD/benchmarks/ThreePlatform_beta_status_2026-05-11.md)**
+  — current cross-platform status.
+- **[MobilityDB_rqueries_2026-05-11.md](BerlinMOD/benchmarks/MobilityDB_rqueries_2026-05-11.md)**
+  — 17 R-queries × index matrix on MobilityDB.
+
+Headline result (MobilityDB, BerlinMOD scalefactor 0.005, single run):
+17 R-queries total wall-clock 334.30 s baseline → 173.23 s with GiST on
+trip + trajectory (~1.9× total speedup; per-query highlights up to
+Q14 51×, Q10 / Q15 8×, Q13 6×).  Row counts identical across the
+three platforms.
+
 ## 1. Requirements
 
 - [PostgreSQL](https://www.postgresql.org/) 14 or later
