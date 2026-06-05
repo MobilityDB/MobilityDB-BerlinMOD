@@ -1,3 +1,13 @@
+/*-----------------------------------------------------------------------------
+-- Deliveries Load
+-------------------------------------------------------------------------------
+
+This file is part of MobilityDB.
+Copyright(c) 2020-2026, Université libre de Bruxelles and MobilityDB
+contributors
+
+-----------------------------------------------------------------------------*/
+
 /******************************************************************************
  * Loads the Deliveries data in CSV format into MobilityDB using projected (2D)
  * coordinates with SRID 3857

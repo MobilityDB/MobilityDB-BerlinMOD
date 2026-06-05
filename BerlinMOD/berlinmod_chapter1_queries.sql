@@ -1,3 +1,13 @@
+/*-----------------------------------------------------------------------------
+-- BerlinMOD Chapter 1 Queries
+-------------------------------------------------------------------------------
+
+This file is part of MobilityDB.
+Copyright(c) 2020-2026, Université libre de Bruxelles and MobilityDB
+contributors
+
+-----------------------------------------------------------------------------*/
+
 -- Create indexes
 
 DROP INDEX IF EXISTS Trips_rtree_idx;

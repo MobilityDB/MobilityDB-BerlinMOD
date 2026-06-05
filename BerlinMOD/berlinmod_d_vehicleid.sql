@@ -1,3 +1,13 @@
+/*-----------------------------------------------------------------------------
+-- BerlinMOD Distributed by Vehicle ID
+-------------------------------------------------------------------------------
+
+This file is part of MobilityDB.
+Copyright(c) 2020-2026, Université libre de Bruxelles and MobilityDB
+contributors
+
+-----------------------------------------------------------------------------*/
+
 /*****************************************************************************
  * This file distributes the Brussels synthetic dataset generated with the
  * BerlinMOD generator using the vehicleid as distribution column.

@@ -1,11 +1,23 @@
-# Automatic generation of documentation will be copied and checked into the 
+# Automatic generation of documentation will be copied and checked into the
 # gh-pages branch.
 name: Documentation generation CI
 
 on:
   push:
-    branches:
-      - 'master'
+    branches: ["main", "feat/**", "fix/**"]
+    paths-ignore:
+      - "**/*.md"
+      - "doc/**"
+  pull_request:
+    branches: ["main", "feat/**", "fix/**"]
+    paths-ignore:
+      - "**/*.md"
+      - "doc/**"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -32,7 +44,7 @@ jobs:
           xsltproc --stringparam html.stylesheet "docbook.css" --stringparam chunker.output.encoding "UTF-8" --xinclude -o html/index.html /usr/share/xml/docbook/stylesheet/docbook-xsl/html/chunk.xsl mobilitydb-berlinmod.xml
           cp -r images docbook.css html/
           cp docbook.css html/
-          
+
       # store the documentation files
       - name: Upload output directory
         uses: actions/upload-artifact@v4
@@ -66,8 +78,8 @@ jobs:
         with:
           message: 'Update docs'
           branch: gh-pages
-          add: '["docs/index.md", 
-            "docs/mobilitydb-berlinmod.pdf", 
+          add: '["docs/index.md",
+            "docs/mobilitydb-berlinmod.pdf",
             "docs/mobilitydb-berlinmod.epub",
             "docs/html/docbook.css", "docs/html/images/*",
             "docs/html/*.html"]'

@@ -1,3 +1,13 @@
+/*-----------------------------------------------------------------------------
+-- BerlinMOD Range Queries (Citus)
+-------------------------------------------------------------------------------
+
+This file is part of MobilityDB.
+Copyright(c) 2020-2026, Université libre de Bruxelles and MobilityDB
+contributors
+
+-----------------------------------------------------------------------------*/
+
 /******************************************************************************
  * Executes the 17 BerlinMOD/r benchmark queries
  * http://dna.fernuni-hagen.de/secondo/BerlinMOD/BerlinMOD-FinalReview-2008-06-18.pdf
@@ -6,7 +16,7 @@
  *    notimes: number of times that each query is run. It is set by default
  *       to 5
  *    detailed: states whether detailed statistics are collected during
- *      the execution. By default it is set to TRUE. 
+ *      the execution. By default it is set to TRUE.
  * Example of usage:
  *     <Create the function>
  *     SELECT berlinmod_R_queries(1, true)

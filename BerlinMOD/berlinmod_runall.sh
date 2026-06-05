@@ -1,4 +1,14 @@
 #!/bin/bash
+#-----------------------------------------------------------------------------
+# BerlinMOD Run All
+#-----------------------------------------------------------------------------
+#
+# This file is part of MobilityDB.
+# Copyright(c) 2020-2026, Université libre de Bruxelles and MobilityDB
+# contributors
+#
+#-----------------------------------------------------------------------------
+
 # A script to run the BerlinMOD generator
 # Run this script inside the BerlinMOD/ folder.
 # This script expects the file brussels.osm

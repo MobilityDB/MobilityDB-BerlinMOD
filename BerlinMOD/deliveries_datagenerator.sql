@@ -2,8 +2,8 @@
 -- Deliveries Data Generator
 -------------------------------------------------------------------------------
 This file is part of MobilityDB.
-Copyright (c) 2024, Esteban Zimanyi, Mahmoud Sakr,
-  Universite Libre de Bruxelles.
+Copyright(c) 2020-2026, Université libre de Bruxelles and MobilityDB
+contributors
 
 The functions defined in this file use MobilityDB to generate data
 corresponding to a delivery service as specified in

@@ -1,5 +1,15 @@
+/*-----------------------------------------------------------------------------
+-- BerlinMOD Load
+-------------------------------------------------------------------------------
+
+This file is part of MobilityDB.
+Copyright(c) 2020-2026, Université libre de Bruxelles and MobilityDB
+contributors
+
+-----------------------------------------------------------------------------*/
+
 /******************************************************************************
- * Loads the BerlinMOD data with WGS84 coordinates in CSV format 
+ * Loads the BerlinMOD data with WGS84 coordinates in CSV format
  * http://dna.fernuni-hagen.de/secondo/BerlinMOD/BerlinMOD.html  
  * into MobilityDB using projected (2D) coordinates with SRID 3857
  * https://epsg.io/3857

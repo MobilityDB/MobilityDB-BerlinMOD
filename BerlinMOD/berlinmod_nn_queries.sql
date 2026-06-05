@@ -1,3 +1,13 @@
+/*-----------------------------------------------------------------------------
+-- BerlinMOD Nearest-Neighbor Queries
+-------------------------------------------------------------------------------
+
+This file is part of MobilityDB.
+Copyright(c) 2020-2026, Université libre de Bruxelles and MobilityDB
+contributors
+
+-----------------------------------------------------------------------------*/
+
 /******************************************************************************
  * Executes the 9 BerlinMOD/NN benchmark queries
  * http://dna.fernuni-hagen.de/secondo/BerlinMOD/BerlinMOD-FinalReview-2008-06-18.pdf
