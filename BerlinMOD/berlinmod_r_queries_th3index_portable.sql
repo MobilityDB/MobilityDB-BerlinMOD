@@ -10,11 +10,12 @@ th3index-accelerated sibling of `berlinmod_r_queries_portable.sql`.
 Same Q1–Q17 as the portable variant, with one extra clause per
 spatial-against-static query:
 
-    eIntersects(G, T.trip_h3)
+    ever_eq(geoToH3IndexSet(G, 7), T.trip_h3)
       AND <semantic predicate>
 
-`eIntersects(geometry, th3index)` accepts any POINT / LINESTRING /
-POLYGON / MULTI* / GeometryCollection, so the same prefilter shape
+`geoToH3IndexSet` accepts any POINT / LINESTRING / POLYGON / MULTI* /
+GeometryCollection, and `ever_eq(h3indexset, th3index)` is the
+conservative cell-overlap test, so the same prefilter shape
 applies to all spatial-static predicates.  Q1 and Q2 are relational (no spatial
 predicate) so they are unchanged.  Q3 and Q11 / Q12 use
 `valueAtTimestamp` (a point lookup at a single instant) — the
@@ -25,9 +26,8 @@ Prerequisites:
     H3 resolution 7 via `tgeompoint_to_th3index(transform(Trip, 4326), 7)`.
     The shared CSV produced by `berlinmod_portability_export()`
     contains it; loaders on each platform unpack it.
-  - The canonical `eIntersects(geometry, th3index)` overload is
-    registered (it walks the static geometry to H3 cells at the
-    th3index resolution and tests intersection internally).
+  - The canonical `geoToH3IndexSet(geometry, integer)` builder and the
+    `ever_eq(h3indexset, th3index)` cell-overlap predicate are registered.
   - For MobilityDB specifically, the GiST index on `trip_h3` makes
     the prefilter pushable to the planner.  Other platforms use the
     columnar `trip_h3` value directly.
@@ -38,7 +38,7 @@ prefilter is sound — see the chapter-1 bench report).
 The h3 prefilter uses the 4326-reprojected geometry of the static
 input.  In schemas where the canonical geometry is metric (e.g.
 EPSG:3857), the prefilter argument should be transformed:
-`eIntersects(ST_Transform(G, 4326), T.trip_h3)`.
+`ever_eq(geoToH3IndexSet(ST_Transform(G, 4326), 7), T.trip_h3)`.
 
 -----------------------------------------------------------------------------*/
 
@@ -65,7 +65,7 @@ ORDER BY l.Licence, i.InstantId;
 SELECT DISTINCT p.PointId, p.Geom, v.Licence
 FROM Trips t, Vehicles v, Points p
 WHERE t.VehicleId = v.VehicleId
-  AND eIntersects(ST_Transform(p.Geom, 4326), t.trip_h3)
+  AND ever_eq(geoToH3IndexSet(ST_Transform(p.Geom, 4326), 7), t.trip_h3)
   AND ST_Intersects(trajectory(t.Trip), p.Geom)
 ORDER BY p.PointId, v.Licence;
 
@@ -106,7 +106,7 @@ WITH Temp AS (
   FROM Trips t, Vehicles v, Points p
   WHERE t.VehicleId = v.VehicleId
     AND v.VehicleType = 'passenger'
-    AND eIntersects(ST_Transform(p.Geom, 4326), t.trip_h3)
+    AND ever_eq(geoToH3IndexSet(ST_Transform(p.Geom, 4326), 7), t.trip_h3)
     AND ST_Intersects(trajectory(t.Trip), p.Geom)
   GROUP BY v.Licence, p.PointId, p.Geom)
 SELECT t1.Licence, t1.PointId, t1.Geom, t1.Instant
@@ -155,7 +155,7 @@ WHERE Periods IS NOT NULL;
 WITH Temp AS (
   SELECT p.PointId, p.Geom, i.InstantId, i.Instant, t.VehicleId
   FROM Trips t, Points1 p, Instants1 i
-  WHERE eIntersects(ST_Transform(p.Geom, 4326), t.trip_h3)
+  WHERE ever_eq(geoToH3IndexSet(ST_Transform(p.Geom, 4326), 7), t.trip_h3)
     AND valueAtTimestamp(t.Trip, i.Instant) = p.Geom)
 SELECT t.PointId, t.Geom, t.InstantId, t.Instant, v.Licence
 FROM Temp t JOIN Vehicles v ON t.VehicleId = v.VehicleId
@@ -165,7 +165,7 @@ ORDER BY t.PointId, t.InstantId, v.Licence;
 WITH Temp AS (
   SELECT DISTINCT p.PointId, p.Geom, i.InstantId, i.Instant, t.VehicleId
   FROM Trips t, Points1 p, Instants1 i
-  WHERE eIntersects(ST_Transform(p.Geom, 4326), t.trip_h3)
+  WHERE ever_eq(geoToH3IndexSet(ST_Transform(p.Geom, 4326), 7), t.trip_h3)
     AND valueAtTimestamp(t.Trip, i.Instant) = p.Geom)
 SELECT DISTINCT t1.PointId, t1.Geom, t1.InstantId, t1.Instant,
   v1.Licence AS Licence1, v2.Licence AS Licence2
@@ -181,7 +181,7 @@ ORDER BY t1.PointId, t1.InstantId, v1.Licence, v2.Licence;
 WITH Temp AS (
   SELECT DISTINCT r.RegionId, p.PeriodId, p.Period, t.VehicleId
   FROM Trips t, Regions1 r, Periods1 p
-  WHERE eIntersects(ST_Transform(r.Geom, 4326), t.trip_h3)
+  WHERE ever_eq(geoToH3IndexSet(ST_Transform(r.Geom, 4326), 7), t.trip_h3)
     AND ST_Intersects(trajectory(atTime(t.Trip, p.Period)), r.Geom))
 SELECT DISTINCT t.RegionId, t.PeriodId, t.Period, v.Licence
 FROM Temp t, Vehicles v
@@ -192,7 +192,7 @@ ORDER BY t.RegionId, t.PeriodId, v.Licence;
 WITH Temp AS (
   SELECT DISTINCT r.RegionId, i.InstantId, i.Instant, t.VehicleId
   FROM Trips t, Regions1 r, Instants1 i
-  WHERE eIntersects(ST_Transform(r.Geom, 4326), t.trip_h3)
+  WHERE ever_eq(geoToH3IndexSet(ST_Transform(r.Geom, 4326), 7), t.trip_h3)
     AND ST_Contains(r.Geom, valueAtTimestamp(t.Trip, i.Instant)))
 SELECT DISTINCT t.RegionId, t.InstantId, t.Instant, v.Licence
 FROM Temp t JOIN Vehicles v ON t.VehicleId = v.VehicleId
@@ -202,7 +202,7 @@ ORDER BY t.RegionId, t.InstantId, v.Licence;
 WITH Temp AS (
   SELECT DISTINCT pt.PointId, pt.Geom, pr.PeriodId, pr.Period, t.VehicleId
   FROM Trips t, Points1 pt, Periods1 pr
-  WHERE eIntersects(ST_Transform(pt.Geom, 4326), t.trip_h3)
+  WHERE ever_eq(geoToH3IndexSet(ST_Transform(pt.Geom, 4326), 7), t.trip_h3)
     AND ST_Intersects(trajectory(atTime(t.Trip, pr.Period)), pt.Geom))
 SELECT DISTINCT t.PointId, t.Geom, t.PeriodId, t.Period, v.Licence
 FROM Temp t, Vehicles v
@@ -216,8 +216,8 @@ FROM Trips t1, Licences1 l1, Trips t2, Licences2 l2, Periods1 p, Regions1 r
 WHERE t1.VehicleId = l1.VehicleId
   AND t2.VehicleId = l2.VehicleId
   AND l1.Licence < l2.Licence
-  AND eIntersects(ST_Transform(r.Geom, 4326), t1.trip_h3)
-  AND eIntersects(ST_Transform(r.Geom, 4326), t2.trip_h3)
+  AND ever_eq(geoToH3IndexSet(ST_Transform(r.Geom, 4326), 7), t1.trip_h3)
+  AND ever_eq(geoToH3IndexSet(ST_Transform(r.Geom, 4326), 7), t2.trip_h3)
   AND ST_Intersects(trajectory(atTime(t1.Trip, p.Period)), r.Geom)
   AND ST_Intersects(trajectory(atTime(t2.Trip, p.Period)), r.Geom)
   AND aDisjoint(atTime(t1.Trip, p.Period), atTime(t2.Trip, p.Period))
@@ -227,7 +227,7 @@ ORDER BY PeriodId, RegionId, Licence1, Licence2;
 WITH PointCount AS (
   SELECT p.PointId, COUNT(DISTINCT t.VehicleId) AS Hits
   FROM Trips t, Points p
-  WHERE eIntersects(ST_Transform(p.Geom, 4326), t.trip_h3)
+  WHERE ever_eq(geoToH3IndexSet(ST_Transform(p.Geom, 4326), 7), t.trip_h3)
     AND ST_Intersects(trajectory(t.Trip), p.Geom)
   GROUP BY p.PointId)
 SELECT PointId, Hits
