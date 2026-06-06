@@ -81,4 +81,4 @@ flink,Q3,snapshot,30000,3120,34722,
 - **Kafka** — [`EmbeddedBrokerBenchmark`](https://github.com/MobilityDB/MobilityKafka/blob/main/kafka-streams-app/src/test/java/berlinmod/EmbeddedBrokerBenchmark.java) over an in-process `EmbeddedKafkaCluster`; shares the Flink `MEOSBridge` over JMEOS; figures in [`benchmark.md`](https://github.com/MobilityDB/MobilityKafka/blob/main/kafka-streams-app/docs/benchmark.md).
 
 The cross-platform comparison is in
-[`CrossPlatform_streaming_timings_2026-05-29.md`](CrossPlatform_streaming_timings_2026-05-29.md).
+[`CrossPlatform_streaming_timings.md`](CrossPlatform_streaming_timings.md).
