@@ -33,8 +33,21 @@ The corpus is BerlinMOD `berlinmod_instants.csv` — 216 075 instants, 5 vehicle
 ~11 days — reprojected EPSG:3857→EPSG:4326 through MEOS `geo_transform` at load.
 The point `P`, region box, road segment, points of interest, and target vehicle
 ids derive from the corpus (`P` = centroid), and the window/tick granularity
-scales to the corpus span. libmeos is built `-DMEOS=ON -DCBUFFER=ON -DNPOINT=ON
--DPOSE=ON -DRGEO=ON`; hardware is a 16-core x86-64 Linux machine, Java 21.
+scales to the corpus span.
+
+The throughput grid below was measured on the machine described next; numbers are
+absolute to that host, so re-run the harnesses on yours and regenerate the Machine
+block with [`scripts/machine.sh`](scripts/machine.sh) to reflect your config.
+
+### Machine
+
+- **CPU** — AMD Ryzen 9 5900HX with Radeon Graphics (8 cores / 16 threads)
+- **Memory** — 23Gi
+- **OS** — Ubuntu 24.04.4 LTS, kernel `6.6.87.2-microsoft-standard-WSL2`, WSL2 (memory-capped VM, shared host)
+- **Runtime** — openjdk 21.0.11 2026-04-21
+- **libmeos** — built `-DMEOS=ON -DCBUFFER=ON -DNPOINT=ON -DPOSE=ON -DRGEO=ON`
+
+### Per-engine harnesses
 
 - **Flink** — Flink 1.16 single-node local mini-cluster, parallelism 1. Harness
   [`MobilityFlink` `BerlinMODBenchmark`](https://github.com/MobilityDB/MobilityFlink/blob/main/flink-processor/src/main/java/berlinmod/BerlinMODBenchmark.java).
@@ -60,38 +73,40 @@ These hold for every (query, form, engine) cell.
 
 ## Results — throughput (events/s)
 
-Each engine fills its column; see [Contributing your numbers](#contributing-your-numbers).
-The charts below regenerate once columns land.
+MobilityFlink and MobilityKafka are measured on the machine above, over the same
+corpus through the same MEOS predicate. The MobilityNebula column is open (see
+[Contributing your numbers](#contributing-your-numbers)). The charts below plot the
+measured columns.
 
 | Query | Form | MobilityFlink | MobilityKafka | MobilityNebula |
 |---|---|---:|---:|---:|
-| Q1 | continuous | — | — | — |
-| Q1 | windowed | — | — | — |
-| Q1 | snapshot | — | — | — |
-| Q2 | continuous | — | — | — |
-| Q2 | windowed | — | — | — |
-| Q2 | snapshot | — | — | — |
-| Q3 | continuous | — | — | — |
-| Q3 | windowed | — | — | — |
-| Q3 | snapshot | — | — | — |
-| Q4 | continuous | — | — | — |
-| Q4 | windowed | — | — | — |
-| Q4 | snapshot | — | — | — |
-| Q5 | continuous | — | — | — |
-| Q5 | windowed | — | — | — |
-| Q5 | snapshot | — | — | — |
-| Q6 | continuous | — | — | — |
-| Q6 | windowed | — | — | — |
-| Q6 | snapshot | — | — | — |
-| Q7 | continuous | — | — | — |
-| Q7 | windowed | — | — | — |
-| Q7 | snapshot | — | — | — |
-| Q8 | continuous | — | — | — |
-| Q8 | windowed | — | — | — |
-| Q8 | snapshot | — | — | — |
-| Q9 | continuous | — | — | — |
-| Q9 | windowed | — | — | — |
-| Q9 | snapshot | — | — | — |
+| Q1 | continuous | 87,057 | 78,091 | — |
+| Q1 | windowed | 187,565 | 201,941 | — |
+| Q1 | snapshot | 205,199 | 200,442 | — |
+| Q2 | continuous | 213,302 | 260,334 | — |
+| Q2 | windowed | 215,000 | 222,530 | — |
+| Q2 | snapshot | 228,168 | 226,022 | — |
+| Q3 | continuous | 68,443 | 86,673 | — |
+| Q3 | windowed | 88,519 | 79,940 | — |
+| Q3 | snapshot | 217,598 | 167,372 | — |
+| Q4 | continuous | 59,971 | 44,387 | — |
+| Q4 | windowed | 65,438 | 41,859 | — |
+| Q4 | snapshot | 69,100 | 40,502 | — |
+| Q5 | continuous | 24,105 | 12,544 | — |
+| Q5 | windowed | 229,623 | 137,018 | — |
+| Q5 | snapshot | 230,357 | 173,417 | — |
+| Q6 | continuous | 95,103 | 52,117 | — |
+| Q6 | windowed | 97,595 | 51,718 | — |
+| Q6 | snapshot | 96,764 | 55,234 | — |
+| Q7 | continuous | 58,085 | 86,018 | — |
+| Q7 | windowed | 44,278 | 30,684 | — |
+| Q7 | snapshot | 57,589 | 47,178 | — |
+| Q8 | continuous | 69,299 | 78,346 | — |
+| Q8 | windowed | 80,355 | 65,123 | — |
+| Q8 | snapshot | 239,286 | 144,824 | — |
+| Q9 | continuous | 137,452 | 76,325 | — |
+| Q9 | windowed | 231,096 | 141,504 | — |
+| Q9 | snapshot | 235,376 | 134,880 | — |
 
 ### Throughput charts (events/s, log scale, higher is better)
 
@@ -105,13 +120,24 @@ One grouped bar chart per streaming form, all three engines on the same corpus.
 
 ## Reading the results
 
-Filled once the runs land. Expected shape: the per-event spatial cells
-(Q3/Q8/Q9-continuous) are the throughput floor; the non-spatial Q1/Q2 cells the
-ceiling. Q5-continuous enumerates every meeting pair across all vehicles on each
-event (O(V²) per event), so it is the floor on each engine. The snapshot form is
-sampled, so a within-`P` snapshot can be empty when no vehicle is within `d` of
-`P` at a tick boundary even though the continuous form reports near-`P` events
-between boundaries.
+Q5-continuous is the floor on both engines (MobilityKafka 12,544, MobilityFlink
+24,105 ev/s): it enumerates every meeting pair across all vehicles on each event
+(O(V²) per event). The non-spatial Q1/Q2 continuous cells sit near the ceiling
+(Q2-continuous 260,334 on Kafka, 213,302 on Flink), and the per-event spatial
+cells (Q3/Q8/Q9-continuous) cluster between, in the 68k–137k ev/s band. The
+windowed and snapshot forms aggregate or sample rather than emit per event, so
+they run several times faster than their continuous counterpart. The two engines
+land within a small factor of each other on every cell, on the same corpus
+through the same MEOS predicate; the snapshot form is sampled, so a within-`P`
+snapshot can be empty when no vehicle is within `d` of `P` at a tick boundary even
+though the continuous form reports near-`P` events between boundaries.
+
+The continuous form's output cardinality is identical across MobilityFlink and
+MobilityKafka for all nine queries (Q1 5, Q2 61 170, Q3 216 075, Q4 62, Q5 73 063,
+Q6 216 075, Q7 5, Q8 216 075, Q9 107 870), so the per-event predicate truth is the
+same on both engines. The windowed and snapshot forms differ in emission
+cardinality between the harnesses (each samples/aggregates by its own convention),
+so their throughput is read per engine, not compared row-for-row.
 
 ## Parity with the DB benchmark
 
@@ -137,7 +163,8 @@ Each engine owns one column of the throughput grid and its parity rows.
    spatial queries, your **Parity** counts.
 3. Add your series to
    [`scripts/render_streaming_chart.py`](scripts/render_streaming_chart.py) and run
-   `python3 scripts/render_streaming_chart.py` to replace the empty charts.
+   `python3 scripts/render_streaming_chart.py` to refresh the charts, and regenerate
+   the Machine block on your host with `bash scripts/machine.sh`.
 
 ## Reproduce
 

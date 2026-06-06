@@ -2,7 +2,7 @@
 """Render the cross-platform BerlinMOD streaming throughput as grouped bar SVGs.
 
 Reads the throughput matrix from the literal definitions below (one source of
-truth, kept in step with ``CrossPlatform_streaming_timings_2026-05-29.md``) and
+truth, kept in step with ``CrossPlatform_streaming_timings.md``) and
 emits one SVG per streaming form:
 
 - streaming_continuous.svg
@@ -42,27 +42,27 @@ class Series:
 
 # Throughput in events/s, on the 216 075-instant real BerlinMOD corpus.
 FLINK = Series("Flink (MobilityFlink)", "#1f77b4", {
-    "continuous": {"Q1": 86154, "Q2": 201187, "Q3": 73796, "Q4": 66403,
-                   "Q5": 23586, "Q6": 90712, "Q7": 54386, "Q8": 74948,
-                   "Q9": 116294},
-    "windowed":   {"Q1": 166982, "Q2": 210394, "Q3": 86189, "Q4": 66814,
-                   "Q5": 226494, "Q6": 81940, "Q7": 43180, "Q8": 75445,
-                   "Q9": 233847},
-    "snapshot":   {"Q1": 204616, "Q2": 219365, "Q3": 233342, "Q4": 67042,
-                   "Q5": 236148, "Q6": 97595, "Q7": 54967, "Q8": 232839,
-                   "Q9": 217818},
+    "continuous": {"Q1": 87057, "Q2": 213302, "Q3": 68443, "Q4": 59971,
+                   "Q5": 24105, "Q6": 95103, "Q7": 58085, "Q8": 69299,
+                   "Q9": 137452},
+    "windowed":   {"Q1": 187565, "Q2": 215000, "Q3": 88519, "Q4": 65438,
+                   "Q5": 229623, "Q6": 97595, "Q7": 44278, "Q8": 80355,
+                   "Q9": 231096},
+    "snapshot":   {"Q1": 205199, "Q2": 228168, "Q3": 217598, "Q4": 69100,
+                   "Q5": 230357, "Q6": 96764, "Q7": 57589, "Q8": 239286,
+                   "Q9": 235376},
 })
 
 KAFKA = Series("Kafka (MobilityKafka)", "#ff7f0e", {
-    "continuous": {"Q1": 113785, "Q2": 167631, "Q3": 46790, "Q4": 23095,
-                   "Q5": 9440, "Q6": 24814, "Q7": 50006, "Q8": 44950,
-                   "Q9": 47375},
-    "windowed":   {"Q1": 130956, "Q2": 126806, "Q3": 51594, "Q4": 22182,
-                   "Q5": 74612, "Q6": 34473, "Q7": 18587, "Q8": 36340,
-                   "Q9": 90636},
-    "snapshot":   {"Q1": 127029, "Q2": 128388, "Q3": 82883, "Q4": 20581,
-                   "Q5": 107715, "Q6": 29771, "Q7": 28860, "Q8": 76487,
-                   "Q9": 94729},
+    "continuous": {"Q1": 78091, "Q2": 260334, "Q3": 86673, "Q4": 44387,
+                   "Q5": 12544, "Q6": 52117, "Q7": 86018, "Q8": 78346,
+                   "Q9": 76325},
+    "windowed":   {"Q1": 201941, "Q2": 222530, "Q3": 79940, "Q4": 41859,
+                   "Q5": 137018, "Q6": 51718, "Q7": 30684, "Q8": 65123,
+                   "Q9": 141504},
+    "snapshot":   {"Q1": 200442, "Q2": 226022, "Q3": 167372, "Q4": 40502,
+                   "Q5": 173417, "Q6": 55234, "Q7": 47178, "Q8": 144824,
+                   "Q9": 134880},
 })
 
 # The Nebula (MobilityNebula) column is not yet measured, so it is omitted from
