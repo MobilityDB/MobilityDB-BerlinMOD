@@ -13,7 +13,7 @@ idempotent — safe to re-run.
 What it does:
   1. Adds `trip_h3 th3index` to the `Trips` table (NULL if absent).
   2. Populates it by converting the `Trip tgeompoint` column to a
-     `th3index` at H3 resolution 7 via `h3_latlng_to_cell`.  Resolution
+     `th3index` at H3 resolution 7 via `tgeompoint_to_th3index`.  Resolution
      7 (cell edge ~ 1.2 km) is the default for BerlinMOD; lower
      resolutions trade selectivity for coverage and may be preferable
      at larger scale factors.
@@ -21,9 +21,12 @@ What it does:
      predicates can be pushed down by the planner.
   4. Re-analyses the table.
 
-This script is MobilityDB/PostgreSQL specific.  The cross-platform
-loaders for MobilityDuck and MobilitySpark read `trip_h3` directly
-from the shared CSV produced by `berlinmod_portability_export()`.
+This script is MobilityDB/PostgreSQL specific.  Each platform derives
+`trip_h3` at ingest the same way — `tgeompoint_to_th3index(trip, 7)` is an
+O(1)-per-point conversion through the shared MEOS kernel (the same
+vendored libh3), so the cells are identical on every engine.  The
+MobilityDuck and MobilitySpark loaders run the equivalent step in their
+own dialect; the column is not carried in the shared CSV.
 
 -----------------------------------------------------------------------------*/
 
@@ -33,7 +36,7 @@ ALTER TABLE Trips
   ADD COLUMN IF NOT EXISTS trip_h3 th3index;
 
 UPDATE Trips
-   SET trip_h3 = h3_latlng_to_cell(Trip, 7)
+   SET trip_h3 = tgeompoint_to_th3index(Trip, 7)
  WHERE trip_h3 IS NULL;
 
 DROP INDEX IF EXISTS Trips_trip_h3_gist_idx;
