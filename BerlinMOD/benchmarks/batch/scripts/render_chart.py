@@ -45,7 +45,7 @@ class Series:
 # Standard matrix — all three platforms with their default index.
 # MobilityDB: R-tree on `trip` + R-tree on `trajectory` (GiST opclass)
 # MobilityDuck: no spatial index (DuckDB columnar full scan)
-# MobilitySpark: local[4], no spatial index
+# MobilitySpark: local[2], 6 g driver, no spatial index
 STANDARD: list[Series] = [
     Series("MobilityDB R-tree", "#1f77b4", {
         "Q1": 0.78, "Q2": 0.15, "Q3": 5.70, "Q4": 15.19, "Q5": 9.50,
@@ -59,11 +59,11 @@ STANDARD: list[Series] = [
         "Q11": 0.62, "Q12": 0.65, "Q13": 7.54, "Q14": 0.54, "Q15": 7.49,
         "Q16": 3.28, "Q17": 0.70,
     }),
-    Series("MobilitySpark local[4]", "#2ca02c", {
-        "Q1": 0.46, "Q2": 49.92, "Q3": 41.08, "Q4": 47.65, "Q5": 9.60,
-        "Q6": 3.87, "Q7": 48.36, "Q8": 0.10, "Q9": 44.05, "Q10": 1156.49,
-        "Q11": ">cap", "Q12": ">cap", "Q13": 110.57, "Q14": ">cap",
-        "Q15": 261.90, "Q16": 69.65, "Q17": 99.26,
+    Series("MobilitySpark local[2]", "#2ca02c", {
+        "Q1": 0.67, "Q2": 1109.81, "Q3": 168.13, "Q4": ">cap", "Q5": ">cap",
+        "Q6": ">cap", "Q7": ">cap", "Q8": ">cap", "Q9": ">cap", "Q10": ">cap",
+        "Q11": ">cap", "Q12": ">cap", "Q13": ">cap", "Q14": ">cap",
+        "Q15": ">cap", "Q16": ">cap", "Q17": ">cap",
     }),
 ]
 

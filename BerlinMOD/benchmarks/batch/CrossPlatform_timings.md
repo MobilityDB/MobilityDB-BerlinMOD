@@ -77,6 +77,26 @@ MobilityDuck and MobilitySpark run the same dataset and portable SQL via
 [`bench/bench_mspark.sh`](bench/bench_mspark.sh) and fill their columns when
 they report.
 
+| Query | Shape | MobilityDB | MobilityDuck | MobilitySpark |
+|---|---|---:|---:|---:|
+| Q1  | Relational              |  0.78 | — |    0.67 |
+| Q2  | Relational              |  0.15 | — | 1109.81 |
+| Q3  | Relational              |  5.70 | — |  168.13 |
+| Q4  | Trip × static           | 15.19 | — |   >cap |
+| Q5  | Aggregated cross-join   |  9.50 | — |   >cap |
+| Q6  | Trip × trip             |  4.23 | — |   >cap |
+| Q7  | Trip × static           |  9.24 | — |   >cap |
+| Q8  | Relational              |  1.18 | — |   >cap |
+| Q9  | Relational              |  9.81 | — |   >cap |
+| Q10 | Trip × trip             |  6.46 | — |   >cap |
+| Q11 | Trip × static           |  2.31 | — |   >cap |
+| Q12 | Trip × static           |  2.37 | — |   >cap |
+| Q13 | Trip × region           |  4.55 | — |   >cap |
+| Q14 | Trip × region           |  0.44 | — |   >cap |
+| Q15 | Trip × static           |  4.13 | — |   >cap |
+| Q16 | Trip × trip × region    | 16.35 | — |   >cap |
+| Q17 | Trip × static           |  9.74 | — |   >cap |
+
 ### th3index accelerator effect
 
 ![th3index accelerator (log scale, lower is better)](cross_platform_th3index.svg)
