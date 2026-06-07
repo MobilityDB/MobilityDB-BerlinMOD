@@ -62,47 +62,24 @@ as the median of three.
 
 The temporal H3-cell prefilter `everEq(geoToH3IndexSet(region, 7), trip_h3)` is
 a sound pruning conjunct applied uniformly on all three engines, with **no native
-spatial indexes** built. With the field level, the engine is the sole variable.
-
-MobilitySpark has no native spatial index; the trip×trip queries (Q6, Q10)
-without a prefilter would take days at even small scale. The th3index common
-basis makes them tractable on all three.
-
-### 1a — Baseline (all three engines, no accelerators)
+spatial indexes** built. The engine is the sole variable.
 
 ![Three-platform baseline (log scale, lower is better)](cross_platform_standard.svg)
 
-| Query | Shape | MobilityDB | MobilityDuck | MobilitySpark |
-|---|---|---:|---:|---:|
-| Q1  | relational            |  0.78 | — | — |
-| Q2  | relational            |  0.15 | — | — |
-| Q3  | relational            |  5.70 | — | — |
-| Q4  | trip × static         | 15.19 | — | — |
-| Q5  | aggregated cross-join |  9.50 | — | — |
-| Q6  | trip × trip           |  4.23 | — | — |
-| Q7  | trip × static         |  9.24 | — | — |
-| Q8  | relational            |  1.18 | — | — |
-| Q9  | relational            |  9.81 | — | — |
-| Q10 | trip × trip           |  6.46 | — | — |
-| Q11 | trip × static         |  2.31 | — | — |
-| Q12 | trip × static         |  2.37 | — | — |
-| Q13 | trip × region         |  4.55 | — | — |
-| Q14 | trip × region         |  0.44 | — | — |
-| Q15 | trip × static         |  4.13 | — | — |
-| Q16 | trip × region         | 16.35 | — | — |
-| Q17 | trip × static         |  9.74 | — | — |
+Relational queries (Q1–Q3, Q8, Q9) are cheap on all engines — their cost is
+query-planning overhead, not spatial evaluation. Trip×trip cross-joins (Q6, Q10)
+are the bottleneck: without a prefilter they dominate the total, and on Spark
+the N×N cross-join would take days at even small scale. The `th3index` prefilter
+makes them tractable on all three.
 
 MobilityDuck and MobilitySpark run the same dataset and portable SQL via
 [`bench/bench_mduck.sh`](bench/bench_mduck.sh) and
 [`bench/bench_mspark.sh`](bench/bench_mspark.sh) and fill their columns when
 they report.
 
-### 1b — th3index accelerator effect
+### th3index accelerator effect
 
 ![th3index accelerator (log scale, lower is better)](cross_platform_th3index.svg)
-
-Effect on the spatial and cross-join shapes. Relational shapes are omitted
-(th3index is overhead-neutral to a penalty on them).
 
 | Query | Shape | No prefilter | th3index | Effect |
 |---|---|---:|---:|---|
