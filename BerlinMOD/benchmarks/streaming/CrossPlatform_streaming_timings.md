@@ -144,7 +144,7 @@ so their throughput is read per engine, not compared row-for-row.
 The continuous form emits `predicate(event)` for every event, checked
 event-for-event against a batch pass over the same corpus through the same MEOS
 call — the cross-family link to the
-[3-DB benchmark](../CrossPlatform_timings_2026-05-12.md), whose batch result is
+[3-DB benchmark](../CrossPlatform_timings.md), whose batch result is
 the oracle. A query is `exact` when streaming-true equals batch-true with zero
 mismatches.
 

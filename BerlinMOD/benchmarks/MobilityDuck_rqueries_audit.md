@@ -1,9 +1,9 @@
-# MobilityDuck — R-queries UDF audit (2026-05-11)
+# MobilityDuck — R-queries UDF audit
 
 End-to-end audit of MobilityDuck's function surface against the
 `berlinmod_r_queries_portable.sql` requirements.  This audit
 supersedes the gap entries in
-`CrossPlatform_rqueries_readiness_2026-05-11.md` for the standard
+`CrossPlatform_rqueries_readiness.md` for the standard
 R-queries (the th3index prefilter variant remains separate work).
 
 ## Function registration audit
@@ -66,7 +66,7 @@ parity gap.
 ## What this audit replaces in the readiness doc
 
 The "MobilityDuck — Required" table in
-`CrossPlatform_rqueries_readiness_2026-05-11.md` listed:
+`CrossPlatform_rqueries_readiness.md` listed:
 
 - "Register `tDwithin(tgeompoint, tgeompoint, float)`" — **already registered**
 - "Register `whenTrue(tbool)`" — **already registered**

@@ -1,6 +1,5 @@
 # MobilityDB — BerlinMOD Chapter 1 — th3index + GiST/SP-GiST Benchmark
 
-**Date**: 2026-05-11
 **Platform**: MobilityDB on PostgreSQL 17.8
 **Build**: `feat/h3-static-geo-coverage` (MobilityDB PR #938 — th3index
 temporal type + `geoToH3IndexSet` / `everIntersectsH3IndexSet_Th3Index`

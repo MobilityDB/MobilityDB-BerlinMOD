@@ -1,6 +1,5 @@
 # MobilityDB — BerlinMOD 17 R-Queries — GiST / SP-GiST Matrix
 
-**Date**: 2026-05-11
 **Platform**: MobilityDB on PostgreSQL 17.8
 **Build**: th3index HEAD + MobilityDB PR #938 polygon coverage fix +
 PR #940 lift framework helper.
@@ -141,4 +140,4 @@ indexes on `trips.trip` and `trips.trajectory` between runs.  See
   cell-set prefilter on spatial predicates.  Row-count validated;
   prefilter is sound.
 - `BETA_TESTING.md` — tester recipe and report-back template.
-- `ThreePlatform_beta_status_2026-05-11.md` — cross-platform status.
+- `ThreePlatform_beta_status.md` — cross-platform status.

@@ -1,6 +1,6 @@
-# MobilitySpark — R-queries UDF audit (2026-05-11)
+# MobilitySpark — R-queries UDF audit
 
-Companion to `MobilityDuck_rqueries_audit_2026-05-11.md`.  End-to-end
+Companion to `MobilityDuck_rqueries_audit.md`.  End-to-end
 audit of MobilitySpark's UDF surface against the
 `berlinmod_r_queries_portable.sql` requirements.
 
@@ -42,7 +42,7 @@ the standard `berlinmod_r_queries_portable.sql`.
 ## What this audit replaces in the readiness doc
 
 The "MobilitySpark — Required" table in
-`CrossPlatform_rqueries_readiness_2026-05-11.md` listed:
+`CrossPlatform_rqueries_readiness.md` listed:
 
 - "Register `tDwithin(tgeompoint, tgeompoint, float)`" — **already
   registered** (DistanceUDFs.java).

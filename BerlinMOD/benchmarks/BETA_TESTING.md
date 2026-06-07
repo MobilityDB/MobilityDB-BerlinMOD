@@ -111,7 +111,7 @@ Three platform comparisons are then:
 - **Speedup of h3 prefilter variant vs standard variant** → performance signal.
 
 The maintained reference numbers for MobilityDB are in
-`BerlinMOD/benchmarks/MobilityDB_rqueries_2026-05-11.md`.  Sibling reports
+`BerlinMOD/benchmarks/MobilityDB_rqueries.md`.  Sibling reports
 for the other two platforms will be added once the corresponding ports
 land.
 

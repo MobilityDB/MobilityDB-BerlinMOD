@@ -1,4 +1,4 @@
-# Three-platform BerlinMOD beta — status 2026-05-12
+# Three-platform BerlinMOD beta status
 
 All three platforms run the 17 R-queries today and the three-way
 timing matrix is complete.  Beta testers can launch on any of the
