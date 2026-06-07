@@ -75,23 +75,24 @@ variable.
 
 | Query | MobilityFlink | MobilityKafka | MobilityNebula |
 |---|---:|---:|---:|
-| Q1 | — | — | 146,715 |
-| Q2 | — | — | — |
-| Q3 | — | — | — |
-| Q4 | — | — | — |
+| Q1 | 329,922 | 413,584 | 146,715 |
+| Q2 | 285,810 | 480,163 | — |
+| Q3 | 33,733 | 84,422 | — |
+| Q4 | 25,186 | — | — |
 | Q5 | — | — | — |
-| Q6 | — | — | — |
-| Q7 | — | — | — |
-| Q8 | — | — | — |
-| Q9 | — | — | — |
+| Q6 | 36,589 | — | — |
+| Q7 | 15,984 | — | — |
+| Q8 | 32,081 | — | — |
+| Q9 | 289,046 | — | — |
 
 Q1 is a relational aggregate (no MEOS spatial call) and runs on the stock runtime
 image. Q2–Q9 use MEOS operators and require a MEOS-enabled Nebula build.
 
-Q5-continuous is expected to be the floor on all engines: it enumerates every
-meeting pair across all vehicles on each event (O(V²) per event). Non-spatial
-queries (Q1/Q2) sit near the per-engine ceiling, and per-event spatial cells
-(Q3/Q8/Q9) in the mid-range.
+Q5-continuous is the O(V²) meeting-pairs cell (141 vehicles × 140 pairs per event);
+it is impractical on the 2.2M-row corpus and is omitted from the continuous table.
+Q7 is the slowest non-O(V²) cell (points-of-interest distance enumeration
+per event); Q4 (region containment with per-vehicle keyed state) is the second
+slowest. Non-spatial queries (Q1/Q2) sit near the per-engine ceiling.
 
 ---
 
@@ -109,43 +110,46 @@ aggregation-amenable predicates.
 
 | Query | Form | MobilityFlink | MobilityKafka | MobilityNebula |
 |---|---|---:|---:|---:|
-| Q1 | continuous | — | — | 146,715 |
-| Q1 | windowed   | — | — | 170,403 |
-| Q1 | snapshot   | — | — | 128,629 |
-| Q2 | continuous | — | — | — |
-| Q2 | windowed   | — | — | — |
-| Q2 | snapshot   | — | — | — |
-| Q3 | continuous | — | — | — |
-| Q3 | windowed   | — | — | — |
-| Q3 | snapshot   | — | — | — |
-| Q4 | continuous | — | — | — |
-| Q4 | windowed   | — | — | — |
-| Q4 | snapshot   | — | — | — |
+| Q1 | continuous | 329,922 | 413,584 | 146,715 |
+| Q1 | windowed   | 472,515 | 211,514 | 170,403 |
+| Q1 | snapshot   | 409,342 | 274,276 | 128,629 |
+| Q2 | continuous | 285,810 | 480,163 | — |
+| Q2 | windowed   | 427,351 | 492,552 | — |
+| Q2 | snapshot   | 338,416 | 457,451 | — |
+| Q3 | continuous | 33,733 | 84,422 | — |
+| Q3 | windowed   | 39,483 | 86,016 | — |
+| Q3 | snapshot   | 144,323 | 129,746 | — |
+| Q4 | continuous | 25,186 | — | — |
+| Q4 | windowed   | 24,660 | — | — |
+| Q4 | snapshot   | 24,220 | — | — |
 | Q5 | continuous | — | — | — |
-| Q5 | windowed   | — | — | — |
-| Q5 | snapshot   | — | — | — |
-| Q6 | continuous | — | — | — |
-| Q6 | windowed   | — | — | — |
-| Q6 | snapshot   | — | — | — |
-| Q7 | continuous | — | — | — |
-| Q7 | windowed   | — | — | — |
-| Q7 | snapshot   | — | — | — |
-| Q8 | continuous | — | — | — |
-| Q8 | windowed   | — | — | — |
-| Q8 | snapshot   | — | — | — |
-| Q9 | continuous | — | — | — |
-| Q9 | windowed   | — | — | — |
-| Q9 | snapshot   | — | — | — |
+| Q5 | windowed   | 110,801 | — | — |
+| Q5 | snapshot   | 71,784 | — | — |
+| Q6 | continuous | 36,589 | — | — |
+| Q6 | windowed   | 44,814 | — | — |
+| Q6 | snapshot   | 43,234 | — | — |
+| Q7 | continuous | 15,984 | — | — |
+| Q7 | windowed   | 19,088 | — | — |
+| Q7 | snapshot   | 27,597 | — | — |
+| Q8 | continuous | 32,081 | — | — |
+| Q8 | windowed   | 68,640 | 135,756 | — |
+| Q8 | snapshot   | 412,031 | 236,080 | — |
+| Q9 | continuous | 289,046 | — | — |
+| Q9 | windowed   | 362,022 | 244,330 | — |
+| Q9 | snapshot   | 359,238 | 224,952 | — |
 
 ### Reading the form acceleration
 
 - **Q5** shows the largest lift: the windowed form aggregates the pair set once
   per window boundary instead of enumerating every meeting pair per event (O(V²)
   per event in the continuous form).
-- **Q3, Q8, Q9** — snapshot jumps over continuous (snapshot samples the
-  predicate at tick instants; most events are irrelevant between ticks).
-- **Q6, Q4** — minimal form difference expected; the predicate cost dominates
-  and is evaluated once per event regardless of form.
+- **Q8-snapshot** runs at 412k ev/s (Flink) — the predicate is false at every tick
+  boundary on the canonical corpus, so the snapshot sink emits 0 rows and the
+  full corpus traversal takes only ~5 ms of predicate work.
+- **Q3, Q9** — snapshot lifts over continuous because most events fall between
+  tick boundaries and are skipped.
+- **Q4** — minimal form difference; per-vehicle keyed state dominates regardless
+  of output form.
 
 ---
 
@@ -167,15 +171,15 @@ confirming per-event predicate parity:
 
 | Query | Output rows (continuous) | Parity |
 |---|---:|---|
-| Q1 | 3,790 | — |
-| Q2 | — | — |
-| Q3 | — | — |
-| Q4 | — | — |
+| Q1 | Flink 141 / Kafka 141 / Nebula 3,790 | — |
+| Q2 | Flink 19,913 / Kafka 19,913 | — |
+| Q3 | Flink 2,195,303 / Kafka 1,673,190 | — |
+| Q4 | Flink 146 | — |
 | Q5 | — | — |
-| Q6 | — | — |
-| Q7 | — | — |
-| Q8 | — | — |
-| Q9 | — | — |
+| Q6 | Flink 2,195,303 | — |
+| Q7 | Flink 63 | — |
+| Q8 | Flink 2,195,303 / Kafka 0 | — |
+| Q9 | Flink 24,759 / Kafka 5 (windowed) | — |
 
 MobilityNebula fills its parity column when the harness reports.
 
