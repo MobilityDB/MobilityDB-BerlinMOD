@@ -27,7 +27,7 @@ table that matters for you.
 | **Trip × static** | Q4, Q7, Q11, Q12, Q15, Q17 | a trip against a query point or polygon |
 | **Trip × trip** | Q6, Q10 | a trip against another trip (cross-join) |
 | **Trip × region** | Q13, Q14, Q16 | a trip against query regions over time periods |
-| **Aggregated cross-join** | Q5 | minimum distance over the full vehicle cross-join |
+| **Aggregated cross-join** | Q5 | minimum distance over the full vehicle cross-join, via the set-set `minDistance(tgeompoint[], tgeompoint[])` kernel |
 
 The shared spatial accelerator is `th3index` — a temporal H3-cell index of each
 trip, available on all three engines. The cross-join shapes (Q4–Q7, Q10) are
@@ -109,8 +109,11 @@ a penalty elsewhere.
 | Q16 | trip × trip × region | 16.35 | 14.59 | neutral |
 
 \*On region queries the H3 cell-set covers most of the city at this scale, so the
-prefilter adds work without pruning. Q5 (aggregated cross-join) has no
-answer-preserving prefilter — its th3index cell is a throughput diagnostic only.
+prefilter adds work without pruning. Q5 (aggregated cross-join) aggregates each
+vehicle group's trips into a `tgeompoint[]` and calls the set-set
+`minDistance(tgeompoint[], tgeompoint[])` kernel, which already carries its own
+per-trip STBox lower-bound prefilter; a th3index cell adds no answer-preserving
+pruning on top, so the th3index cell is a throughput diagnostic only.
 
 ![th3index accelerator](cross_platform_th3index.svg)
 

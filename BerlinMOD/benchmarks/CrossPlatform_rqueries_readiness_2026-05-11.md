@@ -36,8 +36,7 @@ requires a portable harness to replace the PL/pgSQL driver.
 |---|---|---|---|
 | `ST_Intersects(geom, geom)` | Q4, Q7, Q13, Q15, Q16, Q17 | DuckDB `spatial` extension | sedona / fallback UDF |
 | `ST_Contains(geom, geom)` | Q14 | DuckDB `spatial` extension | sedona / fallback UDF |
-| `ST_Distance(geom, geom)` | Q5 | DuckDB `spatial` extension | sedona / fallback UDF |
-| `ST_Collect(geom)` | Q5 (agg) | available | sedona / fallback UDF |
+| `minDistance(tgeompoint[], tgeompoint[])` | Q5 | MobilityDuck native | MobilitySpark native |
 
 ### PG operators
 
@@ -45,7 +44,7 @@ requires a portable harness to replace the PL/pgSQL driver.
 |---|---|---|
 | `t.Trip && stbox(…)` (bbox overlap) | Q11–Q15 | `eIntersects(t.Trip, stbox)` or `overlaps_stbox(stbox(t.Trip), …)` |
 | `t.Trip @> point` (contains) | Q3, Q11, Q12 | `eContains(t.Trip, point)` or `valueAtTimestamp` check |
-| `length(t.Trip) <-> point` (distance) | Q5 indirectly via min | function-call form available |
+| `length(t.Trip) <-> point` (distance) | distance ordering | function-call form available |
 
 ### PG harness (not portable as-is)
 
