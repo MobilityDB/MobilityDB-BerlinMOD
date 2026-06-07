@@ -19,8 +19,8 @@ Results by family:
 
 | Family | Results |
 |---|---|
-| Batch SQL | [`../CrossPlatform_timings.md`](../CrossPlatform_timings.md) |
-| Stream | [`CrossPlatform_streaming_timings.md`](CrossPlatform_streaming_timings.md) |
+| Batch SQL | [`../batch/CrossPlatform_timings.md`](../batch/CrossPlatform_timings.md) |
+| Stream | [`CrossPlatform_timings.md`](CrossPlatform_timings.md) |
 
 The Flink and Kafka platforms reach MEOS through a single `MEOSBridge` over
 [JMEOS](https://github.com/MobilityDB/JMEOS); MobilityNebula calls MEOS C
