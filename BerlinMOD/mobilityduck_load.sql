@@ -66,10 +66,8 @@ CREATE OR REPLACE TABLE Points AS
   FROM read_csv(getvariable('data_dir') || 'query_points.csv', header = true, all_varchar = true);
 CREATE OR REPLACE VIEW Points1 AS SELECT * FROM Points ORDER BY PointId LIMIT 10;
 
--- Regions: the export keeps polygons in EPSG:4326; reproject to EPSG:3857 to
--- match Trips and Points.
+-- Regions are stored in EPSG:3857, like Trips and Points.
 CREATE OR REPLACE TABLE Regions AS
-  SELECT regionid AS RegionId,
-         ST_Transform(ST_GeomFromText(geom), 'EPSG:4326', 'EPSG:3857', always_xy := true) AS Geom
+  SELECT regionid AS RegionId, ST_GeomFromText(geom) AS Geom
   FROM read_csv(getvariable('data_dir') || 'query_regions.csv', header = true, all_varchar = true);
 CREATE OR REPLACE VIEW Regions1 AS SELECT * FROM Regions ORDER BY RegionId LIMIT 10;
