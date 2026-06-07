@@ -58,7 +58,7 @@ SQL
 
 # Sample queries (10 regions/points/periods)
 Q1='SELECT DISTINCT R.regionid, T.vehid FROM Trips T, (SELECT * FROM Regions LIMIT 10) R WHERE eIntersects(T.Trip, R.Geom)'
-Q1H='SELECT DISTINCT R.regionid, T.vehid FROM Trips T, (SELECT * FROM Regions LIMIT 10) R WHERE everIntersectsH3IndexSet_Th3Index(geoToH3IndexSet(R.geom4326, 7), T.trip_h3) AND eIntersects(T.Trip, R.Geom)'
+Q1H='SELECT DISTINCT R.regionid, T.vehid FROM Trips T, (SELECT * FROM Regions LIMIT 10) R WHERE ever_eq(geoToH3IndexSet(R.geom4326, 7), T.trip_h3) AND eIntersects(T.Trip, R.Geom)'
 Q2='SELECT R.regionid, P.periodid, T.vehid FROM Trips T, (SELECT * FROM Regions LIMIT 10) R, (SELECT * FROM Periods LIMIT 10) P WHERE eIntersects(atTime(T.Trip, P.Period), R.Geom)'
 Q4='SELECT T.vehid, P.pointid, MIN(startTimestamp(atValues(T.Trip, P.Geom))) AS instant FROM Trips T, (SELECT * FROM Points LIMIT 10) P WHERE ST_Contains(trajectory(T.Trip), P.Geom) GROUP BY T.vehid, P.pointid'
 Q6='SELECT R.regionid, numInstants(wCount(atGeometry(T.Trip, R.Geom), interval '\''10 min'\'')) FROM Trips T, (SELECT * FROM Regions LIMIT 10) R WHERE eIntersects(T.Trip, R.Geom) GROUP BY R.regionid HAVING wCount(atGeometry(T.Trip, R.Geom), interval '\''10 min'\'') IS NOT NULL'
