@@ -74,23 +74,26 @@ WHERE t.VehicleId = v.VehicleId
 ORDER BY p.PointId, v.Licence;
 
 -- Q5: Minimum distance between trip locations of two licence sets
--- PG's `ST_Collect` is an aggregate function over geometry; DuckDB's
--- spatial extension `ST_Collect` takes a GEOMETRY[] array.  Aggregating
--- into an array first works on both: PG `array_agg` + DuckDB `array_agg`
--- both produce the same shape, and DuckDB's `ST_Collect(geom_array)`
--- is the canonical reduction; PG accepts `ST_Collect(array)` too (it
--- has both aggregate and array-input overloads).
-WITH Temp1(Licence1, Trajs) AS (
-  SELECT l1.Licence, ST_Collect(array_agg(trajectory(t1.Trip)))
+-- Each side aggregates its licence-group of trips into a tgeompoint
+-- array; `minDistance(tgeompoint[], tgeompoint[])` then returns the
+-- exact set-set spatial minimum distance, equivalent to
+-- `ST_Distance(ST_Collect(trajectory(...)), ST_Collect(trajectory(...)))`
+-- but with each trip's STBox used as a sound lower-bound prefilter so
+-- trip pairs whose bounding boxes are already farther apart than the
+-- running minimum are skipped.  The per-pair distance still uses
+-- liblwgeom's segment-pair sweep so the answer is bit-identical to the
+-- aggregated form (see MobilityDB PR #1007).
+WITH Temp1(Licence1, Trips) AS (
+  SELECT l1.Licence, array_agg(t1.Trip)
   FROM Trips t1, Licences1 l1
   WHERE t1.VehicleId = l1.VehicleId
   GROUP BY l1.Licence),
-Temp2(Licence2, Trajs) AS (
-  SELECT l2.Licence, ST_Collect(array_agg(trajectory(t2.Trip)))
+Temp2(Licence2, Trips) AS (
+  SELECT l2.Licence, array_agg(t2.Trip)
   FROM Trips t2, Licences2 l2
   WHERE t2.VehicleId = l2.VehicleId
   GROUP BY l2.Licence)
-SELECT Licence1, Licence2, ST_Distance(t1.Trajs, t2.Trajs) AS MinDist
+SELECT Licence1, Licence2, minDistance(t1.Trips, t2.Trips) AS MinDist
 FROM Temp1 t1, Temp2 t2
 ORDER BY Licence1, Licence2;
 
