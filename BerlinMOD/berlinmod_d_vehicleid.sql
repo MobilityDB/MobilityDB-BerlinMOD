@@ -37,34 +37,40 @@ DROP VIEW Licences2;
 CREATE TABLE Licences1 (LicenceId, Licence, VehicleId) AS
 SELECT LicenceId, Licence, VehicleId
 FROM Licences
+ORDER BY LicenceId
 LIMIT 10;
 CREATE TABLE Licences2 (LicenceId, Licence, VehicleId) AS
 SELECT LicenceId, Licence, VehicleId
 FROM Licences
+ORDER BY LicenceId
 LIMIT 10 OFFSET 10;
 
 DROP VIEW Instants1;
 CREATE TABLE Instants1 (InstantId, Instant) AS
 SELECT InstantId, Instant
 FROM Instants
+ORDER BY InstantId
 LIMIT 10;
 
 DROP VIEW Periods1;
 CREATE TABLE Periods1 (PeriodId, Period) AS
 SELECT PeriodId, Period
 FROM Periods
+ORDER BY PeriodId
 LIMIT 10;
 
 DROP VIEW Points1;
 CREATE TABLE Points1 (PointId, Geom) AS
 SELECT PointId, Geom
 FROM Points
+ORDER BY PointId
 LIMIT 10;
 
 DROP VIEW Regions1;
 CREATE TABLE Regions1 (RegionId, Geom) AS
 SELECT RegionId, Geom
 FROM Regions
+ORDER BY RegionId
 LIMIT 10;
 
 SELECT create_reference_table('municipalities');

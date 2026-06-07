@@ -300,7 +300,7 @@ BEGIN
   
   DROP VIEW IF EXISTS Trips1;
   CREATE VIEW Trips1 AS
-  SELECT * FROM Trips LIMIT 100;
+  SELECT * FROM Trips ORDER BY TripId LIMIT 100;
   
 -------------------------------------------------------------------------------
 

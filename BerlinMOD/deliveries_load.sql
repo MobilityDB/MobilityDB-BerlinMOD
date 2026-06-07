@@ -42,7 +42,7 @@ BEGIN
   EXECUTE format('COPY Instants(InstantId, Instant) FROM ''%sinstants.csv'' '
     'DELIMITER '','' CSV HEADER', fullpath);
   CREATE INDEX Instants_Instants_idx ON Instants USING btree(Instant);
-  CREATE VIEW Instants1 AS SELECT * FROM Instants LIMIT 10;
+  CREATE VIEW Instants1 AS SELECT * FROM Instants ORDER BY InstantId LIMIT 10;
 
 --------------------------------------------------------------
 
@@ -59,7 +59,7 @@ BEGIN
   ELSE
     CREATE INDEX Periods_Period_spgist_idx ON Periods USING spgist(Period);
   END IF;
-  CREATE VIEW Periods1 AS SELECT * FROM Periods LIMIT 10;
+  CREATE VIEW Periods1 AS SELECT * FROM Periods ORDER BY PeriodId LIMIT 10;
 
 --------------------------------------------------------------
 
@@ -76,7 +76,7 @@ BEGIN
   ELSE
     CREATE INDEX Points_Geom_spgist_idx ON Points USING spgist(Geom);
   END IF;
-  CREATE VIEW Points1 AS SELECT * FROM Points LIMIT 10;
+  CREATE VIEW Points1 AS SELECT * FROM Points ORDER BY PointId LIMIT 10;
 
 --------------------------------------------------------------
 
@@ -93,7 +93,7 @@ BEGIN
   ELSE
     CREATE INDEX Regions_Geom_spgist_idx ON Regions USING spgist(Geom);
   END IF;
-  CREATE VIEW Regions1 AS SELECT * FROM Regions LIMIT 10;
+  CREATE VIEW Regions1 AS SELECT * FROM Regions ORDER BY RegionId LIMIT 10;
 
 --------------------------------------------------------------
 
@@ -179,7 +179,7 @@ BEGIN
   EXECUTE format('COPY Vehicles(VehicleId, Licence, MakeYear, BrandId, '
     'ClassId, WarehouseId) FROM ''%svehicles.csv'' DELIMITER '','' '
     'CSV HEADER', fullpath);
-  CREATE VIEW Vehicles1 AS SELECT * FROM Vehicles LIMIT 10;
+  CREATE VIEW Vehicles1 AS SELECT * FROM Vehicles ORDER BY VehicleId LIMIT 10;
 
 --------------------------------------------------------------
 
@@ -341,7 +341,7 @@ BEGIN
       USING spgist(Trajectory);
   END IF;
 
-  CREATE VIEW Delivery1 AS SELECT * FROM Deliveries LIMIT 100;
+  CREATE VIEW Delivery1 AS SELECT * FROM Deliveries ORDER BY DeliveryId LIMIT 100;
 
 -------------------------------------------------------------------------------
 
