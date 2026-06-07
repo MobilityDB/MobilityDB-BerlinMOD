@@ -51,31 +51,31 @@ per query.
 
 ## Results — execution time (ms, lower is better)
 
-| Query | MobilityDB |
-|---|---:|
-| q01 | 12 |
-| q02 | 10 |
-| q03 | 6 513 |
-| q04 | 11 |
-| **q05** (trip × trip) | **121 754** |
-| q06 | 10 |
-| **q07** (trip × trip) | **64 216** |
-| q08 | 1 649 |
-| q09 | 9 495 |
-| q10 | 10 |
-| q11 | 10 |
-| q12 | 10 |
-| q13 | 8 615 |
-| q14 | 7 045 |
-| q15 | 10 |
-| q16 | 1 355 |
-| q17 | 18 372 |
-| qrt | 3 735 |
-| **Total** | **242.8 s** |
+| Query | MobilityDB | MobilityDuck | MobilitySpark |
+|---|---:|---:|---:|
+| q01 | 12 | — | — |
+| q02 | 10 | — | — |
+| q03 | 6 513 | — | — |
+| q04 | 11 | — | — |
+| **q05** (trip × trip) | **121 754** | — | — |
+| q06 | 10 | — | — |
+| **q07** (trip × trip) | **64 216** | — | — |
+| q08 | 1 649 | — | — |
+| q09 | 9 495 | — | — |
+| q10 | 10 | — | — |
+| q11 | 10 | — | — |
+| q12 | 10 | — | — |
+| q13 | 8 615 | — | — |
+| q14 | 7 045 | — | — |
+| q15 | 10 | — | — |
+| q16 | 1 355 | — | — |
+| q17 | 18 372 | — | — |
+| qrt | 3 735 | — | — |
+| **Total** | **242.8 s** | — | — |
 
-MobilityDuck and MobilitySpark columns use the same `cap500` dataset, pin, and
-query files; run [`bench/bench_mduck.sh`](bench/bench_mduck.sh) and
-[`bench/bench_mspark.sh`](bench/bench_mspark.sh) to fill them.
+MobilityDuck and MobilitySpark run the same `cap500` dataset, pin, and query
+files via [`bench/bench_mduck.sh`](bench/bench_mduck.sh) and
+[`bench/bench_mspark.sh`](bench/bench_mspark.sh).
 
 ## Reading the results
 
