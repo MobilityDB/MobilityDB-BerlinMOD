@@ -25,8 +25,7 @@ Benchmark results
 
 Dated benchmark reports for the BerlinMOD query sets on each ecosystem
 platform (MobilityDB, MobilityDuck, MobilitySpark) live in
-**[`BerlinMOD/benchmarks/`](BerlinMOD/benchmarks/)**.  Start at the
-directory [README](BerlinMOD/benchmarks/README.md), or jump directly to:
+**[`BerlinMOD/benchmarks/`](BerlinMOD/benchmarks/)**.  The cross-platform q01–q17 + qrt reproducer (MobilityDB + MobilityDuck + MobilitySpark) is in [`BerlinMOD/benchmarks/bench/`](BerlinMOD/benchmarks/bench/).  Start at the directory [README](BerlinMOD/benchmarks/README.md), or jump directly to:
 
 - **[BETA_TESTING.md](BerlinMOD/benchmarks/BETA_TESTING.md)** — entry
   point for testers: query files, expected row counts, report-back

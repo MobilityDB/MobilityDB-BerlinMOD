@@ -5,6 +5,8 @@ platform.  Each report measures a specific configuration matrix
 (indexes, prefilters, dataset scale) and is reproducible from the
 script included alongside it.
 
+The cross-platform q01–q17 + qrt reproducer that generated [`CrossPlatform_timings.md`](CrossPlatform_timings.md) and the `cross_platform_*.svg` figures lives in **[`bench/`](bench/)**.
+
 ## Reports
 
 | Platform | Scope | Document | Reproduce |
