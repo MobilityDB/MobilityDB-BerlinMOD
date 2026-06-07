@@ -23,16 +23,20 @@ benchmark on MobilityDB.
 Benchmark results
 -----------------
 
-Dated benchmark reports for the BerlinMOD query sets on each ecosystem
+Benchmark reports for the BerlinMOD query sets on each ecosystem
 platform (MobilityDB, MobilityDuck, MobilitySpark) live in
 **[`BerlinMOD/benchmarks/`](BerlinMOD/benchmarks/)**.  The cross-platform q01–q17 + qrt reproducer (MobilityDB + MobilityDuck + MobilitySpark) is in [`BerlinMOD/benchmarks/bench/`](BerlinMOD/benchmarks/bench/).  Start at the directory [README](BerlinMOD/benchmarks/README.md), or jump directly to:
 
+- **[CrossPlatform_timings.md](BerlinMOD/benchmarks/CrossPlatform_timings.md)**
+  — cross-platform timings, with the `cross_platform_*.svg` figures.
+- **[streaming/](BerlinMOD/benchmarks/streaming/)** — the streaming benchmark
+  (continuous / windowed / snapshot) with its figures.
 - **[BETA_TESTING.md](BerlinMOD/benchmarks/BETA_TESTING.md)** — entry
   point for testers: query files, expected row counts, report-back
   template.
-- **[ThreePlatform_beta_status_2026-05-11.md](BerlinMOD/benchmarks/ThreePlatform_beta_status_2026-05-11.md)**
-  — current cross-platform status.
-- **[MobilityDB_rqueries_2026-05-11.md](BerlinMOD/benchmarks/MobilityDB_rqueries_2026-05-11.md)**
+- **[ThreePlatform_beta_status.md](BerlinMOD/benchmarks/ThreePlatform_beta_status.md)**
+  — cross-platform status.
+- **[MobilityDB_rqueries.md](BerlinMOD/benchmarks/MobilityDB_rqueries.md)**
   — 17 R-queries × index matrix on MobilityDB.
 
 Headline result (MobilityDB, BerlinMOD scalefactor 0.005, single run):
