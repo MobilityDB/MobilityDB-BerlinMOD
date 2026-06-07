@@ -58,6 +58,9 @@ jobs:
     name: Deploy documentation
     runs-on: ubuntu-latest
     needs: build
+    # The gh-pages branch and Pages deployment exist only on the canonical
+    # repository; skip this job on forks, which have no gh-pages branch.
+    if: github.repository == 'MobilityDB/MobilityDB-BerlinMOD'
 
     steps:
       # checkout the gh-pages branch
