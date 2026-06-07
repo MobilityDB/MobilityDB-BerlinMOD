@@ -49,7 +49,12 @@ and are identical on every platform.
 - **Kafka** — Kafka Streams 3.6, one stream thread, each cell a `KafkaStreams`
   application against its own fresh in-process `EmbeddedKafkaCluster`. Harness:
   [`EmbeddedBrokerBenchmark`](https://github.com/MobilityDB/MobilityKafka/blob/main/kafka-streams-app/src/test/java/berlinmod/EmbeddedBrokerBenchmark.java).
-- **Nebula** — NebulaStream harness ([bench.nebula.stream](https://bench.nebula.stream)).
+- **Nebula** — NebulaStream `marianamgarcez/mobility-nebula:runtime` Docker image,
+  single worker node, 2 worker threads. TCP source streams the corpus over
+  `host.docker.internal:32325`; queries registered via `nes-nebuli register -x`.
+  Q1 runs on the stock runtime image. Q2–Q9 require a MEOS-enabled build
+  (parity operators from [MobilityDB/MobilityNebula](https://github.com/MobilityDB/MobilityNebula)
+  PRs [#15–#71](https://github.com/MobilityDB/MobilityNebula/pulls)).
 
 ## Invariants held fixed
 
@@ -70,7 +75,7 @@ variable.
 
 | Query | MobilityFlink | MobilityKafka | MobilityNebula |
 |---|---:|---:|---:|
-| Q1 | — | — | — |
+| Q1 | — | — | 146,715 |
 | Q2 | — | — | — |
 | Q3 | — | — | — |
 | Q4 | — | — | — |
@@ -80,9 +85,8 @@ variable.
 | Q8 | — | — | — |
 | Q9 | — | — | — |
 
-MobilityNebula runs the same corpus and query set via
-[bench.nebula.stream](https://bench.nebula.stream) and fills its column when
-the harness reports.
+Q1 is a relational aggregate (no MEOS spatial call) and runs on the stock runtime
+image. Q2–Q9 use MEOS operators and require a MEOS-enabled Nebula build.
 
 Q5-continuous is expected to be the floor on all engines: it enumerates every
 meeting pair across all vehicles on each event (O(V²) per event). Non-spatial
@@ -105,9 +109,9 @@ aggregation-amenable predicates.
 
 | Query | Form | MobilityFlink | MobilityKafka | MobilityNebula |
 |---|---|---:|---:|---:|
-| Q1 | continuous | — | — | — |
-| Q1 | windowed   | — | — | — |
-| Q1 | snapshot   | — | — | — |
+| Q1 | continuous | — | — | 146,715 |
+| Q1 | windowed   | — | — | 170,403 |
+| Q1 | snapshot   | — | — | 128,629 |
 | Q2 | continuous | — | — | — |
 | Q2 | windowed   | — | — | — |
 | Q2 | snapshot   | — | — | — |
@@ -163,7 +167,7 @@ confirming per-event predicate parity:
 
 | Query | Output rows (continuous) | Parity |
 |---|---:|---|
-| Q1 | — | — |
+| Q1 | 3,790 | — |
 | Q2 | — | — |
 | Q3 | — | — |
 | Q4 | — | — |
