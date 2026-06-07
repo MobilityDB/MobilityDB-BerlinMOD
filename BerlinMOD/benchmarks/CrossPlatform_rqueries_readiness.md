@@ -1,11 +1,11 @@
 # Cross-platform readiness — BerlinMOD 17 R-queries benchmark
 
-Sibling of `MobilityDB_rqueries_2026-05-11.md` (the MobilityDB-only 17-query
+Sibling of `MobilityDB_rqueries.md` (the MobilityDB-only 17-query
 matrix).  Inventory of what each platform needs to reproduce the same
 benchmark and converge on the same row counts.
 
 The chapter-1 readiness assessment
-(`CrossPlatform_th3index_readiness_2026-05-11.md`) covered four of these
+(`CrossPlatform_th3index_readiness.md`) covered four of these
 queries.  The full 17-query suite uses a broader function surface and
 requires a portable harness to replace the PL/pgSQL driver.
 
