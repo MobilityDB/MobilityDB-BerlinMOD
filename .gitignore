@@ -4,3 +4,4 @@ data/
 *.csv
 *.tar
 *.zip
+__pycache__/
