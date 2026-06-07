@@ -12,8 +12,8 @@ columnar scan on all three engines, so the engine is the sole variable.
 ## Workload
 
 The 17 portable R-queries with the th3index cell-set prefilter
-(`everIntersectsH3IndexSet_Th3Index(geoToH3IndexSet(region, 7), trip_h3)`) as a
-sound pruning conjunct alongside the exact predicate. Query shapes:
+(`everEq(geoToH3IndexSet(region, 7), trip_h3)`) as a sound pruning conjunct
+alongside the exact predicate. Query shapes:
 
 | Shape | Queries |
 |---|---|
@@ -51,30 +51,31 @@ per query.
 
 ## Results — execution time (ms, lower is better)
 
-| Query | MobilityDB | MobilityDuck | MobilitySpark |
-|---|---:|---:|---:|
-| q01 | 12 | — | — |
-| q02 | 10 | — | — |
-| q03 | 6 513 | — | — |
-| q04 | 11 | — | — |
-| **q05** (trip × trip) | **121 754** | — | — |
-| q06 | 10 | — | — |
-| **q07** (trip × trip) | **64 216** | — | — |
-| q08 | 1 649 | — | — |
-| q09 | 9 495 | — | — |
-| q10 | 10 | — | — |
-| q11 | 10 | — | — |
-| q12 | 10 | — | — |
-| q13 | 8 615 | — | — |
-| q14 | 7 045 | — | — |
-| q15 | 10 | — | — |
-| q16 | 1 355 | — | — |
-| q17 | 18 372 | — | — |
-| qrt | 3 735 | — | — |
-| **Total** | **242.8 s** | — | — |
+| Query | MobilityDB |
+|---|---:|
+| q01 | 12 |
+| q02 | 10 |
+| q03 | 6 513 |
+| q04 | 11 |
+| **q05** (trip × trip) | **121 754** |
+| q06 | 10 |
+| **q07** (trip × trip) | **64 216** |
+| q08 | 1 649 |
+| q09 | 9 495 |
+| q10 | 10 |
+| q11 | 10 |
+| q12 | 10 |
+| q13 | 8 615 |
+| q14 | 7 045 |
+| q15 | 10 |
+| q16 | 1 355 |
+| q17 | 18 372 |
+| qrt | 3 735 |
+| **Total** | **242.8 s** |
 
-The `—` cells are for the MobilityDuck and MobilitySpark sessions to fill from
-their own runs on the same `cap500` dataset and pin.
+MobilityDuck and MobilitySpark columns use the same `cap500` dataset, pin, and
+query files; run [`bench/bench_mduck.sh`](bench/bench_mduck.sh) and
+[`bench/bench_mspark.sh`](bench/bench_mspark.sh) to fill them.
 
 ## Reading the results
 
@@ -102,8 +103,3 @@ bash run_bench.sh
 ```
 
 Pin: `67fcb0e63c` (tag `ecosystem-pin-2026-06-06a`).
-
-## Contributing your numbers
-
-Run your engine on the same `cap500` dataset and pin, tier 0, and fill your
-column. Keep the prefilter a pruning conjunct and the exact predicate intact.
