@@ -107,16 +107,16 @@ Q6 216 075, Q7 5, Q8 216 075, Q9 107 870), confirming per-event predicate parity
 
 The continuous form is checked event-for-event against a batch pass over the same
 corpus through the same MEOS call — the link to the
-[3-DB benchmark](../CrossPlatform_timings.md), whose batch result is the oracle.
+[3-DB benchmark](../batch/CrossPlatform_timings.md), whose batch result is the oracle.
 A query is `exact` when streaming-true equals batch-true with zero mismatches.
 
 ## Reproduce
 
 Regenerate the charts from
-[`scripts/render_streaming_chart.py`](scripts/render_streaming_chart.py):
+[`scripts/render_chart.py`](scripts/render_chart.py):
 
 ```bash
-python3 scripts/render_streaming_chart.py
+python3 scripts/render_chart.py
 ```
 
 The per-engine run harnesses are linked under [Methodology](#dataset-hardware-methodology).
