@@ -69,20 +69,23 @@ WHERE t.VehicleId = v.VehicleId
   AND ST_Intersects(trajectory(t.Trip), p.Geom)
 ORDER BY p.PointId, v.Licence;
 
--- Q5: Trip-trip min distance (cross-join, no static geometry — prefilter
---     not applicable to static-vs-temporal; trip-vs-trip prefilter would
---     need everEqTh3IndexTh3Index but the static-set form does not apply)
-WITH Temp1(Licence1, Trajs) AS (
-  SELECT l1.Licence, ST_Collect(trajectory(t1.Trip))
+-- Q5: Minimum distance between trip locations of two licence sets.  No H3
+--     cell prefilter is layered here: the H3 accelerator prunes static-
+--     geometry containment predicates, whereas the set-set
+--     `minDistance(tgeompoint[], tgeompoint[])` already carries its own per-
+--     trip STBox lower-bound prefilter so trip pairs whose bounding boxes are
+--     farther apart than the running minimum are skipped (MobilityDB PR #1007).
+WITH Temp1(Licence1, Trips) AS (
+  SELECT l1.Licence, array_agg(t1.Trip)
   FROM Trips t1, Licences1 l1
   WHERE t1.VehicleId = l1.VehicleId
   GROUP BY l1.Licence),
-Temp2(Licence2, Trajs) AS (
-  SELECT l2.Licence, ST_Collect(trajectory(t2.Trip))
+Temp2(Licence2, Trips) AS (
+  SELECT l2.Licence, array_agg(t2.Trip)
   FROM Trips t2, Licences2 l2
   WHERE t2.VehicleId = l2.VehicleId
   GROUP BY l2.Licence)
-SELECT Licence1, Licence2, ST_Distance(t1.Trajs, t2.Trajs) AS MinDist
+SELECT Licence1, Licence2, minDistance(t1.Trips, t2.Trips) AS MinDist
 FROM Temp1 t1, Temp2 t2
 ORDER BY Licence1, Licence2;
 
