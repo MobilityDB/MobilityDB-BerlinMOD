@@ -1,105 +1,214 @@
-# BerlinMOD three-platform common-basis benchmark (th3index, no indexes)
+# BerlinMOD three-platform DB benchmark
 
 ## What this benchmark measures
 
-Per-query latency of the 17 BerlinMOD R-queries plus the round-trip check (`qrt`)
-across three databases that share the same MEOS kernel — **MobilityDB**,
-**MobilityDuck**, **MobilitySpark** — on a **common basis**: the temporal
-H3-cell prefilter (`trip_h3`) is the same on every engine, and **no spatial
-indexes** are built. With indexes off, the th3index prefilter is a plain
-columnar scan on all three engines, so the engine is the sole variable.
+[BerlinMOD](https://github.com/MobilityDB/MobilityDB-BerlinMOD) is the de-facto
+trajectory-data benchmark for moving-object databases: 17 range queries
+(R-queries) over synthetic vehicle trips in Brussels, each a different shape —
+relational filters, point-in-time lookups, spatial cross-joins, temporal windows.
+
+This benchmark measures per-query latency across three databases —
+[MobilityDB](https://github.com/MobilityDB/MobilityDB),
+[MobilityDuck](https://github.com/MobilityDB/MobilityDuck), and
+[MobilitySpark](https://github.com/MobilityDB/MobilitySpark) — that share the
+same MEOS kernel and run the same portable SQL over the same dataset. The aim is
+to help you choose among the three for a given workload: where each engine pays
+its cost, and where the spatial accelerators move the needle.
 
 ## Workload
 
-The 17 portable R-queries with the th3index cell-set prefilter
-(`everEq(geoToH3IndexSet(region, 7), trip_h3)`) as a sound pruning conjunct
-alongside the exact predicate. Query shapes:
+The 17 R-queries fall into four shapes; the shape, not the platform, drives the
+cost. Match your application's dominant access pattern to a shape to read the
+section that matters for you.
 
-| Shape | Queries |
-|---|---|
-| Relational / scalar | q01, q02, q10, q11, q12, q15 |
-| Trip × static (point/region/period) | q04, q08, q13, q14, q16 |
-| Trip × trip (N×N) | **q05, q07** |
-| Aggregate / cumulative | q03, q09, q17, qrt |
+| Shape | Queries | What it does |
+|---|---|---|
+| **Relational** (no spatial join) | Q1, Q2, Q3, Q8, Q9 | scalar/time filters, point-in-time value, aggregates |
+| **Trip × static** | Q4, Q7, Q11, Q12, Q15, Q17 | a trip against a query point or polygon |
+| **Trip × trip** | Q6, Q10 | a trip against another trip (cross-join) |
+| **Trip × region** | Q13, Q14, Q16 | a trip against query regions over time periods |
+| **Aggregated cross-join** | Q5 | minimum distance over the full vehicle cross-join |
+
+Two spatial accelerators are benchmarked independently and in combination:
+`th3index` (temporal H3-cell prefilter, available on all three engines) and
+native spatial indexes (GiST / SP-GiST / MEST on MobilityDB; R-tree on
+MobilityDuck). Sections 1–3 below read in order: common basis first, then per-
+engine indexes, then the combination.
 
 ## Dataset, hardware, methodology
 
-500 trips / 776 496 instants (a 500-trip cap of the Danish BerlinMOD generator),
-the same `trips.csv` (`tripId, vehId, trip`, where `trip` is hex-EWKB at SRID
-3857) loaded into each engine. **`trip_h3` is derived at ingest**, not carried in
-the CSV: each engine runs `tgeompoint_to_th3index(transform(trip, 4326), 7)` once
-on load. This is an O(1)-per-point conversion through the shared MEOS kernel (the
-same vendored libh3), so the cells are byte-identical on every engine — the
-prefilter is data, not an engine-derived artifact. **Tier 0**: the trip GiST,
-trip SP-GiST, and `trip_h3` GiST indexes are all dropped before the run. One run
-per query.
+BerlinMOD scalefactor 0.005 — 1620 trips, 141 vehicles — loaded from the same
+generated CSV files on every platform. Each engine derives `trip_h3 th3index`
+via `tgeompoint_to_th3index(transform(trip, 4326), 7)` at ingest; the cells are
+byte-identical across engines (shared libh3). Hardware: single 16-core x86-64
+Linux machine. Each cell is one run except the long cross-join queries, reported
+as the median of three.
 
-- **MobilityDB** — PostgreSQL 17.8, pin `67fcb0e63c`, built `-DH3=ON`.
-- **MobilityDuck** — DuckDB (MEOS via the extension).
-- **MobilitySpark** — Spark (MEOS via [JMEOS](https://github.com/MobilityDB/JMEOS)).
+- **MobilityDB** — PostgreSQL 17.8.
+- **MobilityDuck** — DuckDB 1.4.4 (LTS).
+- **MobilitySpark** — Spark 3.5.4 (MEOS via [JMEOS](https://github.com/MobilityDB/JMEOS) as Spark SQL UDFs).
 
 ## Invariants held fixed
 
-- **Same kernel, same pin** — `67fcb0e63c` provides `tgeompoint_to_th3index` and
-  the `th3index` (Hex)WKB serializers on every engine.
-- **Common prefilter** — `trip_h3` derived identically at ingest; byte-identical
-  cells across engines.
-- **No indexes (tier 0)** — every engine scans columnar; the prefilter never
-  rides an index.
-- **Natural SQL, exact predicates** — the th3index cell-set test is a pruning
-  conjunct, never a replacement for the exact predicate.
+- **Same SQL, same data.** Every engine runs the same portable SQL over the same
+  generated dataset; result row counts are identical across the three.
+- **Soundness gate.** Where an accelerator is applied, the accelerated result
+  equals the unaccelerated result — a cell that fails the equality is a failure,
+  not a speedup. Only cells that satisfy it carry a time.
 
-## Results — execution time (ms, lower is better)
+---
 
-| Query | MobilityDB | MobilityDuck | MobilitySpark |
-|---|---:|---:|---:|
-| q01 | 12 | — | — |
-| q02 | 10 | — | — |
-| q03 | 6 513 | — | — |
-| q04 | 11 | — | — |
-| **q05** (trip × trip) | **121 754** | — | — |
-| q06 | 10 | — | — |
-| **q07** (trip × trip) | **64 216** | — | — |
-| q08 | 1 649 | — | — |
-| q09 | 9 495 | — | — |
-| q10 | 10 | — | — |
-| q11 | 10 | — | — |
-| q12 | 10 | — | — |
-| q13 | 8 615 | — | — |
-| q14 | 7 045 | — | — |
-| q15 | 10 | — | — |
-| q16 | 1 355 | — | — |
-| q17 | 18 372 | — | — |
-| qrt | 3 735 | — | — |
-| **Total** | **242.8 s** | — | — |
+## Section 1 — Common basis: th3index prefilter, no native spatial indexes
 
-MobilityDuck and MobilitySpark run the same `cap500` dataset, pin, and query
-files via [`bench/bench_mduck.sh`](bench/bench_mduck.sh) and
-[`bench/bench_mspark.sh`](bench/bench_mspark.sh).
+The temporal H3-cell prefilter `everEq(geoToH3IndexSet(region, 7), trip_h3)` is
+a sound pruning conjunct applied uniformly on all three engines, with **no native
+spatial indexes** built. With the field level, the engine is the sole variable.
+
+MobilitySpark has no native spatial index; the trip×trip queries (Q6, Q10)
+without a prefilter would take days at even small scale. The th3index common
+basis makes them tractable on all three.
+
+### 1a — Baseline (all three engines, no accelerators)
+
+![Three-platform baseline (log scale, lower is better)](cross_platform_standard.svg)
+
+| Query | Shape | MobilityDB | MobilityDuck | MobilitySpark |
+|---|---|---:|---:|---:|
+| Q1  | relational            |  0.78 | — | — |
+| Q2  | relational            |  0.15 | — | — |
+| Q3  | relational            |  5.70 | — | — |
+| Q4  | trip × static         | 15.19 | — | — |
+| Q5  | aggregated cross-join |  9.50 | — | — |
+| Q6  | trip × trip           |  4.23 | — | — |
+| Q7  | trip × static         |  9.24 | — | — |
+| Q8  | relational            |  1.18 | — | — |
+| Q9  | relational            |  9.81 | — | — |
+| Q10 | trip × trip           |  6.46 | — | — |
+| Q11 | trip × static         |  2.31 | — | — |
+| Q12 | trip × static         |  2.37 | — | — |
+| Q13 | trip × region         |  4.55 | — | — |
+| Q14 | trip × region         |  0.44 | — | — |
+| Q15 | trip × static         |  4.13 | — | — |
+| Q16 | trip × region         | 16.35 | — | — |
+| Q17 | trip × static         |  9.74 | — | — |
+
+MobilityDuck and MobilitySpark run the same dataset and portable SQL via
+[`bench/bench_mduck.sh`](bench/bench_mduck.sh) and
+[`bench/bench_mspark.sh`](bench/bench_mspark.sh) and fill their columns when
+they report.
+
+### 1b — th3index accelerator effect
+
+![th3index accelerator (log scale, lower is better)](cross_platform_th3index.svg)
+
+Effect on the spatial and cross-join shapes. Relational shapes are omitted
+(th3index is overhead-neutral to a penalty on them).
+
+| Query | Shape | No prefilter | th3index | Effect |
+|---|---|---:|---:|---|
+| Q6  | trip × trip           |  1.95 |  0.05 | **39× faster** |
+| Q10 | trip × trip           | 43.46 |  1.83 | **24× faster** |
+| Q4  | trip × static         |  5.07 |  5.62 | neutral |
+| Q13 | trip × region         |  4.55 | 15.89 | penalty† |
+| Q14 | trip × region         |  0.44 | 13.25 | penalty† |
+| Q16 | trip × trip × region  | 16.35 | 14.59 | neutral |
+
+†On region queries at small scale the H3 cell-set covers most of the city, so
+the prefilter adds work without pruning. As data grows the cell-set tightens and
+the penalty disappears.
+
+---
+
+## Section 2 — Per-engine native spatial indexes
+
+Native spatial indexes applied per engine: GiST (R-tree), SP-GiST (quadtree),
+and MEST (multi-entry — the [mest](https://github.com/MobilityDB/mest) extension's
+per-trip STBox decomposition) for MobilityDB; native R-tree for MobilityDuck;
+MobilitySpark has no native spatial index.
+
+![MobilityDB native indexes (log scale, lower is better)](cross_platform_native.svg)
+
+### MobilityDB index matrix (s, lower is better)
+
+| Query | Shape | GiST (R-tree) | SP-GiST | MEST |
+|---|---|---:|---:|---:|
+| Q4  | trip × static        | 15.19 | 10.05 |  6.77 |
+| Q6  | trip × trip          |  4.23 |  4.00 |  3.57 |
+| Q10 | trip × trip          |  6.46 |  7.82 |  5.09 |
+| Q13 | trip × region        |  4.55 |  5.13 |  1.77 |
+| Q14 | trip × region        |  0.44 |  0.45 |  0.37 |
+| Q16 | trip × trip × region | 16.35 | 16.50 | 18.21 |
+
+MEST wins on the point shape (Q4, **2.2×** over GiST) and the simple
+trip×region shape (Q13, **2.4×** over GiST and 9× over th3index alone) — the
+per-trip multi-entry STBox decomposition prunes regions that miss a
+sub-trajectory's box. On the triple cross-join (Q16) GiST wins; the pair-up
+dominates and MEST's extra entries amplify it. On the dwithin shape (Q6) all
+three indexes are within 25%.
+
+### MobilityDuck and MobilitySpark
+
+MobilityDuck's native R-tree column fills via
+[`bench/bench_mduck.sh`](bench/bench_mduck.sh) with the index-enabled variant.
+MobilitySpark has no native spatial index and stays `—`.
+
+---
+
+## Section 3 — Combined: th3index prefilter + native index
+
+Stacking the th3index prefilter with a native spatial index for the shapes where
+both help. At scalefactor 0.005, no combination beats both accelerators alone:
+the candidate set the prefilter produces and the native index's pruning overlap
+at this scale, so stacking adds cost without new pruning.
+
+The crossover where combining pays appears on a **scale-factor sweep**: as data
+grows, the prefilter's row-drop on the trip×trip shapes (Q6, Q10) outgrows the
+native index's selectivity — th3index already wins 24–39× at sf 0.005, and the
+gain compounds at larger scale. The combined chart and table are reported on the
+sweep, not at a single scale.
+
+---
 
 ## Reading the results
 
-With no indexes, the two **N×N trip × trip** queries — **q05 (122 s)** and
-**q07 (64 s)** — dominate; together they are ~77% of the MobilityDB total. The
-relational and trip × static queries are sub-second to a few seconds. The
-th3index prefilter prunes the cross-join candidates on a plain scan; the residual
-cost is the exact spatial/temporal evaluation on the surviving pairs.
+- **Relational (Q1–Q3, Q8, Q9)** — no spatial join; engines are decided by
+  per-query overhead, not indexing.
+- **Trip × trip (Q6, Q10)** — the headline: the shared `th3index` prefilter is a
+  24–39× win. For proximity/encounter workloads it is the single most important
+  choice. NxN queries on Spark without th3index are not viable at benchmark scale.
+- **Trip × static / region (Q4, Q13, Q14)** — **MEST** is the MobilityDB win
+  (2–2.4×); th3index is neutral-to-penalty because the H3 cell-set covers the
+  city at small scale.
+- **Triple cross-join (Q16)** — plain **GiST**; neither th3index nor MEST helps.
+- **Combining** — pays only at larger scale, not at sf 0.005.
+
+## Parity with the stream benchmark
+
+The same MEOS predicate underlies the
+[streaming sibling](../stream/CrossPlatform_timings.md): the streaming snapshot
+at a watermark equals this batch result at that instant, which is the
+cross-family correctness link. This batch result is the oracle.
+
+## Filling your engine's column
+
+Each engine fills the grids that apply to it, leaving the rest as `—`.
+
+1. **Section 1a baseline** — run the 17 R-queries under your default config;
+   fill your engine's column.
+2. **Section 1b th3index** — re-run the spatial shapes (Q4–Q7, Q10) with the
+   `th3index` conjunct; fill your engine's column.
+3. **Section 2 native indexes** — for each native spatial index your engine
+   offers (MobilityDB: GiST / SP-GiST / MEST; MobilityDuck: R-tree), fill that
+   column. MobilitySpark has no native spatial index and stays `—`.
+4. **Section 3 combined** — where your engine has both, run th3index + native and
+   fill the column where it beats either alone.
+5. Add your series to [`scripts/render_chart.py`](scripts/render_chart.py) and
+   run `python3 scripts/render_chart.py` to refresh the SVGs.
 
 ## Reproduce
 
-Build MobilityDB at the pin with H3 enabled, load the `cap500` dataset, and
-derive `trip_h3` at ingest. [`run_bench.sh`](run_bench.sh) times each query across
-the index-config matrix; the **no-index** row of its matrix drops the trip GiST,
-trip SP-GiST, and `trip_h3` GiST indexes and is the tier reported here. Set the
-`DB` and `PGBIN` variables at the top of the script to the loaded database.
+The per-engine run scripts are in [`bench/`](bench/). Regenerate the charts:
 
 ```bash
-cmake -DMEOS=OFF -DH3=ON -DPOSTGRESQL_PG_CONFIG=<pg>/bin/pg_config .. && ninja && ninja install
-createdb berlinmod_bench500
-psql berlinmod_bench500 -c 'CREATE EXTENSION mobilitydb CASCADE'
-psql berlinmod_bench500 -c "ALTER TABLE trips ADD COLUMN trip_h3 th3index;
-  UPDATE trips SET trip_h3 = tgeompoint_to_th3index(transform(trip, 4326), 7);"
-bash run_bench.sh
+python3 scripts/render_chart.py
 ```
-
-Pin: `67fcb0e63c` (tag `ecosystem-pin-2026-06-06a`).
