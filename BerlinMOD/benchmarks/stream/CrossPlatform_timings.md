@@ -26,8 +26,11 @@ BerlinMOD/r lineage) in three forms:
 
 ## Dataset, hardware, methodology
 
-The corpus is BerlinMOD `berlinmod_instants.csv` — 216 075 instants, 5 vehicles,
-~11 days — reprojected EPSG:3857→EPSG:4326 through MEOS `geo_transform` at load.
+The corpus is the canonical BerlinMOD instants — 2 195 303 instants,
+141 vehicles, scale factor 0.005 — the same dataset as the
+[batch benchmark](../batch/CrossPlatform_timings.md), sourced from
+`berlinmod-3db-canonical/instants.csv` (SRID 3857 EWKB) and reprojected
+EPSG:3857→EPSG:4326 at load.
 All query parameters and window/tick granularity are derived from the same corpus
 and are identical on every platform.
 
@@ -46,7 +49,12 @@ and are identical on every platform.
 - **Kafka** — Kafka Streams 3.6, one stream thread, each cell a `KafkaStreams`
   application against its own fresh in-process `EmbeddedKafkaCluster`. Harness:
   [`EmbeddedBrokerBenchmark`](https://github.com/MobilityDB/MobilityKafka/blob/main/kafka-streams-app/src/test/java/berlinmod/EmbeddedBrokerBenchmark.java).
-- **Nebula** — NebulaStream harness ([bench.nebula.stream](https://bench.nebula.stream)).
+- **Nebula** — NebulaStream `marianamgarcez/mobility-nebula:runtime` Docker image,
+  single worker node, 2 worker threads. TCP source streams the corpus over
+  `host.docker.internal:32325`; queries registered via `nes-nebuli register -x`.
+  Q1 runs on the stock runtime image. Q2–Q9 require a MEOS-enabled build
+  (parity operators from [MobilityDB/MobilityNebula](https://github.com/MobilityDB/MobilityNebula)
+  PRs [#15–#71](https://github.com/MobilityDB/MobilityNebula/pulls)).
 
 ## Invariants held fixed
 
@@ -67,24 +75,24 @@ variable.
 
 | Query | MobilityFlink | MobilityKafka | MobilityNebula |
 |---|---:|---:|---:|
-| Q1 |  87,057 |  78,091 | — |
-| Q2 | 213,302 | 260,334 | — |
-| Q3 |  68,443 |  86,673 | — |
-| Q4 |  59,971 |  44,387 | — |
-| Q5 |  24,105 |  12,544 | — |
-| Q6 |  95,103 |  52,117 | — |
-| Q7 |  58,085 |  86,018 | — |
-| Q8 |  69,299 |  78,346 | — |
-| Q9 | 137,452 |  76,325 | — |
+| Q1 | 329,922 | 413,584 | 146,715 |
+| Q2 | 285,810 | 480,163 | — |
+| Q3 | 33,733 | 84,422 | — |
+| Q4 | 25,186 | — | — |
+| Q5 | — | — | — |
+| Q6 | 36,589 | — | — |
+| Q7 | 15,984 | — | — |
+| Q8 | 32,081 | — | — |
+| Q9 | 289,046 | — | — |
 
-MobilityNebula runs the same corpus and query set via
-[bench.nebula.stream](https://bench.nebula.stream) and fills its column when
-the harness reports.
+Q1 is a relational aggregate (no MEOS spatial call) and runs on the stock runtime
+image. Q2–Q9 use MEOS operators and require a MEOS-enabled Nebula build.
 
-Q5-continuous is the floor on both engines (MobilityKafka 12,544,
-MobilityFlink 24,105 ev/s): it enumerates every meeting pair across all vehicles
-on each event (O(V²) per event). The non-spatial Q1/Q2 cells sit near the
-ceiling, and the per-event spatial cells (Q3/Q8/Q9) cluster at 68k–137k ev/s.
+Q5-continuous is the O(V²) meeting-pairs cell (141 vehicles × 140 pairs per event);
+it is impractical on the 2.2M-row corpus and is omitted from the continuous table.
+Q7 is the slowest non-O(V²) cell (points-of-interest distance enumeration
+per event); Q4 (region containment with per-vehicle keyed state) is the second
+slowest. Non-spatial queries (Q1/Q2) sit near the per-engine ceiling.
 
 ---
 
@@ -102,43 +110,46 @@ aggregation-amenable predicates.
 
 | Query | Form | MobilityFlink | MobilityKafka | MobilityNebula |
 |---|---|---:|---:|---:|
-| Q1 | continuous |  87,057 |  78,091 | — |
-| Q1 | windowed   | 187,565 | 201,941 | — |
-| Q1 | snapshot   | 205,199 | 200,442 | — |
-| Q2 | continuous | 213,302 | 260,334 | — |
-| Q2 | windowed   | 215,000 | 222,530 | — |
-| Q2 | snapshot   | 228,168 | 226,022 | — |
-| Q3 | continuous |  68,443 |  86,673 | — |
-| Q3 | windowed   |  88,519 |  79,940 | — |
-| Q3 | snapshot   | 217,598 | 167,372 | — |
-| Q4 | continuous |  59,971 |  44,387 | — |
-| Q4 | windowed   |  65,438 |  41,859 | — |
-| Q4 | snapshot   |  69,100 |  40,502 | — |
-| Q5 | continuous |  24,105 |  12,544 | — |
-| Q5 | windowed   | 229,623 | 137,018 | — |
-| Q5 | snapshot   | 230,357 | 173,417 | — |
-| Q6 | continuous |  95,103 |  52,117 | — |
-| Q6 | windowed   |  97,595 |  51,718 | — |
-| Q6 | snapshot   |  96,764 |  55,234 | — |
-| Q7 | continuous |  58,085 |  86,018 | — |
-| Q7 | windowed   |  44,278 |  30,684 | — |
-| Q7 | snapshot   |  57,589 |  47,178 | — |
-| Q8 | continuous |  69,299 |  78,346 | — |
-| Q8 | windowed   |  80,355 |  65,123 | — |
-| Q8 | snapshot   | 239,286 | 144,824 | — |
-| Q9 | continuous | 137,452 |  76,325 | — |
-| Q9 | windowed   | 231,096 | 141,504 | — |
-| Q9 | snapshot   | 235,376 | 134,880 | — |
+| Q1 | continuous | 329,922 | 413,584 | 146,715 |
+| Q1 | windowed   | 472,515 | 211,514 | 170,403 |
+| Q1 | snapshot   | 409,342 | 274,276 | 128,629 |
+| Q2 | continuous | 285,810 | 480,163 | — |
+| Q2 | windowed   | 427,351 | 492,552 | — |
+| Q2 | snapshot   | 338,416 | 457,451 | — |
+| Q3 | continuous | 33,733 | 84,422 | — |
+| Q3 | windowed   | 39,483 | 86,016 | — |
+| Q3 | snapshot   | 144,323 | 129,746 | — |
+| Q4 | continuous | 25,186 | — | — |
+| Q4 | windowed   | 24,660 | — | — |
+| Q4 | snapshot   | 24,220 | — | — |
+| Q5 | continuous | — | — | — |
+| Q5 | windowed   | 110,801 | — | — |
+| Q5 | snapshot   | 71,784 | — | — |
+| Q6 | continuous | 36,589 | — | — |
+| Q6 | windowed   | 44,814 | — | — |
+| Q6 | snapshot   | 43,234 | — | — |
+| Q7 | continuous | 15,984 | — | — |
+| Q7 | windowed   | 19,088 | — | — |
+| Q7 | snapshot   | 27,597 | — | — |
+| Q8 | continuous | 32,081 | — | — |
+| Q8 | windowed   | 68,640 | 135,756 | — |
+| Q8 | snapshot   | 412,031 | 236,080 | — |
+| Q9 | continuous | 289,046 | — | — |
+| Q9 | windowed   | 362,022 | 244,330 | — |
+| Q9 | snapshot   | 359,238 | 224,952 | — |
 
 ### Reading the form acceleration
 
-- **Q5** shows the largest lift: continuous 24k–12k ev/s (O(V²) pair
-  enumeration per event) versus windowed 230k–137k ev/s (window aggregates the
-  pair set once per window boundary). Windowed is **9–11×** faster than continuous.
-- **Q3, Q8, Q9** — snapshot jumps 2–3× over continuous (snapshot samples the
-  predicate at tick instants; most events are irrelevant between ticks).
-- **Q6, Q4** — minimal form difference; the predicate cost dominates and is
-  evaluated once per event regardless of form.
+- **Q5** shows the largest lift: the windowed form aggregates the pair set once
+  per window boundary instead of enumerating every meeting pair per event (O(V²)
+  per event in the continuous form).
+- **Q8-snapshot** runs at 412k ev/s (Flink) — the predicate is false at every tick
+  boundary on the canonical corpus, so the snapshot sink emits 0 rows and the
+  full corpus traversal takes only ~5 ms of predicate work.
+- **Q3, Q9** — snapshot lifts over continuous because most events fall between
+  tick boundaries and are skipped.
+- **Q4** — minimal form difference; per-vehicle keyed state dominates regardless
+  of output form.
 
 ---
 
@@ -153,22 +164,22 @@ throughput figures above.
 The continuous form is checked event-for-event against a batch pass over the
 same corpus through the same MEOS call.
 
-### Per-query parity (MobilityFlink and MobilityKafka)
+### Per-query parity
 
-Output cardinality is identical across MobilityFlink and MobilityKafka for all
-nine queries, confirming per-event predicate parity:
+Output cardinality must be identical across all engines for each query,
+confirming per-event predicate parity:
 
 | Query | Output rows (continuous) | Parity |
 |---|---:|---|
-| Q1 |        5 | exact |
-| Q2 |   61,170 | exact |
-| Q3 |  216,075 | exact |
-| Q4 |       62 | exact |
-| Q5 |   73,063 | exact |
-| Q6 |  216,075 | exact |
-| Q7 |        5 | exact |
-| Q8 |  216,075 | exact |
-| Q9 |  107,870 | exact |
+| Q1 | Flink 141 / Kafka 141 / Nebula 3,790 | — |
+| Q2 | Flink 19,913 / Kafka 19,913 | — |
+| Q3 | Flink 2,195,303 / Kafka 1,673,190 | — |
+| Q4 | Flink 146 | — |
+| Q5 | — | — |
+| Q6 | Flink 2,195,303 | — |
+| Q7 | Flink 63 | — |
+| Q8 | Flink 2,195,303 / Kafka 0 | — |
+| Q9 | Flink 24,759 / Kafka 5 (windowed) | — |
 
 MobilityNebula fills its parity column when the harness reports.
 
@@ -176,12 +187,11 @@ MobilityNebula fills its parity column when the harness reports.
 
 ## Reading the results
 
-- **Platform choice** — Flink leads on Q3/Q5/Q6/Q8/Q9 continuous; Kafka leads on
-  Q2/Q4/Q7 continuous. The platform decision is operational (fault tolerance,
+- **Platform choice** — the platform decision is operational (fault tolerance,
   deployment model), not predicate-driven.
 - **Form choice** — continuous for per-event alerting; windowed for periodic
-  aggregates (Q5 9–11× win); snapshot for watermark-aligned state that must
-  match a batch oracle.
+  aggregates (Q5 largest lift: window collapses the O(V²) pair enumeration);
+  snapshot for watermark-aligned state that must match a batch oracle.
 - **Cross-family** — the snapshot form is the bridge: snapshot throughput at T
   equals batch latency on data up to T. The stream and batch benchmarks are the
   same workload on the same canonical data, not separate experiments.
