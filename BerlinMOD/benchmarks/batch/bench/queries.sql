@@ -41,7 +41,7 @@ SELECT DISTINCT v.licence
 FROM   Vehicles v
 JOIN   Trips t    ON  t.vehId = v.vehId
 JOIN   QueryRegions r ON
-   eIntersects(geoToH3IndexSet(r.geom, 7), t.trip_h3)
+   eEq(geoToH3IndexSet(r.geom, 7), t.trip_h3)
    AND eIntersects(t.trip, r.geom)
 ORDER  BY v.licence;
 
@@ -85,7 +85,7 @@ ORDER  BY v.vehId, i.instantId;
 -- a point-geometry intersection at any H3 resolution — a trip can only
 -- intersect a point if it ever passes through the point's cell.
 --
---   COALESCE(ever_eq(geoToH3Cell(p.geom, 7), t.trip_h3), TRUE)
+--   COALESCE(eEq(geoToH3Cell(p.geom, 7), t.trip_h3), TRUE)
 --
 -- The COALESCE guards against non-POINT geometries (geoToH3Cell returns
 -- NULL for those) — falls through to the exact eIntersects.
@@ -98,7 +98,7 @@ SELECT DISTINCT v.licence
 FROM   Vehicles v
 JOIN   Trips t      ON t.vehId  = v.vehId
 JOIN   QueryPoints p ON
-   COALESCE(ever_eq(geoToH3Cell(p.geom, 7), t.trip_h3), TRUE)
+   COALESCE(eEq(geoToH3Cell(p.geom, 7), t.trip_h3), TRUE)
    AND eIntersects(t.trip, p.geom)
 ORDER  BY v.licence;
 
