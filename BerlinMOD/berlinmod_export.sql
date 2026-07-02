@@ -120,32 +120,59 @@ $$ LANGUAGE 'plpgsql';
  * format, suitable for loading into MobilityDuck (DuckDB) and MobilitySpark
  * (Apache Spark) using the portable SQL dialect (RFC #861).
  *
- * Schema produced:
- *   vehicles.csv       : vehId, licence, type, model
- *   trips.csv          : tripId, vehId, trip
- *                        - trip   : tgeompoint as hex-EWKB (SRID 3857 preserved)
+ * This is the SINGLE, self-sufficient generation entry point: it writes every
+ * CSV the three platforms need, with all geometries reprojected to one SRID and
+ * SRID-tagged, so the consumer repositories load the data directly with no
+ * per-tool post-processing or reprojection.
  *
- * The th3index spatial prefilter is not shipped in the CSV: each platform derives
- * the trip_h3 column at ingest with tgeompoint_to_th3index(trip, R), an O(1)-per-point
- * conversion through the shared MEOS kernel (same vendored libh3), so the cells are
- * identical on every engine. berlinmod_th3index_setup.sql adds and populates the
- * column (densifying form, sound for the eIntersects/eContains prefilter) and builds
- * its GiST index for the cross-join family (Q4/Q5/Q6/Q10) at resolution 7.
+ * The CSV is RAW trajectory/geometry data only — no H3 columns. H3 is an index
+ * each consumer builds at LOAD from the lat/lon data (th3index(trip,R) /
+ * geoToH3IndexSet(geom,R)), exactly as a real ingest of raw GPS/AIS would: the
+ * source never ships precomputed cells.
+ *
+ * Schema produced (all geometries in the chosen output SRID):
+ *   vehicles.csv       : vehId, licence, type, model
+ *   trips.csv          : tripId, vehId, trip       -- tgeompoint as hex-EWKB
+ *                        (Extended WKB — SRID embedded, never lost).
  *   query_licences.csv : licenceId, licence
  *   query_instants.csv : instantId, instant
- *   query_points.csv   : pointId, geom          -- geometry as WKT text
+ *   query_points.csv   : pointId, geom             -- geom as EWKT (SRID-tagged)
+ *   query_periods.csv  : periodId, period          -- tstzspan as text
+ *   query_regions.csv  : regionId, geom            -- geom as EWKT (SRID-tagged)
  *
  * Parameters:
  * - fullpath:    directory path (with trailing slash) where CSV files are written.
+ * - srid:        output SRID for the exported geometries (default 4326, WGS84).
+ *                The trips and points are reprojected here, in PostgreSQL, and
+ *                emitted as EWKT (SRID=N;...) so the SRID travels with the data
+ *                and no consumer ever needs to reproject — useful for engines
+ *                whose spatial layer cannot transform temporal geometries
+ *                (e.g. DuckDB).  Choosing the SRID:
+ *                  - 3812  ETRS89 / Belgian Lambert 2008 — the current official
+ *                          Brussels metric CRS.  True metres ⇒ the 3 m / 10 m
+ *                          dWithin thresholds are correct.  RECOMMENDED for
+ *                          planar-metre distance queries (supersedes the legacy
+ *                          31370 / Belgian Lambert 72).
+ *                  - 3857  Web Mercator — the SOURCE CRS, so srid := 3857 is a
+ *                          no-op (zero reprojection).  But Mercator scale grows
+ *                          as 1/cos(lat) ≈ 1.58 at Brussels (≈50.8°N), so the
+ *                          thresholds are ~58 % larger than true ground metres.
+ *                          Fine for cross-engine PARITY (all engines agree),
+ *                          not for metric truth.
+ *                  - 4326  geographic (default) — distances need a geodetic
+ *                          (geography) reading; on planar engines they are
+ *                          degrees, not metres.  Use a projected SRID instead.
  *
  * Example:
  *     \i berlinmod_export.sql
  *     SELECT berlinmod_portability_export('/home/mobilitydb/portability/');
+ *     SELECT berlinmod_portability_export('/home/mobilitydb/portability/', 3812);
  *****************************************************************************/
 
 DROP FUNCTION IF EXISTS berlinmod_portability_export;
 CREATE OR REPLACE FUNCTION berlinmod_portability_export(
-    fullpath      text)
+    fullpath      text,
+    srid          integer DEFAULT 4326)
 RETURNS text AS $$
 DECLARE
   startTime timestamptz;
@@ -155,6 +182,7 @@ BEGIN
   RAISE INFO '------------------------------------------------------------------';
   RAISE INFO 'Exporting BerlinMOD data in cross-platform portability schema';
   RAISE INFO 'Target: %', fullpath;
+  RAISE INFO 'Output SRID: % (geometries reprojected from the source CRS)', srid;
   RAISE INFO 'Execution started at %', startTime;
   RAISE INFO '------------------------------------------------------------------';
 
@@ -165,12 +193,18 @@ BEGIN
            FROM Vehicles ORDER BY VehicleId)
      TO ''%svehicles.csv'' DELIMITER '','' CSV HEADER', fullpath);
 
-  RAISE INFO 'Exporting trips.csv (trip as hex-EWKB, SRID 3857)';
+  RAISE INFO 'Exporting trips.csv (trip as hex-EWKB in SRID %)', srid;
+  -- Reproject the trip to the requested output SRID and serialise it as hex-EWKB
+  -- (Extended WKB) so the SRID travels embedded in the binary: consumers load it
+  -- already in the target CRS.  The CSV carries only the RAW trajectory — no H3
+  -- column.  H3 is an index every consumer builds at LOAD from the lat/lon data
+  -- (th3index(trip, R)), exactly as a real ingest of raw GPS/AIS would: the
+  -- source never ships precomputed cells.
   EXECUTE format(
     'COPY (SELECT TripId AS tripId, VehicleId AS vehId,
-                  asHexEWKB(Trip) AS trip
+                  asHexEWKB(transform(Trip, %s)) AS trip
            FROM Trips ORDER BY TripId)
-     TO ''%strips.csv'' DELIMITER '','' CSV HEADER', fullpath);
+     TO ''%strips.csv'' DELIMITER '','' CSV HEADER', srid, fullpath);
 
   RAISE INFO 'Exporting query_licences.csv';
   EXECUTE format(
@@ -184,79 +218,26 @@ BEGIN
            FROM Instants ORDER BY InstantId)
      TO ''%squery_instants.csv'' DELIMITER '','' CSV HEADER', fullpath);
 
-  RAISE INFO 'Exporting query_points.csv (geometry as WKT text)';
+  RAISE INFO 'Exporting query_points.csv (geometry as EWKT in SRID %)', srid;
+  -- Raw geometry only; the geom_h3 cell-set index is built at LOAD from this
+  -- lat/lon geometry (geoToH3IndexSet(geom, R)), like trip_h3.
   EXECUTE format(
-    'COPY (SELECT PointId AS pointId, ST_AsText(Geom) AS geom
+    'COPY (SELECT PointId AS pointId, asEWKT(transform(Geom, %s)) AS geom
            FROM Points ORDER BY PointId)
-     TO ''%squery_points.csv'' DELIMITER '','' CSV HEADER', fullpath);
+     TO ''%squery_points.csv'' DELIMITER '','' CSV HEADER', srid, fullpath);
 
-  endTime = clock_timestamp();
-  RAISE INFO '------------------------------------------------------------------';
-  RAISE INFO 'Execution started at %', startTime;
-  RAISE INFO 'Execution finished at %', endTime;
-  RAISE INFO 'Execution time %', endTime - startTime;
-  RAISE INFO '------------------------------------------------------------------';
-  RETURN 'The End';
-END;
-$$ LANGUAGE 'plpgsql';
-
--------------------------------------------------------------------------------
-
-/******************************************************************************
- * Exports the BerlinMOD trips as a stream of point events for the streaming
- * benchmark (Apache Flink, Kafka Streams, NebulaStream). Each trip's tgeompoint
- * is unnested into its composing instants; the per-event H3 cell is computed
- * once here so every streaming engine inherits it from the dataset rather than
- * recomputing it.
- *
- * Schema produced:
- *   instants.csv : tripId, vehId, day, seqno, geom, t, h3_cell
- *                  - geom    : the event point geometry (EWKB, SRID 3857)
- *                  - t       : event timestamp
- *                  - h3_cell : the H3 cell of the event point at the chosen
- *                              resolution, from geotoh3cell(geom in 4326, R).
- *                              R defaults to 7 (cell edge ≈ 1.2 km).
- *
- * Parameters:
- * - fullpath:     directory path (with trailing slash) where the CSV is written.
- * - h3resolution: H3 resolution for the h3_cell column (default 7).
- *
- * Example:
- *     \i berlinmod_export.sql
- *     SELECT berlinmod_instants_export('/home/mobilitydb/portability/');
- *****************************************************************************/
-
-DROP FUNCTION IF EXISTS berlinmod_instants_export;
-CREATE OR REPLACE FUNCTION berlinmod_instants_export(
-    fullpath      text,
-    h3resolution  integer DEFAULT 7)
-RETURNS text AS $$
-DECLARE
-  startTime timestamptz;
-  endTime   timestamptz;
-BEGIN
-  startTime = clock_timestamp();
-  RAISE INFO '------------------------------------------------------------------';
-  RAISE INFO 'Exporting BerlinMOD trips as point events (streaming form)';
-  RAISE INFO 'Target: %', fullpath;
-  RAISE INFO 'H3 resolution for h3_cell: %', h3resolution;
-  RAISE INFO 'Execution started at %', startTime;
-  RAISE INFO '------------------------------------------------------------------';
-
-  RAISE INFO 'Exporting instants.csv (point events + per-event h3_cell at resolution %)', h3resolution;
+  RAISE INFO 'Exporting query_periods.csv';
   EXECUTE format(
-    'COPY (
-       WITH Inst(TripId, VehicleId, Inst, SeqNo) AS (
-         SELECT t.TripId, t.VehicleId, u.inst, u.seqno
-         FROM Trips t, unnest(instants(t.Trip)) WITH ORDINALITY AS u(inst, seqno) )
-       SELECT TripId AS tripId, VehicleId AS vehId,
-              (getTimestamp(Inst))::date AS day, SeqNo AS seqno,
-              getValue(Inst) AS geom,
-              getTimestamp(Inst) AS t,
-              geotoh3cell(ST_Transform(getValue(Inst), 4326), %s) AS h3_cell
-       FROM Inst
-       ORDER BY TripId, SeqNo)
-     TO ''%sinstants.csv'' DELIMITER '','' CSV HEADER', h3resolution, fullpath);
+    'COPY (SELECT PeriodId AS periodId, Period::text AS period
+           FROM Periods ORDER BY PeriodId)
+     TO ''%squery_periods.csv'' DELIMITER '','' CSV HEADER', fullpath);
+
+  RAISE INFO 'Exporting query_regions.csv (geometry as EWKT in SRID %)', srid;
+  -- Raw geometry only; geom_h3 is built at LOAD like the point geom_h3.
+  EXECUTE format(
+    'COPY (SELECT RegionId AS regionId, asEWKT(transform(Geom, %s)) AS geom
+           FROM Regions ORDER BY RegionId)
+     TO ''%squery_regions.csv'' DELIMITER '','' CSV HEADER', srid, fullpath);
 
   endTime = clock_timestamp();
   RAISE INFO '------------------------------------------------------------------';
