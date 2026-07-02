@@ -241,7 +241,7 @@ LOOP
   FROM Trips t1, Vehicles v1, Trips t2, Vehicles v2
   WHERE t1.VehicleId = v1.VehicleId AND t2.VehicleId = v2.VehicleId AND
     t1.VehicleId < t2.VehicleId AND v1.VehicleType = 'truck' AND 
-    v2.VehicleType = 'truck' AND t1.Trip && expandSpatial(t2.Trip, 10) 
+    v2.VehicleType = 'truck' AND t1.Trip && expandSpace(t2.Trip, 10) 
   AND eDwithin(t1.Trip, t2.Trip, 10.0)
   ORDER BY v1.Licence, v2.Licence
   INTO J;
