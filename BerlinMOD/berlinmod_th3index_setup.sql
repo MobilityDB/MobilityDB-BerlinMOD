@@ -22,7 +22,7 @@ What it does:
   4. Re-analyses the table.
 
 This script is MobilityDB/PostgreSQL specific.  Each platform derives
-`trip_h3` at ingest the same way — `tgeompoint_to_th3index(trip, 7)` is an
+`trip_h3` at ingest the same way — `th3index(transform(trip, 4326), 7)` is an
 O(1)-per-point conversion through the shared MEOS kernel (the same
 vendored libh3), so the cells are identical on every engine.  The
 MobilityDuck and MobilitySpark loaders run the equivalent step in their
@@ -36,7 +36,7 @@ ALTER TABLE Trips
   ADD COLUMN IF NOT EXISTS trip_h3 th3index;
 
 UPDATE Trips
-   SET trip_h3 = tgeompoint_to_th3index(Trip, 7)
+   SET trip_h3 = th3index(transform(Trip, 4326), 7)
  WHERE trip_h3 IS NULL;
 
 DROP INDEX IF EXISTS Trips_trip_h3_gist_idx;

@@ -16,16 +16,16 @@ Prerequisites:
   - Run `berlinmod_th3index_setup.sql` once to add and populate the
     `trip_h3 th3index` column and its GiST index.
   - The canonical `geoToH3IndexSet(geometry, integer)` builder and the
-    `ever_eq(h3indexset, th3index)` cell-overlap predicate must be installed.
+    `eEq(h3indexset, th3index)` cell-overlap predicate must be installed.
 
 Prefilter pattern (single recipe across geometry types):
 
-  ever_eq(geoToH3IndexSet(G, 7), T.trip_h3)
+  eEq(geoToH3IndexSet(G, 7), T.trip_h3)
     AND <semantic predicate on the moving point>
 
   `geoToH3IndexSet` accepts any GEOMETRY (POINT/LINESTRING/
   POLYGON/MULTI*/GeometryCollection), building an H3 cell set at the chosen
-  resolution; `ever_eq(h3indexset, th3index)` returns TRUE iff the trip's
+  resolution; `eEq(h3indexset, th3index)` returns TRUE iff the trip's
   th3index path ever lies in any of those cells.  The prefilter is
   sound for `eIntersects`/`eContains`/spatial-overlap predicates at
   any resolution — a trip can only satisfy them if it ever crosses a
@@ -96,7 +96,7 @@ ANALYZE;
 
 SELECT DISTINCT R.RegionId, T.VehId
 FROM Trips T, Regions10 R
-WHERE ever_eq(geoToH3IndexSet(R.Geom, 7), T.trip_h3)
+WHERE eEq(geoToH3IndexSet(R.Geom, 7), T.trip_h3)
   AND eIntersects(trajectory(T.Trip), R.Geom)
 ORDER BY R.RegionId, T.VehId;
 
@@ -117,7 +117,7 @@ ORDER BY R.RegionId, T.VehId;
 
 SELECT R.RegionId, P.PeriodId, T.VehId
 FROM Trips T, Regions10 R, Periods10 P
-WHERE ever_eq(geoToH3IndexSet(R.Geom, 7), T.trip_h3)
+WHERE eEq(geoToH3IndexSet(R.Geom, 7), T.trip_h3)
   AND eIntersects(atTime(T.Trip, P.Period), R.Geom)
 ORDER BY R.RegionId, P.PeriodId, T.VehId;
 
@@ -134,8 +134,8 @@ ORDER BY R.RegionId, P.PeriodId, T.VehId;
 SELECT DISTINCT T1.VehId AS VehId1, T2.VehId AS VehId2, R.RegionId, P.PeriodId
 FROM Trips T1, Trips100 T2, Regions10 R, Periods10 P
 WHERE T1.VehId < T2.VehId
-  AND ever_eq(geoToH3IndexSet(R.Geom, 7), T1.trip_h3)
-  AND ever_eq(geoToH3IndexSet(R.Geom, 7), T2.trip_h3)
+  AND eEq(geoToH3IndexSet(R.Geom, 7), T1.trip_h3)
+  AND eEq(geoToH3IndexSet(R.Geom, 7), T2.trip_h3)
   AND eIntersects(atTime(T1.Trip, P.Period), R.Geom)
   AND eIntersects(atTime(T2.Trip, P.Period), R.Geom)
 ORDER BY T1.VehId, T2.VehId, R.RegionId, P.PeriodId;
@@ -153,7 +153,7 @@ ORDER BY T1.VehId, T2.VehId, R.RegionId, P.PeriodId;
 SELECT T.VehId, P.PointId,
   MIN(startTimestamp(atValues(T.Trip, P.Geom))) AS Instant
 FROM Trips T, Points10 P
-WHERE ever_eq(geoToH3IndexSet(P.Geom, 7), T.trip_h3)
+WHERE eEq(geoToH3IndexSet(P.Geom, 7), T.trip_h3)
   AND eContains(trajectory(T.Trip), P.Geom)
 GROUP BY T.VehId, P.PointId;
 
@@ -188,7 +188,7 @@ ORDER BY P.PeriodId;
 SELECT R.RegionId,
   numInstants(wCount(atGeometry(T.Trip, R.Geom), interval '10 min'))
 FROM Trips T, Regions10 R
-WHERE ever_eq(geoToH3IndexSet(R.Geom, 7), T.trip_h3)
+WHERE eEq(geoToH3IndexSet(R.Geom, 7), T.trip_h3)
   AND eIntersects(trajectory(T.Trip), R.Geom)
 GROUP BY R.RegionId
 HAVING wCount(atGeometry(T.Trip, R.Geom), interval '10 min') IS NOT NULL
