@@ -1,0 +1,511 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<chapter id ="benchmark">
+	<title>BerlinMOD Benchmark on MobilityDB</title>
+
+	<para><ulink url="http://dna.fernuni-hagen.de/secondo/BerlinMOD/BerlinMOD.html">BerlinMOD</ulink> is a standard benchmark for moving object DBMSs. It provides a data generator, pregenerated benchmark data for different scale factors, and set of queries of two types: 17 range-style queries (called BerlinMOD/r), and 9 nearest-neighbours queries (called BerlinMOD/NN). The MobilityDB tutorial presented in <xref linkend="tutorial" /> and its associated data were based on BerlinMOD. However, its purpose was to show the capabilities of MobilityDB. In this chapter, we show how to load pregenerated BerlinMOD data on MobilityDB and how to express the 17 queries in BerlinMOD/r. Some of these queries were already presented in <xref linkend="tutorial" />.</para>
+
+	<sect1>
+		<title>Loading the Data</title>
+		<para>
+		The script for loading pregenerated data is available <ulink url="https://docs.mobilitydb.com/data/berlinmod_load.sql">here</ulink>.
+			<programlisting language="sql" xml:space="preserve">
+-------------------------------------------------------------------------------
+-- Loads the BerlinMOD data in projected (2D) coordinates with SRID 5676
+-- https://epsg.io/5676
+-------------------------------------------------------------------------------
+
+DROP FUNCTION IF EXISTS berlinmod_load();
+CREATE OR REPLACE FUNCTION berlinmod_load(scale_factor text DEFAULT '0.005',
+  path text DEFAULT '/usr/local/BerlinMOD/') 
+RETURNS text AS $$
+DECLARE
+  fullpath text;
+BEGIN
+  fullpath = path || scale_factor || '/';
+  DROP TABLE IF EXISTS streets;
+  CREATE TABLE streets (
+    StreetId integer,
+    vmax integer,
+    x1 double precision,
+    y1 double precision,
+    x2 double precision,
+    y2 double precision,
+    Geom geometry(LineString, 5676) );
+  EXECUTE format('COPY streets(StreetId, vmax, x1, y1, x2, y2) FROM ''%sstreets.csv'' 
+    DELIMITER '','' CSV HEADER', fullpath);
+  UPDATE streets
+  SET Geom = ST_Transform(ST_SetSRID(ST_MakeLine(ARRAY[ST_MakePoint(x1, y1),
+    ST_MakePoint(x2, y2)]), 4326), 5676);
+
+  DROP TABLE IF EXISTS Points CASCADE;
+  CREATE TABLE Points (
+    PointId integer,
+    PosX double precision,
+    PosY double precision,
+    Geom geometry(Point, 5676) );
+  EXECUTE format('COPY Points(PointId, PosX, PosY) FROM ''%spoints.csv'' 
+    DELIMITER  '','' CSV HEADER', fullpath);
+  UPDATE Points
+  SET Geom = ST_Transform(ST_SetSRID(ST_MakePoint(PosX, PosY), 4326), 5676);
+
+  CREATE INDEX Points_geom_idx ON Points USING gist(Geom);
+
+  CREATE VIEW Points1(PointId, PosX, PosY, Geom) AS
+  SELECT PointId, PosX, PosY, Geom
+  FROM Points
+  LIMIT 10;
+
+  DROP TABLE IF EXISTS RegionsInput CASCADE;
+  CREATE TABLE RegionsInput (
+    RegionId integer,
+    SegNo integer,
+    XStart double precision,
+    YStart double precision,
+    XEnd double precision,
+    YEnd double precision );
+  EXECUTE format('COPY RegionsInput(RegionId, SegNo, XStart, YStart, XEnd, YEnd) 
+    FROM ''%sregions.csv'' DELIMITER  '','' CSV HEADER', fullpath);
+
+  DROP TABLE IF EXISTS Regions CASCADE;
+  CREATE TABLE Regions (
+    RegionId integer,
+    Geom Geometry(Polygon, 5676) );
+  INSERT INTO Regions (RegionId, Geom)
+  WITH RegionsSegs AS (
+    SELECT RegionId, SegNo, ST_Transform(ST_SetSRID(St_MakeLine(
+      ST_MakePoint(XStart, YStart), ST_MakePoint(XEnd, YEnd)), 4326), 5676) AS Geom
+    FROM RegionsInput )
+  SELECT RegionId, ST_Polygon(ST_LineMerge(ST_Union(Geom ORDER BY SegNo)), 5676) AS Geom
+  FROM RegionsSegs
+  GROUP BY RegionId;
+
+  CREATE INDEX Regions_geom_idx ON Regions USING gist(Geom);
+
+  CREATE VIEW Regions1(RegionId, Geom) AS
+  SELECT RegionId, Geom
+  FROM Regions
+  LIMIT 10;
+
+  DROP TABLE IF EXISTS Instants CASCADE;
+  CREATE TABLE Instants (
+    InstantId integer,
+    Instant timestamptz );
+  EXECUTE format('COPY Instants(InstantId, Instant) FROM ''%sinstants.csv''
+    DELIMITER  '','' CSV HEADER', fullpath);
+
+  CREATE INDEX Instants_instant_btree_idx ON Instants USING btree(instant);
+
+  CREATE VIEW Instants1(InstantId, Instant) AS
+  SELECT InstantId, Instant 
+  FROM Instants
+  LIMIT 10;
+
+  DROP TABLE IF EXISTS Periods CASCADE;
+  CREATE TABLE Periods (
+    PeriodId integer,
+    BeginP timestamp,
+    EndP timestamp,
+    Period tstzspan );
+  EXECUTE format('COPY Periods(PeriodId, BeginP, EndP) FROM ''%speriods.csv'' 
+    DELIMITER  '','' CSV HEADER', fullpath);
+  UPDATE Periods
+  SET Period = tstzspan(BeginP,EndP);
+
+  CREATE INDEX Periods_Period_gist_idx ON Periods USING gist(Period);
+
+  CREATE VIEW Periods1(PeriodId, BeginP, EndP, Period) AS
+  SELECT PeriodId, BeginP, EndP, Period
+  FROM Periods
+  LIMIT 10;
+
+  DROP TABLE IF EXISTS Vehicles CASCADE;
+  CREATE TABLE Vehicles (
+    VehicleId integer PRIMARY KEY,
+    Licence varchar(32),
+    VehicleType varchar(32),
+    Model varchar(32) );
+  EXECUTE format('COPY Vehicles(VehicleId, Licence, VehicleType, Model) FROM ''%svehicles.csv'' 
+    DELIMITER  '','' CSV HEADER', fullpath);
+
+  DROP TABLE IF EXISTS Licences CASCADE;
+  CREATE TABLE Licences (
+    VehicleId integer PRIMARY KEY,
+    LicenceId integer,
+    Licence varchar(8) );
+  EXECUTE format('COPY Licences(Licence, LicenceId) FROM ''%slicences.csv'' 
+    DELIMITER  '','' CSV HEADER', fullpath);
+  UPDATE Licences q
+  SET VehicleId = ( SELECT v.VehicleId FROM Vehicles v WHERE v.Licence = q.Licence );
+
+  CREATE INDEX Licences_VehId_idx ON Licences USING btree(VehicleId);
+
+  CREATE VIEW Licences1(LicenceId, Licence, VehicleId) AS
+  SELECT LicenceId, Licence, VehicleId
+  FROM Licences
+  LIMIT 10;
+
+  CREATE VIEW Licences2(LicenceId, Licence, VehicleId) AS
+  SELECT LicenceId, Licence, VehicleId
+  FROM Licences
+  LIMIT 10 OFFSET 10;
+
+  DROP TABLE IF EXISTS TripsInput CASCADE;
+  CREATE TABLE TripsInput (
+    VehicleId integer,
+    TripId integer,
+    TStart timestamp without time zone,
+    TEnd timestamp without time zone,
+    XStart double precision,
+    YStart double precision,
+    XEnd double precision,
+    YEnd double precision,
+    Geom geometry(LineString) );
+  EXECUTE format('COPY TripsInput(VehicleId, TripId, TStart, TEnd, XStart, YStart, XEnd, YEnd) 
+    FROM ''%strips.csv'' DELIMITER  '','' CSV HEADER', fullpath);
+  UPDATE TripsInput
+  SET Geom = ST_Transform(ST_SetSRID(ST_MakeLine(ARRAY[ST_MakePoint(XStart, YStart),
+    ST_MakePoint(XEnd, YEnd)]), 4326), 5676);
+
+  DROP TABLE IF EXISTS TripsInputInstants;
+  CREATE TABLE TripsInputInstants AS (
+  SELECT VehicleId, TripId, TStart, XStart, YStart, 
+    ST_Transform(ST_SetSRID(ST_MakePoint(XStart, YStart), 4326), 5676) as Geom
+  FROM TripsInput
+  UNION ALL
+  SELECT t1.VehicleId, t1.TripId, t1.TEnd, t1.XEnd, t1.YEnd, 
+    ST_Transform(ST_SetSRID(ST_MakePoint(t1.XEnd, t1.YEnd), 4326), 5676) as Geom
+  FROM TripsInput t1 INNER JOIN (
+    SELECT VehicleId, TripId, max(TEnd) as MaxTend
+    FROM TripsInput 
+    GROUP BY VehicleId, TripId
+  ) t2 ON t1.VehicleId = t2.VehicleId AND t1.TripId = t2.TripId AND t1.TEnd = t2.MaxTend );
+  ALTER TABLE TripsInputInstants ADD COLUMN inst tgeompoint;
+  UPDATE TripsInputInstants
+  SET inst = tgeompoint_inst(Geom, TStart);
+
+  DROP TABLE IF EXISTS Trips CASCADE;
+  CREATE TABLE Trips (
+    TripId integer PRIMARY KEY,
+    VehicleId integer NOT NULL,
+    Trip tgeompoint,
+    Traj geometry,
+    PRIMARY KEY (VehicleId, TripId),
+    FOREIGN KEY (VehicleId) REFERENCES Vehicles(VehicleId));
+  INSERT INTO Trips
+  SELECT VehicleId, TripId, tgeompoint_seq(array_agg(inst ORDER BY TStart))
+  FROM TripsInputInstants
+  GROUP BY VehicleId, TripId;
+  UPDATE Trips
+  SET Traj = trajectory(Trip);
+
+  CREATE INDEX Trips_VehId_idx ON Trips USING btree(VehicleId);
+  CREATE INDEX Trips_gist_idx ON Trips USING gist(trip);
+
+  DROP VIEW IF EXISTS Trips1;
+  CREATE VIEW Trips1 AS
+  SELECT * FROM Trips LIMIT 100;
+
+  -- Drop temporary tables
+  DROP TABLE RegionsInput;
+  DROP TABLE TripsInput;
+  DROP TABLE TripsInputInstants;
+
+  RETURN 'The End';
+END;
+$$ LANGUAGE 'plpgsql';
+			</programlisting>
+			The script above creates a procedure to load pregenerated BerlinMOD data (in CSV format and WGS84 coordinates) at various scale factors. The procedure has two parameters: the scale factor and the directory where the CSV files are located. It supposes by default that the scale factor is <varname>0.005</varname> and that the CSV files are located in the directory <varname>/usr/local/BerlinMOD/&lt;scale factor&gt;/</varname>. Notice that the procedure creates GiST indexes for the tables. Alternatively, SP-GiST indexes could be used. The procedure can be called, for example, as follows.
+			<programlisting language="sql" xml:space="preserve">
+SELECT berlinmod_load('0.05');
+			</programlisting>
+		</para>
+	</sect1>
+
+	<sect1>
+		<title>Loading the Data in Partitioned Tables</title>
+		<para>As we discussed in <xref linkend="tutorial" />, partioning allows one to split a large table into smaller physical pieces. We show next how to modify the scripts given in the previous section to take advantage of partioning. We will partition the <varname>Trips</varname> table by date using list partitioning, where each partitition will contain all the trips that start at a particular date. We will use the procedure <varname>create_partitions_by_date</varname> shown in <xref linkend="tutorial" /> for automatically creating the partitions according to the date range of the corresponding scale factor.
+		</para>
+		<programlisting language="sql" xml:space="preserve">
+[...]
+DROP TABLE IF EXISTS TripsInput CASCADE;
+CREATE TABLE TripsInput (
+  VehicleId integer,
+  TripId integer,
+  TripDate date,
+  TStart timestamp without time zone,
+  TEnd timestamp without time zone,
+  XStart double precision,
+  YStart double precision,
+  XEnd double precision,
+  YEnd double precision,
+  Geom geometry(LineString) );
+EXECUTE format('COPY TripsInput(VehicleId, TripId, TStart, TEnd, XStart, YStart, XEnd, YEnd) 
+FROM ''%strips.csv'' DELIMITER  '','' CSV HEADER', fullpath);
+UPDATE TripsInput
+SET Geom = ST_Transform(ST_SetSRID(ST_MakeLine(ARRAY[ST_MakePoint(XStart, YStart),
+  ST_MakePoint(XEnd, YEnd)]), 4326), 5676);
+UPDATE TripsInput t1 
+SET TripDate = t2.TripDate
+FROM (SELECT DISTINCT TripId, date_trunc('day', MIN(TStart) OVER 
+  (PARTITION BY TripId)) AS TripDate FROM TripsInput) t2
+WHERE t1.TripId = t2.TripId;
+[...]
+DROP TABLE IF EXISTS Trips CASCADE;
+CREATE TABLE Trips (
+  VehicleId integer NOT NULL,
+  TripId integer NOT NULL,
+  TripDate date,
+  Trip tgeompoint,
+  Traj geometry,
+  PRIMARY KEY (VehicleId, TripId, TripDate),
+  FOREIGN KEY (VehicleId) REFERENCES Vehicles (VehicleId) 
+) PARTITION BY LIST(TripDate);
+
+-- Create the partitions 
+SELECT MIN(TripDate), MAX(TripDate) INTO mindate, maxdate FROM TripsInputInstants;
+PERFORM create_partitions_by_date('Trips', mindate, maxdate);
+
+INSERT INTO Trips(VehicleId, TripId, TripDate, Trip)
+SELECT VehicleId, TripId, TripDate, tgeompoint_seq(array_agg(inst ORDER BY TStart))
+FROM TripsInputInstants
+GROUP BY VehicleId, TripId, TripDate;
+UPDATE Trips
+SET Traj = trajectory(Trip);
+
+CREATE INDEX Trips_VehId_idx ON Trips USING btree(VehicleId);
+CREATE UNIQUE INDEX Trips_pkey_idx ON Trips USING btree(VehicleId, TripId, TripDate);
+CREATE INDEX Trips_gist_idx ON Trips USING gist(trip);
+[...]
+		</programlisting>
+
+		<para>With respect to the script given in the previous section, we need to add an additional column <varname>TripDate</varname> to the tables <varname>TripsInput</varname>, <varname>TripsInputInstants</varname> (not shown), and <varname>Trips</varname> that will be used for partitioning.
+		</para>
+
+	</sect1>
+
+	<sect1>
+		<title>BerlinMOD/r Queries</title>
+		<para>The script for querying BerlinMOD data loaded in MobilityDB with the BerlinMOD/r queries is available <ulink url="https://docs.mobilitydb.com/data/berlinmod_queries.sql">here</ulink>.</para>
+		<orderedlist>
+			<listitem>
+				<para>What are the models of the vehicles with licence plate numbers from <varname>Licences</varname>?</para>
+				<programlisting language="sql" xml:space="preserve">
+SELECT DISTINCT l.Licence, v.Model AS Model
+FROM Vehicles v, Licences l
+WHERE v.Licence = l.Licence;
+</programlisting>
+			</listitem>
+
+			<listitem>
+				<para>How many vehicles exist that are passenger cars?</para>
+				<programlisting language="sql" xml:space="preserve">
+SELECT COUNT (DISTINCT Licence)
+FROM Vehicles v
+WHERE VehicleType = 'passenger';
+</programlisting>
+			</listitem>
+
+			<listitem>
+				<para>Where have the vehicles with licences from <varname>Licences1</varname> been at each of the instants from <varname>Instants1</varname>?</para>
+				<programlisting language="sql" xml:space="preserve">
+SELECT DISTINCT l.Licence, i.InstantId, i.Instant AS Instant,
+  valueAtTimestamp(t.Trip, i.Instant) AS Pos
+FROM Trips t, Licences1 l, Instants1 i
+WHERE t.VehicleId = l.VehicleId AND valueAtTimestamp(t.Trip, i.Instant) IS NOT NULL
+ORDER BY l.Licence, i.InstantId;
+</programlisting>
+			</listitem>
+
+			<listitem>
+				<para>Which vehicles have passed the points from <varname>Points</varname>?</para>
+				<programlisting language="sql" xml:space="preserve">
+SELECT DISTINCT p.PointId, p.Geom, v.Licence
+FROM Trips t, Vehicles v, Points p
+WHERE t.VehicleId = v.VehicleId AND t.Trip &amp;&amp; stbox(p.Geom) AND
+  ST_Intersects(trajectory(t.Trip), p.Geom) 
+ORDER BY p.PointId, v.Licence;
+</programlisting>
+			</listitem>
+
+			<listitem>
+				<para>What is the minimum distance between places, where a vehicle with a licence from <varname>Licences1</varname> and a vehicle with a licence from <varname>Licences2</varname> have been?</para>
+				<programlisting language="sql" xml:space="preserve">
+SELECT l1.Licence AS Licence1, l2.Licence AS Licence2,
+  MIN(ST_Distance(trajectory(t1.Trip), trajectory(t2.Trip))) AS MinDist
+FROM Trips t1, Licences1 l1, Trips t2, Licences2 l2
+WHERE t1.VehicleId = l1.VehicleId AND t2.VehicleId = l2.VehicleId AND
+  t1.VehicleId &lt; t2.VehicleId
+GROUP BY l1.Licence, l2.Licence 
+ORDER BY l1.Licence, l2.Licence;
+</programlisting>
+			</listitem>
+
+			<listitem>
+				<para>What are the pairs of trucks that have ever been as close as 10m or less to each other?</para>
+				<programlisting language="sql" xml:space="preserve">
+SELECT DISTINCT v1.Licence AS Licence1, v2.Licence AS Licence2
+FROM Trips t1, Vehicles v1, Trips t2, Vehicles v2
+WHERE t1.VehicleId = v1.VehicleId AND t2.VehicleId = v2.VehicleId AND
+  t1.VehicleId &lt; t2.VehicleId AND v1.VehicleType = 'truck' AND 
+  v2.VehicleType = 'truck' AND t1.Trip &amp;&amp; expandSpace(t2.Trip, 10) AND
+  eDwithin(t1.Trip, t2.Trip, 10.0)
+ORDER BY v1.Licence, v2.Licence;
+</programlisting>
+			</listitem>
+
+			<listitem>
+				<para>What are the licence plate numbers of the passenger cars that have reached the points from <varname>Points</varname> first of all passenger cars during the complete observation period?</para>
+				<programlisting language="sql" xml:space="preserve">
+WITH Timestamps AS (
+  SELECT DISTINCT v.Licence, p.PointId, p.Geom, 
+    MIN(startTimestamp(atValues(t.Trip,p.Geom))) AS Instant
+  FROM Trips t, Vehicles v, Points1 p
+  WHERE t.VehicleId = v.VehicleId AND v.VehicleType = 'passenger' AND
+    t.Trip &amp;&amp; stbox(p.Geom) AND ST_Intersects(trajectory(t.Trip), p.Geom)
+  GROUP BY v.Licence, p.PointId, p.Geom )
+SELECT t1.Licence, t1.PointId, t1.Geom, t1.Instant
+FROM Timestamps t1
+WHERE t1.Instant &lt;= ALL (
+  SELECT t2.Instant
+  FROM Timestamps t2
+  WHERE t1.PointId = t2.PointId )
+ORDER BY t1.PointId, t1.Licence;
+</programlisting>
+			</listitem>
+
+			<listitem>
+				<para>What are the overall travelled distances of the vehicles with licence plate numbers from <varname>Licences1</varname> during the periods from <varname>Periods1</varname>?</para>
+				<programlisting language="sql" xml:space="preserve">
+SELECT l.Licence, p.PeriodId, p.Period, SUM(length(atTime(t.Trip, p.Period))) AS Dist
+FROM Trips t, Licences1 l, Periods1 p
+WHERE t.VehicleId = l.VehicleId AND t.Trip &amp;&amp; p.Period
+GROUP BY l.Licence, p.PeriodId, p.Period 
+ORDER BY l.Licence, p.PeriodId;
+</programlisting>
+			</listitem>
+
+			<listitem>
+				<para>What is the longest distance that was travelled by a vehicle during each of the periods from <varname>Periods</varname>?</para>
+				<programlisting language="sql" xml:space="preserve">
+WITH Distances AS (
+  SELECT p.PeriodId, p.Period, t.VehicleId,
+    SUM(length(atTime(t.Trip, p.Period))) AS Dist
+  FROM Trips t, Periods p
+  WHERE t.Trip &amp;&amp; p.Period
+  GROUP BY p.PeriodId, p.Period, t.VehicleId )
+SELECT PeriodId, Period, MAX(Dist) AS MaxDist
+FROM Distances
+GROUP BY PeriodId, Period
+ORDER BY PeriodId;
+</programlisting>
+			</listitem>
+
+			<listitem>
+				<para>When and where did the vehicles with licence plate numbers from <varname>Licences1</varname> meet other vehicles (distance &lt; 3m) and what are the latter licences?</para>
+				<programlisting language="sql" xml:space="preserve">
+WITH Values AS (
+  SELECT DISTINCT l1.Licence AS QueryLicence, l2.Licence AS OtherLicence,
+    atTime(t1.Trip, getTime(atValues(tdwithin(t1.Trip, t2.Trip, 3.0), TRUE))) AS Pos
+  FROM Trips t1, Licences1 l1, Trips t2, Licences2 l2 
+  WHERE t1.VehicleId = l1.VehicleId AND t2.VehicleId = l2.VehicleId AND
+    t1.VehicleId &lt; t2.VehicleId AND 
+    expandSpace(t1.Trip, 3) &amp;&amp; expandSpace(t2.Trip, 3) AND
+    eDwithin(t1.Trip, t2.Trip, 3.0) )
+SELECT QueryLicence, OtherLicence, array_agg(Pos ORDER BY startTimestamp(Pos)) AS Pos
+FROM Values 
+GROUP BY QueryLicence, OtherLicence
+ORDER BY QueryLicence, OtherLicence;
+</programlisting>
+			</listitem>
+
+			<listitem>
+				<para>Which vehicles passed a point from <varname>Points1</varname> at one of the instants from <varname>Instants1</varname>?</para>
+				<programlisting language="sql" xml:space="preserve">
+SELECT p.PointId, p.Geom, i.InstantId, i.Instant, v.Licence
+FROM Trips t, Vehicles v, Points1 p, Instants1 i
+WHERE t.VehicleId = v.VehicleId AND t.Trip @&gt; stbox(p.Geom, i.Instant) AND
+  valueAtTimestamp(t.Trip, i.Instant) = p.Geom
+ORDER BY p.PointId, i.InstantId, v.Licence;
+</programlisting>
+			</listitem>
+
+			<listitem>
+				<para>Which vehicles met at a point from <varname>Points1</varname> at an instant from <varname>Instants1</varname>?</para>
+				<programlisting language="sql" xml:space="preserve">
+SELECT DISTINCT p.PointId, p.Geom, i.InstantId, i.Instant,
+  v1.Licence AS Licence1, v2.Licence AS Licence2
+FROM Trips t1, Vehicles v1, Trips t2, Vehicles v2, Points1 p, Instants1 i
+WHERE t1.VehicleId = v1.VehicleId AND t2.VehicleId = v2.VehicleId AND
+  t1.VehicleId &lt; t2.VehicleId AND t1.Trip @&gt; stbox(p.Geom, i.Instant) AND
+  t2.Trip @&gt; stbox(p.Geom, i.Instant) AND
+  valueAtTimestamp(t1.Trip, i.Instant) = p.Geom AND
+  valueAtTimestamp(t2.Trip, i.Instant) = p.Geom
+ORDER BY p.PointId, i.InstantId, v1.Licence, v2.Licence;
+</programlisting>
+			</listitem>
+
+			<listitem>
+				<para>Which vehicles travelled within one of the regions from <varname>Regions1</varname> during the periods from <varname>Periods1</varname>?</para>
+				<programlisting language="sql" xml:space="preserve">
+SELECT DISTINCT r.RegionId, p.PeriodId, p.Period, v.Licence
+FROM Trips t, Vehicles v, Regions1 r, Periods1 p
+WHERE t.VehicleId = v.VehicleId AND t.trip &amp;&amp; stbox(r.Geom, p.Period) AND
+  ST_Intersects(trajectory(atTime(t.Trip, p.Period)), r.Geom)
+ORDER BY r.RegionId, p.PeriodId, v.Licence;
+</programlisting>
+			</listitem>
+
+			<listitem>
+				<para>Which vehicles travelled within one of the regions from <varname>Regions1</varname> at one of the instants from <varname>Instants1</varname>?</para>
+				<programlisting language="sql" xml:space="preserve">
+SELECT DISTINCT r.RegionId, i.InstantId, i.Instant, v.Licence
+FROM Trips t, Vehicles v, Regions1 r, Instants1 i
+WHERE t.VehicleId = v.VehicleId AND t.Trip &amp;&amp; stbox(r.Geom, i.Instant) AND
+  ST_Contains(r.Geom, valueAtTimestamp(t.Trip, i.Instant))
+ORDER BY r.RegionId, i.InstantId, v.Licence;
+</programlisting>
+			</listitem>
+
+			<listitem>
+				<para>Which vehicles passed a point from <varname>Points1</varname> during a period from <varname>Periods1</varname>?</para>
+				<programlisting language="sql" xml:space="preserve">
+SELECT DISTINCT pt.PointId, pt.Geom, pr.PeriodId, pr.Period, v.Licence
+FROM Trips t, Vehicles v, Points1 pt, Periods1 pr
+WHERE t.VehicleId = v.VehicleId AND t.Trip &amp;&amp; stbox(pt.Geom, pr.Period) AND
+  ST_Intersects(trajectory(atTime(t.Trip, pr.Period)), pt.Geom)
+ORDER BY pt.PointId, pr.PeriodId, v.Licence;
+</programlisting>
+			</listitem>
+
+			<listitem>
+				<para>List the pairs of licences for vehicles, the first from <varname>Licences1</varname>, the second from <varname>Licences2</varname>, where the corresponding vehicles are both present within a region from <varname>Regions1</varname> during a period from <varname>QueryPeriod1</varname>, but do not meet each other there and then.</para>
+				<programlisting language="sql" xml:space="preserve">
+SELECT p.PeriodId, p.Period, r.RegionId, l1.Licence AS Licence1, l2.Licence AS Licence2
+FROM Trips t1, Licences1 l1, Trips t2, Licences2 l2, Periods1 p, Regions1 r
+WHERE t1.VehicleId = l1.VehicleId AND t2.VehicleId = l2.VehicleId AND
+  l1.Licence &lt; l2.Licence AND t1.Trip &amp;&amp; stbox(r.Geom, p.Period) AND 
+  t2.Trip &amp;&amp; stbox(r.Geom, p.Period) AND
+  ST_Intersects(trajectory(atTime(t1.Trip, p.Period)), r.Geom) AND
+  ST_Intersects(trajectory(atTime(t2.Trip, p.Period)), r.Geom) AND
+  aDisjoint(atTime(t1.Trip, p.Period), atTime(t2.Trip, p.Period))
+ORDER BY PeriodId, RegionId, Licence1, Licence2;
+</programlisting>
+			</listitem>
+
+			<listitem>
+				<para>Which point(s) from <varname>Points</varname> have been visited by a maximum number of different vehicles?</para>
+				<programlisting language="sql" xml:space="preserve">
+WITH PointCount AS (
+  SELECT p.PointId, COUNT(DISTINCT t.VehicleId) AS Hits
+  FROM Trips t, Points p
+  WHERE ST_Intersects(trajectory(t.Trip), p.Geom)
+  GROUP BY p.PointId )
+SELECT PointId, Hits
+FROM PointCount AS p
+WHERE p.Hits = ( SELECT MAX(Hits) FROM PointCount );
+</programlisting>
+			</listitem>
+
+		</orderedlist>
+	</sect1>
+</chapter>
