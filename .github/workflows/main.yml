@@ -1,15 +1,14 @@
-# Automatic generation of documentation will be copied and checked into the
-# gh-pages branch.
+# Automatic generation of documentation, deployed to the gh-pages branch from master.
 name: Documentation generation CI
 
 on:
   push:
-    branches: ["main", "feat/**", "fix/**"]
+    branches: ["master", "feat/**", "fix/**"]
     paths-ignore:
       - "**/*.md"
       - "doc/**"
   pull_request:
-    branches: ["main", "feat/**", "fix/**"]
+    branches: ["master", "feat/**", "fix/**"]
     paths-ignore:
       - "**/*.md"
       - "doc/**"
@@ -58,9 +57,9 @@ jobs:
     name: Deploy documentation
     runs-on: ubuntu-latest
     needs: build
-    # The gh-pages branch and Pages deployment exist only on the canonical
-    # repository; skip this job on forks, which have no gh-pages branch.
-    if: github.repository == 'MobilityDB/MobilityDB-BerlinMOD'
+    # The gh-pages branch exists only on the canonical repository, and the
+    # published docs track master; deploy only from master there.
+    if: github.repository == 'MobilityDB/MobilityDB-BerlinMOD' && github.ref == 'refs/heads/master'
 
     steps:
       # checkout the gh-pages branch
@@ -68,21 +67,19 @@ jobs:
         with:
           ref: gh-pages
 
-      # download the doc files, most of which are generated above
+      # download the doc files generated above, overwriting the tracked outputs
       - name: Download output directory
         uses: actions/download-artifact@v4
         with:
           name: doc-files
           path: docs
 
-      # add, commit and push to gh-pages
+      # commit and push to gh-pages with plain git (no pull, so the overwritten
+      # binary outputs do not abort a merge)
       - name: Commit changes
-        uses: EndBug/add-and-commit@v7
-        with:
-          message: 'Update docs'
-          branch: gh-pages
-          add: '["docs/index.md",
-            "docs/mobilitydb-berlinmod.pdf",
-            "docs/mobilitydb-berlinmod.epub",
-            "docs/html/docbook.css", "docs/html/images/*",
-            "docs/html/*.html"]'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs
+          git commit -m "Update docs" || { echo "No documentation changes"; exit 0; }
+          git push origin HEAD:gh-pages
