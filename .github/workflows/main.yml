@@ -44,7 +44,7 @@ jobs:
           cp -r images docbook.css html/
           cp docbook.css html/
 
-      # store the documentation files
+      # store the documentation files (downloadable by pull-request reviewers)
       - name: Upload output directory
         uses: actions/upload-artifact@v4
         with:
@@ -52,32 +52,24 @@ jobs:
           path: docs
           retention-days: 1
 
-
-  copy:
-    name: Deploy documentation
-    runs-on: ubuntu-latest
-    needs: build
-    # The gh-pages branch exists only on the canonical repository, and the
-    # published docs track master; deploy only from master there.
-    if: github.repository == 'MobilityDB/MobilityDB-BerlinMOD' && github.ref == 'refs/heads/master'
-
-    steps:
-      # checkout the gh-pages branch
-      - uses: actions/checkout@v4
+      # Publish to gh-pages only from master on the canonical repository.  This
+      # is a conditional STEP, not a separate job, so pull requests show a single
+      # always-green "Generate documentation" check with no skipped deploy job.
+      - name: Check out gh-pages
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master' && github.repository == 'MobilityDB/MobilityDB-BerlinMOD'
+        uses: actions/checkout@v4
         with:
           ref: gh-pages
+          path: gh-pages
 
-      # download the doc files generated above, overwriting the tracked outputs
-      - name: Download output directory
-        uses: actions/download-artifact@v4
-        with:
-          name: doc-files
-          path: docs
-
-      # commit and push to gh-pages with plain git (no pull, so the overwritten
-      # binary outputs do not abort a merge)
-      - name: Commit changes
+      # Overwrite the tracked outputs with the freshly built ones and push with
+      # plain git (no pull, so the replaced binary outputs do not abort a merge).
+      - name: Deploy documentation
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master' && github.repository == 'MobilityDB/MobilityDB-BerlinMOD'
         run: |
+          rm -rf gh-pages/docs
+          cp -r docs gh-pages/docs
+          cd gh-pages
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add docs
