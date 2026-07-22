@@ -29,6 +29,7 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BERLINMOD_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+QUERIES_SQL="${SCRIPT_DIR}/queries.sql"   # shared single-source query set
 
 # ── defaults ──────────────────────────────────────────────────────────────────
 DBNAME="berlinmod_bench"
@@ -101,9 +102,9 @@ if $LOAD; then
   createdb "$DBNAME" 2>/dev/null || true
   LOADER=$(mktemp --suffix=.sql)
   trap 'rm -f "$LOADER"' EXIT
-  sed "s|DATADIR|${DATADIR}|g" "${BERLINMOD_DIR}/load_mbdb.sql" > "$LOADER"
+  sed "s|DATADIR|${DATADIR}|g" "${SCRIPT_DIR}/load_mbdb.sql" > "$LOADER"
   echo "=== Loading data ==="
-  _psql -f "$LOADER"
+  _psql -v ON_ERROR_STOP=1 -f "$LOADER"
   echo "    done."
 fi
 
@@ -152,15 +153,39 @@ echo "=== Runs    : ${RUNS} per query  (queries: ${QUERIES_MSG}) ==="
 echo ""
 
 TIMEFILE=$(mktemp)
-trap 'rm -f "$TIMEFILE"' EXIT
+QDIR=$(mktemp -d)
+trap 'rm -f "$TIMEFILE" "${LOADER:-}"; rm -rf "$QDIR"' EXIT
+
+# ── extract each selected query from the shared queries.sql ──────────────────
+# queries.sql is the single canonical source; every query is delimited by a
+# `-- BerlinMOD Q<n>:` (or `-- BerlinMOD QRT:`) marker and runs to the next one.
+marker_for() {                       # q07 -> Q7 ; q13 -> Q13 ; qrt -> QRT
+  local q="$1"
+  if [[ "$q" == "qrt" ]]; then echo "QRT"; else echo "Q$((10#${q#q}))"; fi
+}
+for Q in "${QUERIES[@]}"; do
+  M=$(marker_for "$Q")
+  awk -v start="-- BerlinMOD ${M}:" '
+    index($0, start)==1 { grab=1; print; next }
+    grab && /^-- BerlinMOD Q/ { exit }
+    grab { print }
+  ' "$QUERIES_SQL" > "${QDIR}/${Q}.sql"
+  [[ -s "${QDIR}/${Q}.sql" ]] || echo "  [warn] ${Q} (${M}) not found in ${QUERIES_SQL}"
+done
 
 for Q in "${QUERIES[@]}"; do
-  QFILE="${BERLINMOD_DIR}/${Q}.sql"
-  [[ -f "$QFILE" ]] || { echo "  [skip] ${Q} — SQL file not found"; continue; }
+  QFILE="${QDIR}/${Q}.sql"
+  [[ -s "$QFILE" ]] || { echo "  [skip] ${Q} — not found in queries.sql"; continue; }
+  # Validate once with ON_ERROR_STOP: a broken query is reported and EXCLUDED,
+  # never recorded as a phantom sub-second timing (the earlier harness bug).
+  if ! ERR=$(_psql -v ON_ERROR_STOP=1 -o /dev/null -f "$QFILE" 2>&1); then
+    echo "  [FAIL] ${Q} — ${ERR##*ERROR:  }"
+    continue
+  fi
   printf "  timing %-6s: " "$Q"
   for RUN in $(seq 1 "$RUNS"); do
     T0=$(date +%s%3N)
-    _psql -o /dev/null -f "$QFILE" 2>/dev/null || true
+    _psql -o /dev/null -f "$QFILE" >/dev/null 2>&1
     T1=$(date +%s%3N)
     ELAPSED=$((T1 - T0))
     printf "%d " "$ELAPSED"
