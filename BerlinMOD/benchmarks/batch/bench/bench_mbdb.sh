@@ -29,6 +29,8 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BERLINMOD_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+BMROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"   # repo BerlinMOD/ dir (canonical loaders)
+QUERIES_SQL="${SCRIPT_DIR}/queries.sql"          # single canonical query source
 
 # ── defaults ──────────────────────────────────────────────────────────────────
 DBNAME="berlinmod_bench"
@@ -99,11 +101,11 @@ _psql() { psql -d "$DBNAME" -q "$@"; }
 if $LOAD; then
   echo "=== Creating database: $DBNAME ==="
   createdb "$DBNAME" 2>/dev/null || true
-  LOADER=$(mktemp --suffix=.sql)
-  trap 'rm -f "$LOADER"' EXIT
-  sed "s|DATADIR|${DATADIR}|g" "${BERLINMOD_DIR}/load_mbdb.sql" > "$LOADER"
-  echo "=== Loading data ==="
-  _psql -f "$LOADER"
+  echo "=== Loading data (canonical berlinmod_load + th3index setup) ==="
+  _psql -v ON_ERROR_STOP=1 -c "CREATE EXTENSION IF NOT EXISTS MobilityDB CASCADE;"
+  _psql -v ON_ERROR_STOP=1 -f "${BMROOT}/berlinmod_load.sql"
+  _psql -v ON_ERROR_STOP=1 -c "SELECT berlinmod_load('${DATADIR}/', true);"
+  _psql -v ON_ERROR_STOP=1 -f "${BMROOT}/berlinmod_th3index_setup.sql"
   echo "    done."
 fi
 
@@ -152,15 +154,29 @@ echo "=== Runs    : ${RUNS} per query  (queries: ${QUERIES_MSG}) ==="
 echo ""
 
 TIMEFILE=$(mktemp)
-trap 'rm -f "$TIMEFILE"' EXIT
+QDIR=$(mktemp -d)
+trap 'rm -f "$TIMEFILE"; rm -rf "$QDIR"' EXIT
+
+# Split the single canonical queries.sql on its `-- @query <id>` markers.
+for Q in "${QUERIES[@]}"; do
+  awk -v s="-- @query ${Q}" '
+    index($0, s)==1 { grab=1; next }
+    grab && /^-- @query / { exit }
+    grab { print }
+  ' "$QUERIES_SQL" > "${QDIR}/${Q}.sql"
+done
 
 for Q in "${QUERIES[@]}"; do
-  QFILE="${BERLINMOD_DIR}/${Q}.sql"
-  [[ -f "$QFILE" ]] || { echo "  [skip] ${Q} — SQL file not found"; continue; }
+  QFILE="${QDIR}/${Q}.sql"
+  [[ -s "$QFILE" ]] || { echo "  [skip] ${Q} — not in queries.sql"; continue; }
+  if ! ERR=$(_psql -v ON_ERROR_STOP=1 -o /dev/null -f "$QFILE" 2>&1); then
+    echo "  [FAIL] ${Q} — ${ERR##*ERROR:  }"
+    continue
+  fi
   printf "  timing %-6s: " "$Q"
   for RUN in $(seq 1 "$RUNS"); do
     T0=$(date +%s%3N)
-    _psql -o /dev/null -f "$QFILE" 2>/dev/null || true
+    _psql -o /dev/null -f "$QFILE" >/dev/null 2>&1
     T1=$(date +%s%3N)
     ELAPSED=$((T1 - T0))
     printf "%d " "$ELAPSED"
