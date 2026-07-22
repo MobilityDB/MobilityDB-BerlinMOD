@@ -33,6 +33,7 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BERLINMOD_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+QUERIES_SQL="${SCRIPT_DIR}/queries.sql"   # shared single-source query set
 
 # ── defaults ──────────────────────────────────────────────────────────────────
 DUCKDB="${DUCKDB:-duckdb}"
@@ -114,7 +115,7 @@ _duck_q() { "$DUCKDB" "$DBFILE" -noheader -list -c "$1" 2>/dev/null; }
 if $LOAD; then
   echo "=== Loading data into: $DBFILE ==="
   rm -f "$DBFILE"
-  LOAD_BODY="$(sed '/^SET VARIABLE DATADIR/d' "${BERLINMOD_DIR}/load_mduck.sql")"
+  LOAD_BODY="$(sed '/^SET VARIABLE DATADIR/d' "${SCRIPT_DIR}/load_mduck.sql")"
   LOAD_SQL="${MOBILITY_LOAD} SET VARIABLE DATADIR='${DATADIR}/'; ${LOAD_BODY}"
   "$DUCKDB" "$DBFILE" -c "$LOAD_SQL"
   echo "    done."
@@ -165,10 +166,31 @@ echo ""
 TIMEFILE=$(mktemp)
 trap 'rm -f "$TIMEFILE"' EXIT
 
+# ── extract each selected query from the shared queries.sql ──────────────────
+# queries.sql is the single canonical source; every query is delimited by a
+# `-- BerlinMOD Q<n>:` (or `-- BerlinMOD QRT:`) marker and runs to the next one.
+marker_for() {                       # q07 -> Q7 ; q13 -> Q13 ; qrt -> QRT
+  local q="$1"
+  if [[ "$q" == "qrt" ]]; then echo "QRT"; else echo "Q$((10#${q#q}))"; fi
+}
+extract_query() {                    # emit the SQL body for a marker
+  awk -v start="-- BerlinMOD ${1}:" '
+    index($0, start)==1 { grab=1; print; next }
+    grab && /^-- BerlinMOD Q/ { exit }
+    grab { print }
+  ' "$QUERIES_SQL" | grep -v '^\s*--' | tr '\n' ' '
+}
+
 for Q in "${QUERIES[@]}"; do
-  QFILE="${BERLINMOD_DIR}/${Q}.sql"
-  [[ -f "$QFILE" ]] || { echo "  [skip] ${Q} — SQL file not found"; continue; }
-  QSQL=$(grep -v '^\s*--' "$QFILE" | tr '\n' ' ')
+  QSQL=$(extract_query "$(marker_for "$Q")")
+  [[ -n "${QSQL// /}" ]] || { echo "  [skip] ${Q} — not found in queries.sql"; continue; }
+  # Validate once: a query the extension cannot run (missing function, etc.) is
+  # reported and EXCLUDED, never recorded as a phantom sub-second timing.
+  ERR=$("$DUCKDB" "$DBFILE" -c "${MOBILITY_LOAD} SET search_path='portable,main'; ${QSQL}" 2>&1 >/dev/null) || true
+  if echo "$ERR" | grep -qiE "error"; then
+    echo "  [FAIL] ${Q} — $(echo "$ERR" | grep -iE 'error' | head -1)"
+    continue
+  fi
   printf "  timing %-6s: " "$Q"
   for RUN in $(seq 1 "$RUNS"); do
     T0=$(date +%s%3N)
