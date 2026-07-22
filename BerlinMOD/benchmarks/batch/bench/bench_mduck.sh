@@ -33,6 +33,8 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BERLINMOD_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+BMROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"   # repo BerlinMOD/ dir (canonical loaders)
+QUERIES_SQL="${SCRIPT_DIR}/queries.sql"          # single canonical query source
 
 # ── defaults ──────────────────────────────────────────────────────────────────
 DUCKDB="${DUCKDB:-duckdb}"
@@ -114,8 +116,8 @@ _duck_q() { "$DUCKDB" "$DBFILE" -noheader -list -c "$1" 2>/dev/null; }
 if $LOAD; then
   echo "=== Loading data into: $DBFILE ==="
   rm -f "$DBFILE"
-  LOAD_BODY="$(sed '/^SET VARIABLE DATADIR/d' "${BERLINMOD_DIR}/load_mduck.sql")"
-  LOAD_SQL="${MOBILITY_LOAD} SET VARIABLE DATADIR='${DATADIR}/'; ${LOAD_BODY}"
+  LOAD_BODY="$(sed '/^SET VARIABLE data_dir/d' "${BMROOT}/mobilityduck_load.sql")"
+  LOAD_SQL="${MOBILITY_LOAD} SET VARIABLE data_dir='${DATADIR}/'; ${LOAD_BODY}"
   "$DUCKDB" "$DBFILE" -c "$LOAD_SQL"
   echo "    done."
 fi
@@ -165,15 +167,29 @@ echo ""
 TIMEFILE=$(mktemp)
 trap 'rm -f "$TIMEFILE"' EXIT
 
+# Split the single canonical queries.sql on its `-- @query <id>` markers.
+QDIR=$(mktemp -d)
+trap 'rm -f "$TIMEFILE"; rm -rf "$QDIR"' EXIT
 for Q in "${QUERIES[@]}"; do
-  QFILE="${BERLINMOD_DIR}/${Q}.sql"
-  [[ -f "$QFILE" ]] || { echo "  [skip] ${Q} — SQL file not found"; continue; }
-  QSQL=$(grep -v '^\s*--' "$QFILE" | tr '\n' ' ')
+  awk -v s="-- @query ${Q}" '
+    index($0, s)==1 { grab=1; next }
+    grab && /^-- @query / { exit }
+    grab { print }
+  ' "$QUERIES_SQL" | grep -v '^\s*--' | tr '\n' ' ' > "${QDIR}/${Q}.sql"
+done
+
+for Q in "${QUERIES[@]}"; do
+  QSQL=$(cat "${QDIR}/${Q}.sql")
+  [[ -n "${QSQL// /}" ]] || { echo "  [skip] ${Q} — not in queries.sql"; continue; }
+  # mobilityduck_load creates its tables in the default (main) schema.
+  if ! ERR=$("$DUCKDB" "$DBFILE" -c "${MOBILITY_LOAD} ${QSQL}" 2>&1 >/dev/null); then
+    echo "  [FAIL] ${Q} — $(echo "$ERR" | grep -iE 'error' | head -1)"
+    continue
+  fi
   printf "  timing %-6s: " "$Q"
   for RUN in $(seq 1 "$RUNS"); do
     T0=$(date +%s%3N)
-    "$DUCKDB" "$DBFILE" -c "${MOBILITY_LOAD} SET search_path='portable,main'; ${QSQL}" \
-      > /dev/null 2>&1 || true
+    "$DUCKDB" "$DBFILE" -c "${MOBILITY_LOAD} ${QSQL}" > /dev/null 2>&1 || true
     T1=$(date +%s%3N)
     ELAPSED=$((T1 - T0))
     printf "%d " "$ELAPSED"
