@@ -239,10 +239,10 @@ WITH Distances AS (
   SELECT p.periodId, p.period, t.VehicleId,
          SUM(length(atTime(t.trip, p.period))) AS dist
   FROM   Trips t, Periods p
-  WHERE  t.trip && p.period
+  WHERE  atTime(t.trip, p.period) IS NOT NULL
   GROUP  BY p.periodId, p.period, t.VehicleId
 )
-SELECT periodId, period, ROUND(MAX(dist)::numeric, 3) AS maxDist
+SELECT periodId, period, MAX(dist) AS maxDist
 FROM   Distances
 GROUP  BY periodId, period
 ORDER  BY periodId;
@@ -298,7 +298,7 @@ ORDER  BY licence1, car2Id;
 WITH Temp AS (
   SELECT p.pointId, p.geom, p.geomWKT, i.instantId, i.instant, t.VehicleId
   FROM   Trips t, Points p, Instants i
-  WHERE  t.trip && stbox(p.geom, i.instant)
+  WHERE  COALESCE(eEq(geoToH3Cell(p.geom, 7), t.trip_h3), TRUE)
     AND  valueAtTimestamp(t.trip, i.instant) = p.geom
 )
 SELECT t.pointId, t.geomWKT AS geom, t.instantId, t.instant, v.licence
@@ -321,7 +321,7 @@ ORDER  BY t.pointId, t.instantId, v.licence;
 WITH Temp AS (
   SELECT DISTINCT p.pointId, p.geom, p.geomWKT, i.instantId, i.instant, t.VehicleId
   FROM   Trips t, Points p, Instants i
-  WHERE  t.trip && stbox(p.geom, i.instant)
+  WHERE  COALESCE(eEq(geoToH3Cell(p.geom, 7), t.trip_h3), TRUE)
     AND  valueAtTimestamp(t.trip, i.instant) = p.geom
 )
 SELECT DISTINCT t1.pointId, t1.geomWKT AS geom,
@@ -356,7 +356,7 @@ WITH Temp AS (
   SELECT DISTINCT r.regionId, p.periodId, p.period, t.VehicleId
   FROM   Trips t, Regions r, Periods p
   WHERE  r.regionId <= 10 AND p.periodId <= 10
-    AND  t.trip && stbox(r.geom, p.period)
+    AND  eEq(geoToH3IndexSet(r.geom, 7), t.trip_h3)
     AND  eIntersects(atTime(t.trip, p.period), r.geom)
 )
 SELECT DISTINCT t.regionId, t.periodId, t.period, v.licence
@@ -379,7 +379,7 @@ ORDER  BY t.regionId, t.periodId, v.licence;
 WITH Temp AS (
   SELECT DISTINCT r.regionId, i.instantId, i.instant, t.VehicleId
   FROM   Trips t, Regions r, Instants i
-  WHERE  t.trip && stbox(r.geom, i.instant)
+  WHERE  eEq(geoToH3IndexSet(r.geom, 7), t.trip_h3)
     AND  ST_Contains(r.geom, valueAtTimestamp(t.trip, i.instant))
 )
 SELECT DISTINCT t.regionId, t.instantId, t.instant, v.licence
@@ -408,7 +408,7 @@ WITH Temp AS (
   SELECT DISTINCT pt.pointId, pt.geom, pt.geomWKT, pr.periodId, pr.period, t.VehicleId
   FROM   Trips t, Points pt, Periods pr
   WHERE  pt.pointId  <= 10 AND pr.periodId <= 10
-    AND  t.trip && stbox(pt.geom, pr.period)
+    AND  COALESCE(eEq(geoToH3Cell(pt.geom, 7), t.trip_h3), TRUE)
     AND  eIntersects(atTime(t.trip, pr.period), pt.geom)
 )
 SELECT DISTINCT t.pointId, t.geomWKT AS geom, t.periodId, t.period, v.licence
@@ -455,7 +455,7 @@ WITH PR AS (
   JOIN   Periods p ON true
   JOIN   Regions r ON true
   WHERE  l.licenceId <= 10 AND p.periodId <= 10 AND r.regionId <= 10
-    AND  t.trip && stbox(r.geom, p.period)
+    AND  eEq(geoToH3IndexSet(r.geom, 7), t.trip_h3)
     AND  eIntersects(atTime(t.trip, p.period), r.geom)
   GROUP  BY p.periodId, p.period, r.regionId )
 SELECT g.periodId, g.period, g.regionId,
