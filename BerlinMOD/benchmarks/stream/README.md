@@ -57,7 +57,7 @@ analog where one exists.
 The within-distance query (Q3) is the canonical shared cell: it is
 [`MobilityNebula/Queries/Query1.yaml`](https://github.com/MobilityDB/MobilityNebula/blob/main/Queries/Query1.yaml)
 (`edwithin_tgeo_geo … WINDOW TUMBLING`) and
-[`MobilityFlink` `Q3{Continuous,Windowed,Snapshot}Function`](https://github.com/MobilityDB/MobilityFlink/tree/main/flink-processor/src/main/java/berlinmod),
+[`MobilityFlink` `Q3{Continuous,Windowed,Snapshot}Function`](https://github.com/MobilityDB/MobilityFlink/tree/main/benchmark/src/main/java/berlinmod),
 expressed through the same MEOS operator on both engines.
 
 ## Shared result schema
@@ -76,6 +76,6 @@ Each platform's harness emits one row per (query, form):
 
 ## Per-platform harnesses
 
-- **Flink** — [`BerlinMODBenchmark`](https://github.com/MobilityDB/MobilityFlink/blob/main/flink-processor/src/main/java/berlinmod/BerlinMODBenchmark.java)
+- **Flink** — [`BerlinMODBenchmark`](https://github.com/MobilityDB/MobilityFlink/blob/main/benchmark/src/main/java/berlinmod/BerlinMODBenchmark.java)
 - **Nebula** — `systest -b -g benchmark` → [bench.nebula.stream](https://bench.nebula.stream); queries in [`MobilityNebula/Queries`](https://github.com/MobilityDB/MobilityNebula/tree/main/Queries)
-- **Kafka** — [`EmbeddedBrokerBenchmark`](https://github.com/MobilityDB/MobilityKafka/blob/main/kafka-streams-app/src/test/java/berlinmod/EmbeddedBrokerBenchmark.java)
+- **Kafka** — [`EmbeddedBrokerBenchmark`](https://github.com/MobilityDB/MobilityKafka/blob/main/benchmark/src/test/java/berlinmod/EmbeddedBrokerBenchmark.java)

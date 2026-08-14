@@ -39,7 +39,7 @@ duckdb <bench.db> -c ".timer on" -c ".read BerlinMOD/berlinmod_r_queries_th3inde
 ### MobilitySpark / Spark SQL
 
 ```bash
-bash BerlinMOD/benchmarks/bench/bench_mspark.sh
+bash BerlinMOD/benchmarks/batch/bench/bench_mspark.sh
 ```
 
 The bench harness defaults to `--master local[4]`; set `SPARK_MASTER=local[N]` to tune for your host.
