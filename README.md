@@ -12,31 +12,22 @@ This repository contains code and documentation for running the
 [BerlinMOD](https://secondo-database.github.io/BerlinMOD/BerlinMOD.html)
 benchmark on MobilityDB.
 
-### For contributors and reviewers
-
-- Reviewing a pull request? See the
-  [PR Reviewer Guide](doc/contributing/reviewer-guide.md) — tier ranking,
-  dependency chain (this repo + MobilityDB + MobilityDuck + MobilitySpark
-  + JMEOS) and the standards checklist. Reviewers landing in any of the
-  five ecosystem repos find the same canonical structure at the same path.
 
 Benchmark results
 -----------------
 
 Benchmark reports for the BerlinMOD query sets on each ecosystem
 platform (MobilityDB, MobilityDuck, MobilitySpark) live in
-**[`BerlinMOD/benchmarks/`](BerlinMOD/benchmarks/)**.  The cross-platform q01–q17 + qrt reproducer (MobilityDB + MobilityDuck + MobilitySpark) is in [`BerlinMOD/benchmarks/bench/`](BerlinMOD/benchmarks/bench/).  Start at the directory [README](BerlinMOD/benchmarks/README.md), or jump directly to:
+**[`BerlinMOD/benchmarks/`](BerlinMOD/benchmarks/)**.  The cross-platform q01–q17 + qrt reproducer (MobilityDB + MobilityDuck + MobilitySpark) is in [`BerlinMOD/benchmarks/batch/bench/`](BerlinMOD/benchmarks/batch/bench/).  Start at the directory [README](BerlinMOD/benchmarks/README.md), or jump directly to:
 
-- **[CrossPlatform_timings.md](BerlinMOD/benchmarks/CrossPlatform_timings.md)**
+- **[CrossPlatform_timings.md](BerlinMOD/benchmarks/batch/CrossPlatform_timings.md)**
   — cross-platform timings, with the `cross_platform_*.svg` figures.
-- **[streaming/](BerlinMOD/benchmarks/streaming/)** — the streaming benchmark
+- **[streaming/](BerlinMOD/benchmarks/stream/)** — the streaming benchmark
   (continuous / windowed / snapshot) with its figures.
-- **[BETA_TESTING.md](BerlinMOD/benchmarks/BETA_TESTING.md)** — entry
+- **[BETA_TESTING.md](BerlinMOD/benchmarks/batch/REPRODUCE.md)** — entry
   point for testers: query files, expected row counts, report-back
   template.
-- **[ThreePlatform_beta_status.md](BerlinMOD/benchmarks/ThreePlatform_beta_status.md)**
-  — cross-platform status.
-- **[MobilityDB_rqueries.md](BerlinMOD/benchmarks/MobilityDB_rqueries.md)**
+- **[MobilityDB_rqueries.md](BerlinMOD/benchmarks/batch/MobilityDB_rqueries.md)**
   — 17 R-queries × index matrix on MobilityDB.
 
 Headline result (MobilityDB, BerlinMOD scalefactor 0.005, single run):

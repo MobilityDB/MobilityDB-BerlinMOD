@@ -45,10 +45,10 @@ and are identical on every platform.
 ### Per-engine harnesses
 
 - **Flink** — Flink 1.16 single-node local mini-cluster, parallelism 1. Harness:
-  [`BerlinMODBenchmark`](https://github.com/MobilityDB/MobilityFlink/blob/main/flink-processor/src/main/java/berlinmod/BerlinMODBenchmark.java).
+  [`BerlinMODBenchmark`](https://github.com/MobilityDB/MobilityFlink/blob/main/benchmark/src/main/java/berlinmod/BerlinMODBenchmark.java).
 - **Kafka** — Kafka Streams 3.6, one stream thread, each cell a `KafkaStreams`
   application against its own fresh in-process `EmbeddedKafkaCluster`. Harness:
-  [`EmbeddedBrokerBenchmark`](https://github.com/MobilityDB/MobilityKafka/blob/main/kafka-streams-app/src/test/java/berlinmod/EmbeddedBrokerBenchmark.java).
+  [`EmbeddedBrokerBenchmark`](https://github.com/MobilityDB/MobilityKafka/blob/main/benchmark/src/test/java/berlinmod/EmbeddedBrokerBenchmark.java).
 - **Nebula** — NebulaStream `marianamgarcez/mobility-nebula:runtime` Docker image,
   single worker node, 2 worker threads. TCP source streams the corpus over
   `host.docker.internal:32325`; queries registered via `nes-nebuli register -x`.
