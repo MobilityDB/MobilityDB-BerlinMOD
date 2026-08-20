@@ -22,10 +22,10 @@
 #                      2 = native TRTREE on Trip only       (drop trip_h3 prefilter
 #                                                            UDFs by NULL-ing the column)
 #                      3 = both                             (default — current behaviour)
-#                      See ../README.md "Three-tier index framework" for details.
-#                      Tiers 2/3 require MobilityDuck PRs #143 + #144 in the loaded
-#                      extension (pin via vcpkg_ports/meos/portfile.cmake or use
-#                      the v1.0-preview-100pct release bundle).
+#                      Tiers 2/3 need a MobilityDuck build whose TRTREE index
+#                      persists to disk (MobilityDuck #285); on older builds the
+#                      CREATE INDEX below fails at commit time on a file-backed
+#                      database and the tier degrades to Tier 1.
 #
 # Requirements:
 #   duckdb on PATH (or pass --duckdb); MobilityDuck extension loadable.
@@ -128,9 +128,11 @@ fi
 #                          the th3 prefilter UDFs in the queries.
 # Tier 3 (combined)      → create TRTREE on Trip; keep trip_h3 active.
 #
-# Tiers 2/3 require MobilityDuck PRs #143 (multi-entry TRTREE) and #144
-# (constant-geometry pushdown) to be present in the loaded extension.  If the
-# CREATE INDEX errors out, see ../README.md "MobilityDuck TRTREE dependency".
+# Tiers 2/3 create a native TRTREE on Trip.  This requires a MobilityDuck build
+# that can serialize the index (#285); before that fix, CREATE INDEX on a
+# file-backed database aborted the transaction at commit with "The implementation
+# of this index WAL serialization does not exist."  The `||` fallbacks below keep
+# the run going on such a build, at Tier-1 acceleration.
 case "$TIER" in
   1)
     echo "=== Tier 1: th3index prefilter only (no native TRTREE) ==="
@@ -138,15 +140,15 @@ case "$TIER" in
   2)
     echo "=== Tier 2: native TRTREE on Trip; clearing trip_h3 prefilter ==="
     "$DUCKDB" "$DBFILE" -c "${MOBILITY_LOAD} CREATE INDEX IF NOT EXISTS trips_trtree_idx ON Trips USING TRTREE (trip);" || \
-      { echo "    !!! TRTREE index creation failed — extension does not yet expose TRTREE"; \
-        echo "    !!! See README.md 'MobilityDuck TRTREE dependency'."; }
+      { echo "    !!! TRTREE index creation failed — MobilityDuck build cannot persist the index"; \
+        echo "    !!! Rebuild against MobilityDuck #285 or later; continuing without it."; }
     "$DUCKDB" "$DBFILE" -c "${MOBILITY_LOAD} UPDATE Trips SET trip_h3 = NULL;"
     ;;
   3)
     echo "=== Tier 3: th3index + native TRTREE (production-realistic) ==="
     "$DUCKDB" "$DBFILE" -c "${MOBILITY_LOAD} CREATE INDEX IF NOT EXISTS trips_trtree_idx ON Trips USING TRTREE (trip);" || \
       { echo "    !!! TRTREE index creation failed — falling back to Tier 1 acceleration"; \
-        echo "    !!! See README.md 'MobilityDuck TRTREE dependency'."; }
+        echo "    !!! Rebuild against MobilityDuck #285 or later to enable this tier."; }
     ;;
 esac
 
