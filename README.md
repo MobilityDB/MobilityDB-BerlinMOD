@@ -144,12 +144,12 @@ platform-specific operator symbols):
 
 **Export data for MobilityDuck / MobilitySpark:**
 
-The `berlinmod_portability_export()` function writes five CSV files in the
+The `berlinmod_portability_export()` function writes seven CSV files in the
 shared cross-platform schema:
 
 ```sql
 \i BerlinMOD/berlinmod_export.sql
-SELECT berlinmod_portability_export('/path/to/output/');
+SELECT berlinmod_portability_export('/path/to/output/', 3812);
 ```
 
 This produces:
@@ -157,14 +157,17 @@ This produces:
 | File | Contents |
 |------|----------|
 | `vehicles.csv` | `vehId, licence, type, model` |
-| `trips.csv` | `tripId, vehId, trip` — tgeompoint as WKT text |
+| `trips.csv` | `tripId, vehId, trip` — tgeompoint as hex-EWKB (SRID embedded) |
 | `query_licences.csv` | `licenceId, licence` |
 | `query_instants.csv` | `instantId, instant` |
-| `query_points.csv` | `pointId, geom` — geometry as WKT text |
+| `query_points.csv` | `pointId, geom` — geometry as EWKT (SRID-tagged) |
+| `query_periods.csv` | `periodId, period` — tstzspan as text |
+| `query_regions.csv` | `regionId, geom` — geometry as EWKT (SRID-tagged) |
 
-These files can be loaded directly by the MobilitySpark cross-platform test
-runner (`berlinmod/run_mbdb.sh`, `run_mduck.sh`) as described in the
-[MobilitySpark repository](https://github.com/MobilityDB/MobilitySpark).
+These files are loaded by the cross-platform runners in
+[`BerlinMOD/benchmarks/batch/bench/`](BerlinMOD/benchmarks/batch/bench/) —
+`bench_mbdb.sh` (PostgreSQL), `bench_mduck.sh` (DuckDB) and `bench_mspark.sh`
+(Spark) — which share the canonical query set `queries.sql`.
 
 ## 5. Running the Tests
 
@@ -193,8 +196,8 @@ The generator produces two benchmark scenarios:
 
 | Scale Factor | Vehicles | Days | Trips | File | Size |
 |:-------------|--------:|-----:|------:|:-----|-----:|
-| SF 0.1 | 632 | 11 | 18,910 | [brussels_sf0.1.zip](https://docs.mobilitydb.com/pub/brussels_sf0.1.zip) | 5.5 MB |
-| SF 0.2 | 894 | 15 | 35,319 | [brussels_sf0.2.zip](https://docs.mobilitydb.com/pub/brussels_sf0.2.zip) | 9.6 MB |
+| SF 0.1 | 632 | 11 | 18,910 | [brussels_sf0.1.zip](https://docs.mobilitydb.com/pub/brussels_sf0.1.zip) | 539 MB |
+| SF 0.2 | 894 | 15 | 35,319 | [brussels_sf0.2.zip](https://docs.mobilitydb.com/pub/brussels_sf0.2.zip) | 937 MB |
 | SF 0.5 | 1,414 | 22 | 81,584 | [brussels_sf0.5.zip](https://docs.mobilitydb.com/pub/brussels_sf0.5.zip) | 2.2 GB |
 | SF 1 | 2,000 | 30 | 157,565 | [brussels_sf1.zip](https://docs.mobilitydb.com/pub/brussels_sf1.zip) | 4.2 GB |
 
