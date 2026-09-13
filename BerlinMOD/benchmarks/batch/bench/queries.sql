@@ -85,10 +85,10 @@ ORDER  BY v.VehicleId, i.instantId;
 -- a point-geometry intersection at any H3 resolution — a trip can only
 -- intersect a point if it ever passes through the point's cell.
 --
---   COALESCE(eEq(geoToH3Cell(p.geom, 7), t.trip_h3), TRUE)
+--   COALESCE(eEq(latLngToCell(p.geom, 7), t.trip_h3), TRUE)
 --
--- The COALESCE guards against non-POINT geometries (geoToH3Cell returns
--- NULL for those) — falls through to the exact eIntersects.
+-- The COALESCE lets a row whose cell is NULL fall through to the exact
+-- eIntersects.
 --
 -- MobilityDB operator equivalent:  t.trip && p.geom  (ever-intersects shorthand)
 --   On PostgreSQL the GiST index on Trips(trip_h3) accelerates the prefilter;
@@ -98,7 +98,7 @@ SELECT DISTINCT v.licence
 FROM   Vehicles v
 JOIN   Trips t      ON t.VehicleId  = v.VehicleId
 JOIN   Points p ON
-   COALESCE(eEq(geoToH3Cell(p.geom, 7), t.trip_h3), TRUE)
+   COALESCE(eEq(latLngToCell(p.geom, 7), t.trip_h3), TRUE)
    AND eIntersects(t.trip, p.geom)
 ORDER  BY v.licence;
 
@@ -298,7 +298,7 @@ ORDER  BY licence1, car2Id;
 WITH Temp AS (
   SELECT p.pointId, p.geom, p.geomWKT, i.instantId, i.instant, t.VehicleId
   FROM   Trips t, Points p, Instants i
-  WHERE  COALESCE(eEq(geoToH3Cell(p.geom, 7), t.trip_h3), TRUE)
+  WHERE  COALESCE(eEq(latLngToCell(p.geom, 7), t.trip_h3), TRUE)
     AND  valueAtTimestamp(t.trip, i.instant) = p.geom
 )
 SELECT t.pointId, t.geomWKT AS geom, t.instantId, t.instant, v.licence
@@ -321,7 +321,7 @@ ORDER  BY t.pointId, t.instantId, v.licence;
 WITH Temp AS (
   SELECT DISTINCT p.pointId, p.geom, p.geomWKT, i.instantId, i.instant, t.VehicleId
   FROM   Trips t, Points p, Instants i
-  WHERE  COALESCE(eEq(geoToH3Cell(p.geom, 7), t.trip_h3), TRUE)
+  WHERE  COALESCE(eEq(latLngToCell(p.geom, 7), t.trip_h3), TRUE)
     AND  valueAtTimestamp(t.trip, i.instant) = p.geom
 )
 SELECT DISTINCT t1.pointId, t1.geomWKT AS geom,
@@ -408,7 +408,7 @@ WITH Temp AS (
   SELECT DISTINCT pt.pointId, pt.geom, pt.geomWKT, pr.periodId, pr.period, t.VehicleId
   FROM   Trips t, Points pt, Periods pr
   WHERE  pt.pointId  <= 10 AND pr.periodId <= 10
-    AND  COALESCE(eEq(geoToH3Cell(pt.geom, 7), t.trip_h3), TRUE)
+    AND  COALESCE(eEq(latLngToCell(pt.geom, 7), t.trip_h3), TRUE)
     AND  eIntersects(atTime(t.trip, pr.period), pt.geom)
 )
 SELECT DISTINCT t.pointId, t.geomWKT AS geom, t.periodId, t.period, v.licence
