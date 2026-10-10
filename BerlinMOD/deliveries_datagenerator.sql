@@ -893,7 +893,7 @@ BEGIN
 END; $$;
 
 /*
-select deliveries_generate();
+select deliveries_datagenerator();
 */
 
 ----------------------------------------------------------------------

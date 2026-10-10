@@ -83,7 +83,7 @@ Load the data generator and call it with a scale factor:
 
 ```sql
 \i BerlinMOD/berlinmod_datagenerator.sql
-SELECT berlinmod_datagenerator(scaleFactor := 0.005);
+SELECT berlinmod_generate(scaleFactor := 0.005);
 ```
 
 **Generate Deliveries synthetic data:**
@@ -132,7 +132,7 @@ platform-specific operator symbols):
 
 | Platform | Engine | Extension |
 |---|---|---|
-| [MobilityDB](https://github.com/MobilityDB/MobilityDB) | PostgreSQL | `CREATE EXTENSION mobilitydb` |
+| [MobilityDB](https://github.com/MobilityDB/MobilityDB) | PostgreSQL | `CREATE EXTENSION mobilitydb CASCADE` |
 | [MobilityDuck](https://github.com/MobilityDB/MobilityDuck) | DuckDB | `LOAD mobilitydb` |
 | [MobilitySpark](https://github.com/MobilityDB/MobilitySpark) | Apache Spark | `MobilitySparkSession.create(spark)` |
 
