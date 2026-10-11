@@ -34,5 +34,5 @@ osm2pgsql -c -H $host -P $port -U $dbowner -d $database ./brussels.osm
 
 psql -h $host -p $port -U $dbowner -d $database -f ./brussels_preparedata.sql
 psql -h $host -p $port -U $dbowner -d $database -f ./berlinmod_datagenerator.sql
-psql -h $host -p $port -U $dbowner -d $database -c 'select berlinmod_datagenerator(scaleFactor := '$scalefactor')'
+psql -h $host -p $port -U $dbowner -d $database -c 'select berlinmod_generate(scaleFactor := '$scalefactor')'
 # psql -h $host -p $port -U $dbowner -d $database -f ./tests.sql

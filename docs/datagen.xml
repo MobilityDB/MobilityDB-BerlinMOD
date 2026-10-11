@@ -1017,7 +1017,7 @@ psql -h localhost -p 5432 -U dbowner -d brussels -f deliveries_datagenerator.sql
 # adds the pgplsql functions of the simulation to the database
 
 psql -h localhost -p 5432 -U dbowner -d brussels \
--c 'select deliveries_generate(scaleFactor := 0.005)'
+-c 'select deliveries_datagenerator(scaleFactor := 0.005)'
 # calls the main pgplsql function to start the simulation
 </programlisting>
 			If everything is correct, you should see an output like that starts with this:
