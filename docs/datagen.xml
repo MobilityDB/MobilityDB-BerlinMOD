@@ -891,7 +891,7 @@ noDays int = round((sqrt(P_SCALE_FACTOR) * 28)::numeric, 0)::int;
 			</listitem>
 			<listitem>
 				<para>
-					<varname>P_TRIP_GENERATION: text</varname>: Determine the language used to generate the trips. Possible values are <varname>'C'</varname> (default) and <varname>'SQL'</varname>. Corresponding optional argument: <varname>tripGeneration</varname>. This parameter determines whether the SQL function <varname>createTrip</varname> in the file <varname>berlinmod_datagenerator.sql</varname> or the C function <varname>create_trip</varname> in the distribution of MobilityDB will be used for generating trips. Although the C function is faster than the corresponding SQL function, the SQL function can be easily modified to further customize the data generation.
+					<varname>P_TRIP_GENERATION: text</varname>: Determine the language used to generate the trips. Possible values are <varname>'C'</varname> (default) and <varname>'SQL'</varname>. Corresponding optional argument: <varname>tripGeneration</varname>. This parameter determines whether the SQL function <varname>createTrip</varname> in the file <varname>berlinmod_datagenerator.sql</varname> or the C function <varname>createTrip</varname> of MobilityDB, which the generator calls with its edges cast to <varname>record[]</varname>, will be used for generating trips. Although the C function is faster than the corresponding SQL function, the SQL function can be easily modified to further customize the data generation.
 				</para>
 			</listitem>
 		</itemizedlist>
@@ -1187,7 +1187,7 @@ FOR i IN 1..noDays LOOP
               targetNode, k, noSegments;
         END IF;
         startTime = t;
-        trip = create_trip(Path, t, disturbData, messages);
+        trip = createTrip(Path::record[], t, disturbData, messages);
         IF trip IS NULL THEN
           RAISE EXCEPTION 'A trip cannot be NULL';
         END IF;
@@ -1214,7 +1214,7 @@ FOR i IN 1..noDays LOOP
   aDay = aDay + interval '1 day';
 END LOOP;
 </programlisting>
-			We start by creating the tables <varname>Deliveries</varname> and <varname>Segments</varname>. Then, the procedure simply loops for each day (excepted Sundays) and for each vehicle and generates the deliveries. For this, we first set the start time of a delivery trip by adding to 7 am a random non-zero duration of 120 minutes using a uniform distribution. Then, for every couple of source and destination nodes in a segment, we call the function <varname>create_trip</varname> that we have seen previously to generate the Trip. We add a delivery time between 10 and 60 minutes using a bounded Gaussian distribution before starting the trip to the next customer or the return trip to the warehouse and then insert the trip into the <varname>Segments</varname> table.
+			We start by creating the tables <varname>Deliveries</varname> and <varname>Segments</varname>. Then, the procedure simply loops for each day (excepted Sundays) and for each vehicle and generates the deliveries. For this, we first set the start time of a delivery trip by adding to 7 am a random non-zero duration of 120 minutes using a uniform distribution. Then, for every couple of source and destination nodes in a segment, we call the function <varname>createTrip</varname> that we have seen previously to generate the Trip. We add a delivery time between 10 and 60 minutes using a bounded Gaussian distribution before starting the trip to the next customer or the return trip to the warehouse and then insert the trip into the <varname>Segments</varname> table.
 		</para>
 		<para>
 			<xref linkend="deliveries1" /> and <xref linkend="deliveries2" /> show visualizations of the data generated for the deliveries scenario.
