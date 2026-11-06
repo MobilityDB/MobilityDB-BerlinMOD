@@ -972,7 +972,7 @@ BEGIN
           RAISE INFO '    Home to work trip started at %', t;
         END IF;
         IF tripGeneration = 'C' THEN
-          trip = create_trip(homework, t, disturbData, messages);
+          trip = createTrip(homework::record[], t, disturbData, messages);
         ELSE
           trip = createTrip(homework, t, disturbData, messages);
         END IF;
@@ -988,7 +988,7 @@ BEGIN
           RAISE INFO '    Work to home trip started at %', t;
         END IF;
         IF tripGeneration = 'C' THEN
-          trip = create_trip(workhome, t, disturbData, messages);
+          trip = createTrip(workhome::record[], t, disturbData, messages);
         ELSE
           trip = createTrip(workhome, t, disturbData, messages);
         END IF;
@@ -1059,7 +1059,7 @@ BEGIN
               targetN, t;
           END IF;
           IF tripGeneration = 'C' THEN
-            trip = create_trip(path, t, disturbData, messages);
+            trip = createTrip(path::record[], t, disturbData, messages);
           ELSE
             trip = createTrip(path, t, disturbData, messages);
           END IF;
