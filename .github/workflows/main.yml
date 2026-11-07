@@ -21,11 +21,11 @@ concurrency:
 jobs:
   build:
     name: Generate documentation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       # checkout branch
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Install dblatex
       - name: Install dependencies
@@ -46,7 +46,7 @@ jobs:
 
       # store the documentation files
       - name: Upload output directory
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: doc-files
           path: docs
@@ -55,7 +55,7 @@ jobs:
 
   copy:
     name: Deploy documentation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: build
     # The gh-pages branch exists only on the canonical repository, and the
     # published docs track master; deploy only from master there.
@@ -63,13 +63,13 @@ jobs:
 
     steps:
       # checkout the gh-pages branch
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: gh-pages
 
       # download the doc files generated above, overwriting the tracked outputs
       - name: Download output directory
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: doc-files
           path: docs
