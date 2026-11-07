@@ -891,7 +891,7 @@ noDays int = round((sqrt(P_SCALE_FACTOR) * 28)::numeric, 0)::int;
 			</listitem>
 			<listitem>
 				<para>
-					<varname>P_TRIP_GENERATION: text</varname>: Determine the language used to generate the trips. Possible values are <varname>'C'</varname> (default) and <varname>'SQL'</varname>. Corresponding optional argument: <varname>tripGeneration</varname>. This parameter determines whether the SQL function <varname>createTrip</varname> in the file <varname>berlinmod_datagenerator.sql</varname> or the C function <varname>createTrip</varname> of MobilityDB, which the generator calls with its edges cast to <varname>record[]</varname>, will be used for generating trips. Although the C function is faster than the corresponding SQL function, the SQL function can be easily modified to further customize the data generation.
+					<varname>P_TRIP_GENERATION: text</varname>: Determine the language used to generate the trips. Possible values are <varname>'C'</varname> (default) and <varname>'SQL'</varname>. Corresponding optional argument: <varname>tripGeneration</varname>. This parameter determines whether the SQL function <varname>createTrip</varname> in the file <varname>berlinmod_datagenerator.sql</varname> or the function <varname>createTripC</varname>, which calls the trip generator written in C in MobilityDB (<varname>createTrip</varname> in MobilityDB 1.4, <varname>create_trip</varname> in MobilityDB 1.3), will be used for generating trips. Although the C function is faster than the corresponding SQL function, the SQL function can be easily modified to further customize the data generation.
 				</para>
 			</listitem>
 		</itemizedlist>
@@ -1187,7 +1187,7 @@ FOR i IN 1..noDays LOOP
               targetNode, k, noSegments;
         END IF;
         startTime = t;
-        trip = createTrip(Path::record[], t, disturbData, messages);
+        trip = createTripC(Path, t, disturbData, messages);
         IF trip IS NULL THEN
           RAISE EXCEPTION 'A trip cannot be NULL';
         END IF;

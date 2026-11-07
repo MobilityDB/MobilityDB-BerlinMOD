@@ -171,7 +171,7 @@ FOR i IN 1..noDays LOOP
               targetNode, k, noSegments;
         END IF;
         startTime = t;
-        trip = createTrip(Path::record[], t, disturbData, messages);
+        trip = createTripC(Path, t, disturbData, messages);
         IF trip IS NULL THEN
           RAISE EXCEPTION 'A trip cannot be NULL';
         END IF;
