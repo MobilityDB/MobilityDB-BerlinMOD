@@ -100,6 +100,15 @@ SELECT berlinmod_generate(scaleFactor := 1.0, phase := 'setup');
 SELECT berlinmod_phases(vehiclesPerBatch := 100) \gexec
 ```
 
+The deliveries are generated in phases in the same way, `daysPerBatch` days at
+a time, and `pgrBatchSize` sets the number of paths of a call of pgRouting:
+
+```sql
+SELECT deliveries_datagenerator(scaleFactor := 1.0, phase := 'setup',
+  pgrBatchSize := 25000);
+SELECT deliveries_phases(daysPerBatch := 1) \gexec
+```
+
 **Generate Deliveries synthetic data:**
 
 ```sql

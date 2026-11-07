@@ -78,7 +78,8 @@ CREATE TYPE step as (linestring geometry, maxspeed float, category int);
 
 DROP FUNCTION IF EXISTS deliveries_createDeliveries;
 CREATE FUNCTION deliveries_createDeliveries(noVehicles int, noDays int,
-  startDay Date, disturbData boolean, messages text)
+  startDay Date, disturbData boolean, messages text, fromDay int DEFAULT 1,
+  toDay int DEFAULT 0)
 RETURNS void LANGUAGE plpgsql STRICT AS $$
 DECLARE
   -- Loops over the days for which we generate the data
@@ -114,6 +115,9 @@ DECLARE
   -- Number of vehicles for showing heartbeat messages when message is 'minimal'
   P_DELIVERIES_NO_VEHICLES int = 100;
 BEGIN
+  -- The call starting at the first day creates the tables, and a later call
+  -- numbers its deliveries after those already generated
+  IF fromDay = 1 THEN
   RAISE INFO 'Creating tables Deliveries and Segments';
   DROP TABLE IF EXISTS Deliveries;
   CREATE TABLE Deliveries(DeliveryId int PRIMARY KEY, 
@@ -127,9 +131,10 @@ BEGIN
     -- These columns are used for visualization purposes
     Trip tgeompoint, Trajectory geometry, SourceGeom geometry,
     PRIMARY KEY (DeliveryId, SegNo));
-  delivId = 1;
-  aDay = startDay;
-  FOR dayNo IN 1..noDays LOOP
+  END IF;
+  SELECT coalesce(max(DeliveryId), 0) + 1 INTO delivId FROM Deliveries;
+  aDay = startDay + (fromDay - 1);
+  FOR dayNo IN fromDay..CASE WHEN toDay = 0 THEN noDays ELSE toDay END LOOP
     SELECT date_part('dow', aDay) INTO weekday;
     IF messages = 'minimal' OR messages = 'medium' OR messages = 'verbose' THEN
       RAISE INFO '-- Date %', aDay;
@@ -272,13 +277,25 @@ $$ LANGUAGE plpgsql STRICT;
 -- Main Function
 -------------------------------------------------------------------------------
 
+-- The generation runs whole, or in the phases setup, paths, deliveries and
+-- finish, each a statement of its own in one session, so that no statement runs
+-- for long at a large scale factor. The setup records the parameters in the
+-- table DeliveriesParameters, which the later phases read, and
+-- deliveries_phases gives the statements of the later phases. The random
+-- numbers are drawn in the same order either way, so that the phases generate
+-- the same data as one call. pgrBatchSize is the number of paths of a call of
+-- pgRouting.
+
 DROP FUNCTION IF EXISTS deliveries_datagenerator;
 CREATE FUNCTION deliveries_datagenerator(scaleFactor float DEFAULT NULL,
   noWarehouses int DEFAULT NULL, noVehicles int DEFAULT NULL,
   NoCustomers int DEFAULT NULL, noDays int DEFAULT NULL, 
   startDay date DEFAULT NULL, pathMode text DEFAULT NULL, 
   disturbData boolean DEFAULT NULL, messages text DEFAULT NULL,
-  indexType text DEFAULT NULL)
+  indexType text DEFAULT NULL, phase text DEFAULT NULL,
+  fromCall int DEFAULT NULL, toCall int DEFAULT NULL,
+  fromDay int DEFAULT NULL, toDay int DEFAULT NULL,
+  pgrBatchSize int DEFAULT NULL)
 RETURNS text LANGUAGE plpgsql AS $$
 DECLARE
 
@@ -402,7 +419,9 @@ BEGIN
 
   -- Set the P_RANDOM_SEED so that the random function will return a repeatable
   -- sequence of random numbers that is derived from the P_RANDOM_SEED.
-  PERFORM setseed(P_RANDOM_SEED);
+  IF phase IS NULL OR phase IN ('all', 'setup') THEN
+    PERFORM setseed(P_RANDOM_SEED);
+  END IF;
 
   -- Setting the parameters of the generation
   IF scaleFactor IS NULL THEN
@@ -438,7 +457,9 @@ BEGIN
 
   -- Set the seed so that the random function will return a repeatable
   -- sequence of random numbers that is derived from the P_RANDOM_SEED.
-  PERFORM setseed(P_RANDOM_SEED);
+  IF phase IS NULL OR phase IN ('all', 'setup') THEN
+    PERFORM setseed(P_RANDOM_SEED);
+  END IF;
 
   -- Get the number of nodes
   SELECT COUNT(*) INTO noNodes FROM Nodes;
@@ -458,9 +479,34 @@ BEGIN
   RAISE INFO 'Execution started at %', startTime;
   RAISE INFO '----------------------------------------------------------------------';
 
+  IF pgrBatchSize IS NOT NULL THEN
+    P_PGROUTING_BATCH_SIZE = pgrBatchSize;
+  END IF;
+  IF phase IS NULL THEN
+    phase = 'all';
+  END IF;
+  IF phase NOT IN ('all', 'setup', 'paths', 'deliveries', 'finish') THEN
+    RAISE EXCEPTION 'Unknown phase %: the phases are all, setup, paths, deliveries, and finish',
+      phase;
+  END IF;
+  -- A phase after the setup takes the parameters the setup recorded
+  IF phase IN ('paths', 'deliveries', 'finish') THEN
+    SELECT p.ScaleFactor, p.NoWarehouses, p.NoVehicles, p.NoCustomers,
+      p.NoDays, p.StartDay, p.PathMode, p.DisturbData, p.Messages,
+      p.IndexType, p.StartTime, p.PgRoutingBatchSize
+    INTO scaleFactor, noWarehouses, noVehicles, NoCustomers, noDays, startDay,
+      pathMode, disturbData, messages, indexType, startTime,
+      P_PGROUTING_BATCH_SIZE
+    FROM DeliveriesParameters p;
+    RAISE INFO 'Phase %, with the parameters of the setup started at %',
+      phase, startTime;
+  END IF;
+
   -------------------------------------------------------------------------
   --  Creating the base data
   -------------------------------------------------------------------------
+
+  IF phase IN ('all', 'setup') THEN
 
   -- Create a relation with all warehouses
   RAISE INFO 'Creating table Warehouses';
@@ -743,11 +789,25 @@ BEGIN
     END LOOP;
   END LOOP;
 
+  -- Record the parameters for the phases that follow in the same session
+  DROP TABLE IF EXISTS DeliveriesParameters;
+  CREATE TABLE DeliveriesParameters AS
+  SELECT scaleFactor AS ScaleFactor, noWarehouses AS NoWarehouses,
+    noVehicles AS NoVehicles, NoCustomers AS NoCustomers, noDays AS NoDays,
+    startDay AS StartDay, pathMode AS PathMode, disturbData AS DisturbData,
+    messages AS Messages, indexType AS IndexType, startTime AS StartTime,
+    P_PGROUTING_BATCH_SIZE AS PgRoutingBatchSize;
+
+  END IF;
+
   -------------------------------------------------------------------------
   -- Call pgRouting to generate the paths
   -------------------------------------------------------------------------
 
+  IF phase IN ('all', 'paths') THEN
+
   RAISE INFO 'Creating table Paths';
+  IF coalesce(fromCall, 1) = 1 THEN
   DROP TABLE IF EXISTS Paths;
   CREATE TABLE Paths(
     -- The following attributes are generated by pgRouting
@@ -755,6 +815,7 @@ BEGIN
     -- The following attributes are filled in the subsequent update
     Geom geometry NOT NULL, Speed float NOT NULL, Category int NOT NULL,
     PRIMARY KEY (StartNode, EndNode, SeqNo));
+  END IF;
 
   -- Select query sent to pgRouting
   IF pathMode = 'Fastest Path' THEN
@@ -781,7 +842,7 @@ BEGIN
   END IF;
 
   startPgr = clock_timestamp();
-  FOR i IN 1..noCalls LOOP
+  FOR i IN coalesce(fromCall, 1)..coalesce(toCall, noCalls) LOOP
     query2_pgr = format('SELECT DISTINCT SourceNode AS source, TargetNode AS target '
       'FROM Destinations ORDER BY SourceNode, TargetNode LIMIT %s OFFSET %s',
       P_PGROUTING_BATCH_SIZE, (i - 1) * P_PGROUTING_BATCH_SIZE);
@@ -817,16 +878,24 @@ BEGIN
   END LOOP;
   endPgr = clock_timestamp();
 
-  -- Build index to speed up processing
-  CREATE INDEX Paths_EndNode_EndNode_idx ON Paths
-    USING btree(StartNode, EndNode);
+  -- Build index to speed up processing, once the last call is done
+  IF coalesce(toCall, noCalls) >= noCalls THEN
+    CREATE INDEX Paths_EndNode_EndNode_idx ON Paths
+      USING btree(StartNode, EndNode);
+  END IF;
+
+  END IF;
 
   -------------------------------------------------------------------------
   -- Generate the deliveries
   -------------------------------------------------------------------------
 
-  PERFORM deliveries_createDeliveries(noVehicles, noDays, startDay,
-    disturbData, messages);
+  IF phase IN ('all', 'deliveries') THEN
+    PERFORM deliveries_createDeliveries(noVehicles, noDays, startDay,
+      disturbData, messages, coalesce(fromDay, 1), coalesce(toDay, 0));
+  END IF;
+
+  IF phase IN ('all', 'finish') THEN
 
   RAISE NOTICE 'Creating indexes on table Deliveries';
   CREATE INDEX IF NOT EXISTS Deliveries_VehicleId_idx ON Deliveries
@@ -882,15 +951,51 @@ BEGIN
   RAISE INFO 'Execution started at %', startTime;
   RAISE INFO 'Execution finished at %', endTime;
   RAISE INFO 'Execution time %', endTime - startTime;
-  RAISE INFO 'Call to pgRouting with % paths lasted %',
-    noPaths, endPgr - startPgr;
+  IF phase = 'all' THEN
+    RAISE INFO 'Call to pgRouting with % paths lasted %',
+      noPaths, endPgr - startPgr;
+  END IF;
   RAISE INFO 'Number of deliveries generated %', noDeliveries;
   RAISE INFO 'Number of segments generated %', noSegments;
   RAISE INFO '----------------------------------------------------------------------';
 
   -------------------------------------------------------------------------------------------------
 
+  END IF;
+
   return 'THE END';
+END; $$;
+
+-- The statements of the phases that follow the setup of
+-- deliveries_datagenerator, one call of pgRouting and daysPerBatch days at a
+-- time, to be run in the session of the setup, for example with the command
+-- \gexec of psql:
+--   SELECT deliveries_datagenerator(scaleFactor := 1.0, phase := 'setup');
+--   SELECT deliveries_phases(daysPerBatch := 1) \gexec
+
+CREATE OR REPLACE FUNCTION deliveries_phases(daysPerBatch int DEFAULT 1)
+RETURNS SETOF text LANGUAGE plpgsql AS $$
+DECLARE
+  noDays int; batchSize int; noPaths int; noCalls int; c int; d int;
+BEGIN
+  SELECT p.NoDays, p.PgRoutingBatchSize INTO noDays, batchSize
+  FROM DeliveriesParameters p;
+  SELECT COUNT(*) INTO noPaths
+  FROM (SELECT DISTINCT SourceNode, TargetNode FROM Destinations) AS t;
+  noCalls = ceiling(noPaths / batchSize::float);
+  FOR c IN 1..noCalls LOOP
+    RETURN NEXT format('SELECT deliveries_datagenerator(phase := %L, '
+      'fromCall := %s, toCall := %s)', 'paths', c, c);
+  END LOOP;
+  d = 1;
+  WHILE d <= noDays LOOP
+    RETURN NEXT format('SELECT deliveries_datagenerator(phase := %L, '
+      'fromDay := %s, toDay := %s)', 'deliveries', d,
+      least(d + daysPerBatch - 1, noDays));
+    d = d + daysPerBatch;
+  END LOOP;
+  RETURN NEXT format('SELECT deliveries_datagenerator(phase := %L)', 'finish');
+  RETURN;
 END; $$;
 
 /*
