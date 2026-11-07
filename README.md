@@ -247,7 +247,7 @@ MobilityDB-BerlinMOD/
 │   ├── berlinmod_nn_queries.sql         # BerlinMOD/NN nearest-neighbor queries
 │   ├── berlinmod_d_vehicleid.sql        # Citus distribution by vehicle ID
 │   ├── berlinmod_runall.sh              # Shell script to run all steps
-│   ├── brussels/                        # Base map of Brussels
+│   ├── brussels/                        # Base map of Brussels, see its README
 │   │   ├── brussels_preparedata.sql     # Prepare Brussels road network
 │   │   ├── brussels_creategraph.sql     # Optimized graph builder
 │   │   └── brussels.xlsx                # Statistics of the municipalities
