@@ -544,18 +544,15 @@ BEGIN
       noFracs = ceiling(segLength / P_EVENT_LENGTH);
       -- Loop for every fraction of the current segment
       frac = 1;
-      WHILE frac < noFracs LOOP
+      WHILE frac <= noFracs LOOP
         -- If the current speed is considered as a stop, apply an
         -- acceleration event where the new speed is bounded by the
-        -- maximum speed of either the segment or the turn
+        -- maximum speed of the edge, as create_trip of MobilityDB does: a
+        -- bound by the speed of a turn, which may lie below P_EPSILON_SPEED,
+        -- would keep the object stopped
         IF curSpeed <= P_EPSILON_SPEED THEN
           noAccel = noAccel + 1;
-          -- If we are not approaching a turn
-          IF frac < noFracs THEN
-            curSpeed = least(P_EVENT_ACC, maxSpeedEdge);
-          ELSE
-            curSpeed = least(P_EVENT_ACC, maxSpeedTurn);
-          END IF;
+          curSpeed = least(P_EVENT_ACC, maxSpeedEdge);
           IF messages = 'debug' THEN
             RAISE INFO '          Acceleration after stop -> Speed = %',
               round(curSpeed::numeric, 3);
