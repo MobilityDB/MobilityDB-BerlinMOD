@@ -91,7 +91,11 @@ SELECT berlinmod_generate(scaleFactor := 0.005);
 
 **Generate Deliveries synthetic data:**
 
+The deliveries generator builds on the functions of the BerlinMOD generator,
+which is loaded first:
+
 ```sql
+\i BerlinMOD/berlinmod_datagenerator.sql
 \i BerlinMOD/deliveries_datagenerator.sql
 SELECT deliveries_datagenerator(scaleFactor := 0.005);
 ```
