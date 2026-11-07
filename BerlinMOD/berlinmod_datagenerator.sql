@@ -713,8 +713,9 @@ $$ LANGUAGE plpgsql STRICT;
 
 -- Creates the same trip as createTrip with the trip generator written in C
 -- in MobilityDB, which MobilityDB 1.4 names createTrip(record[], ...) and
--- MobilityDB 1.3 names create_trip. The edges are cast to record[] so that
--- createTrip resolves to the C function rather than to the function above.
+-- MobilityDB 1.3 names create_trip. For createTrip the edges are passed as an
+-- array of anonymous records, in their order: an array of step, even cast to
+-- record[], resolves to the function above.
 
 CREATE OR REPLACE FUNCTION createTripC(edges step[], startTime timestamptz,
   disturbData boolean, messages text)
@@ -724,7 +725,10 @@ BEGIN
       IS NOT NULL THEN
     RETURN create_trip(edges, startTime, disturbData, messages);
   END IF;
-  RETURN createTrip(edges::record[], startTime, disturbData, messages);
+  RETURN createTrip(ARRAY(SELECT ROW(s.linestring, s.maxspeed, s.category)
+      FROM unnest(edges) WITH ORDINALITY AS s(linestring, maxspeed, category, n)
+      ORDER BY s.n),
+    startTime, disturbData, messages);
 END;
 $$ LANGUAGE plpgsql STRICT;
 
