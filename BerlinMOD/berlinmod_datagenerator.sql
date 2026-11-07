@@ -523,7 +523,7 @@ BEGIN
       IF seg < noSegs THEN
         p3 = points[seg + 2];
         -- Compute the angle α between the current segment and the next one;
-        alpha = degrees(ST_Angle(p1, p2, p3));
+        alpha = degrees(ST_Angle(p1, p2, p2, p3));
         -- Compute the maximum speed at the turn by multiplying the
         -- maximum speed by a factor proportional to the angle so that
         -- the factor is 1.00 at 0/360° and is 0.0 at 180°, e.g.

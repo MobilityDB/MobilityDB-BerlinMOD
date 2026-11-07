@@ -686,7 +686,7 @@ BEGIN
       -- and the maximum speed at the turn depending on this angle
       IF j &lt; noSegs THEN
         p3 = points[j + 2];
-        alpha = degrees(ST_Angle(p1, p2, p3));
+        alpha = degrees(ST_Angle(p1, p2, p2, p3));
         IF abs(mod(alpha::numeric, 360.0)) &lt; P_EPSILON THEN
           maxSpeedTurn = maxSpeedEdge;
         ELSE
