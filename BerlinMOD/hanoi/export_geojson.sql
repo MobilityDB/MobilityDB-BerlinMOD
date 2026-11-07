@@ -3,6 +3,9 @@
  * - Trips per day: trips_<date>.geojson
  * Geometry is a LineString with coordinates [lon, lat, 0, epoch_ts]
  *
+ * Author: Ngoc Hoa Pham (https://github.com/ngochoawindy), first published in
+ * https://github.com/MobilityDB/MobilityDB-BerlinMOD-Hanoi
+ *
  * Usage (psql):
  *   SELECT export_trips('/tmp/trips_kepler/', 'YYYY-MM-DD');
  *   SELECT export_municipalities('/tmp/');

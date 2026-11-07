@@ -10,6 +10,11 @@ the population and the number of enterprises of the 30 districts of Hanoi, and
 [Kepler.gl](https://kepler.gl/). The trips can also be shown in QGIS with the
 [MOVE plugin](https://github.com/MobilityDB/move).
 
+**Authors.** The base map of Hanoi, its preparation script, the GeoJSON export,
+the figures and the generated datasets below are the work of
+[Ngoc Hoa Pham](https://github.com/ngochoawindy), first published in the
+repository [MobilityDB-BerlinMOD-Hanoi](https://github.com/MobilityDB/MobilityDB-BerlinMOD-Hanoi).
+
 - Trips in Kepler.gl:
 
   <img src="https://github.com/user-attachments/assets/5076f49c-63a9-42be-a5b6-c6c2dd11b785" width="800"/>
