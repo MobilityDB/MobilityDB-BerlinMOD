@@ -702,15 +702,10 @@ BEGIN
       noFracs = ceiling(segLength / P_EVENT_LENGTH);
       -- Loop for every fraction
       k = 1;
-      WHILE k &lt; noFracs LOOP
+      WHILE k &lt;= noFracs LOOP
         -- If the current speed is zero, apply an acceleration event
         IF curSpeed &lt;= P_EPSILON_SPEED THEN
-          -- If we are not approaching a turn
-          IF k &lt; noFracs THEN
-            curSpeed = least(P_EVENT_ACC, maxSpeedEdge);
-          ELSE
-            curSpeed = least(P_EVENT_ACC, maxSpeedTurn);
-          END IF;
+          curSpeed = least(P_EVENT_ACC, maxSpeedEdge);
         ELSE
           -- If the current speed is not zero, apply a deceleration or a stop event
           -- with a probability proportional to the maximun speed
