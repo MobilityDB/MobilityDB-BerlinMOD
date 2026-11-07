@@ -66,14 +66,17 @@ osm2pgsql -c -d berlinmod brussels.osm
 Prepare the road network graph:
 
 ```bash
-psql -d berlinmod -f BerlinMOD/brussels_preparedata.sql
+psql -d berlinmod -f BerlinMOD/brussels/brussels_preparedata.sql
 ```
 
 Alternatively, use the optimized graph builder:
 
 ```bash
-psql -d berlinmod -f BerlinMOD/brussels_creategraph.sql
+psql -d berlinmod -f BerlinMOD/brussels/brussels_creategraph.sql
 ```
+
+The base map of Hanoi (Vietnam) is prepared in the same way by the files of
+`BerlinMOD/hanoi`, whose README gives the steps.
 
 ## 3. Using
 
@@ -244,8 +247,13 @@ MobilityDB-BerlinMOD/
 │   ├── berlinmod_nn_queries.sql         # BerlinMOD/NN nearest-neighbor queries
 │   ├── berlinmod_d_vehicleid.sql        # Citus distribution by vehicle ID
 │   ├── berlinmod_runall.sh              # Shell script to run all steps
-│   ├── brussels_preparedata.sql         # Prepare Brussels road network
-│   └── brussels_creategraph.sql         # Optimized graph builder
+│   ├── brussels/                        # Base map of Brussels
+│   │   ├── brussels_preparedata.sql     # Prepare Brussels road network
+│   │   ├── brussels_creategraph.sql     # Optimized graph builder
+│   │   └── brussels.xlsx                # Statistics of the municipalities
+│   └── hanoi/                           # Base map of Hanoi, see its README
+│       ├── hanoi_preparedata.sql        # Prepare Hanoi road network
+│       └── export_geojson.sql           # Export trips and districts for Kepler.gl
 ├── docs/                                # DocBook documentation source
 ├── docker/                              # Docker setup files
 └── README.md

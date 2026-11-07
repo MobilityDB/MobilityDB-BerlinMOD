@@ -13,10 +13,11 @@ berlinmod_datagenerator.sql located in the same directory as the
 current file.
 
 The generator needs the underlying road network topology. The file
-brussels_preparedata.sql in the same directory can be used to create the
-road network for Brussels constructed from OSM data by osm2pgrouting.
-Alternatively, an optimized version of the graph can be constructed with the
-file brussels_creategraph.sql that creates the graph from OSM data using SQL.
+brussels/brussels_preparedata.sql can be used to create the road network for
+Brussels constructed from OSM data by osm2pgrouting. Alternatively, an
+optimized version of the graph can be constructed with the file
+brussels/brussels_creategraph.sql that creates the graph from OSM data using
+SQL.
 
 You can change parameters in the various functions of this file.
 Usually, changing the master parameter 'P_SCALE_FACTOR' should do it.

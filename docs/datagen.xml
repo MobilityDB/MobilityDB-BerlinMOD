@@ -126,12 +126,12 @@ osm2pgrouting -h localhost -p 5432 -U dbowner -W passwd -f brussels.osm --dbname
 		<emphasis>Secondly, prepare the base data for the simulation.</emphasis> Now, the street network is ready in the database. The simulation scenario requires to sample home and work locations. To make it realistic, we want to load a map of the administrative regions of Brussels (called communes) and feed the simulator with real population and employment statistics in every commune.
 		</para>
 		<para>
-			Load the administrative regions from the downloaded <varname>brussels.osm</varname> file, then run the <varname>brussels_generatedata.sql</varname> script using your PostgreSQL client, for example:
+			Load the administrative regions from the downloaded <varname>brussels.osm</varname> file, then run the <varname>brussels/brussels_preparedata.sql</varname> script using your PostgreSQL client, for example:
 			<programlisting language="bash" xml:space="preserve">
 osm2pgsql -c -H localhost -P 5432 -U dbowner -W -d brussels brussels.osm
 # loads all layers in the osm file, including the adminstrative regions 
 
-psql -h localhost -p 5432 -U dbowner -d brussels -f brussels_preparedata.sql
+psql -h localhost -p 5432 -U dbowner -d brussels -f brussels/brussels_preparedata.sql
 # samples home and work nodes, transforms data to SRID 3857, does further data preparation
 
 psql -h localhost -p 5432 -U dbowner -d brussels -f berlinmod_datagenerator.sql
