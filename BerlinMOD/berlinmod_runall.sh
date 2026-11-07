@@ -32,7 +32,7 @@ osm2pgsql -c -H $host -P $port -U $dbowner -d $database ./brussels.osm
 # pg_dump -h localhost -p 5433 -U $dbowner -W -F t brussels > brussels.tar
 # pg_restore --dbname=$database --create --verbose ./brussels.tar
 
-psql -h $host -p $port -U $dbowner -d $database -f ./brussels_preparedata.sql
+psql -h $host -p $port -U $dbowner -d $database -f ./brussels/brussels_preparedata.sql
 psql -h $host -p $port -U $dbowner -d $database -f ./berlinmod_datagenerator.sql
 psql -h $host -p $port -U $dbowner -d $database -c 'select berlinmod_generate(scaleFactor := '$scalefactor')'
 # psql -h $host -p $port -U $dbowner -d $database -f ./tests.sql
