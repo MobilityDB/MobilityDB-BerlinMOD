@@ -1,5 +1,7 @@
 -------------------------------------------------------------------------------
--- Prepare the BerlinMOD generator using the OSM data from Brussels
+-- Prepare the BerlinMOD generator using the OSM data from Hanoi
+-- Author: Ngoc Hoa Pham (https://github.com/ngochoawindy), first published in
+-- https://github.com/MobilityDB/MobilityDB-BerlinMOD-Hanoi
 -------------------------------------------------------------------------------
  
 -- We need to convert the resulting data in Spherical Mercator (SRID = 3857)
