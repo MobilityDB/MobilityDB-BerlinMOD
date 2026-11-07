@@ -711,6 +711,23 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql STRICT;
 
+-- Creates the same trip as createTrip with the trip generator written in C
+-- in MobilityDB, which MobilityDB 1.4 names createTrip(record[], ...) and
+-- MobilityDB 1.3 names create_trip. The edges are cast to record[] so that
+-- createTrip resolves to the C function rather than to the function above.
+
+CREATE OR REPLACE FUNCTION createTripC(edges step[], startTime timestamptz,
+  disturbData boolean, messages text)
+RETURNS tgeompoint AS $$
+BEGIN
+  IF to_regprocedure('create_trip(record[], timestamptz, boolean, text)')
+      IS NOT NULL THEN
+    RETURN create_trip(edges, startTime, disturbData, messages);
+  END IF;
+  RETURN createTrip(edges::record[], startTime, disturbData, messages);
+END;
+$$ LANGUAGE plpgsql STRICT;
+
 /*
 WITH Temp(trip) AS (
   SELECT createTrip(createPath(34125, 44979, 'Fastest Path'), 
@@ -972,7 +989,7 @@ BEGIN
           RAISE INFO '    Home to work trip started at %', t;
         END IF;
         IF tripGeneration = 'C' THEN
-          trip = createTrip(homework::record[], t, disturbData, messages);
+          trip = createTripC(homework, t, disturbData, messages);
         ELSE
           trip = createTrip(homework, t, disturbData, messages);
         END IF;
@@ -988,7 +1005,7 @@ BEGIN
           RAISE INFO '    Work to home trip started at %', t;
         END IF;
         IF tripGeneration = 'C' THEN
-          trip = createTrip(workhome::record[], t, disturbData, messages);
+          trip = createTripC(workhome, t, disturbData, messages);
         ELSE
           trip = createTrip(workhome, t, disturbData, messages);
         END IF;
@@ -1059,7 +1076,7 @@ BEGIN
               targetN, t;
           END IF;
           IF tripGeneration = 'C' THEN
-            trip = createTrip(path::record[], t, disturbData, messages);
+            trip = createTripC(path, t, disturbData, messages);
           ELSE
             trip = createTrip(path, t, disturbData, messages);
           END IF;

@@ -182,7 +182,7 @@ BEGIN
             CONTINUE vehicles_loop;
           END IF;
           startTime = t;
-          trip = createTrip(path::record[], t, disturbData, messages);
+          trip = createTripC(path, t, disturbData, messages);
           IF trip IS NULL THEN
             RAISE INFO 'ERROR: A trip cannot be NULL';
             RAISE INFO '  The trip of vehicle % for day % is ignored', vehId,
