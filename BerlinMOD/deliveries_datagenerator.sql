@@ -67,10 +67,9 @@ In addition the following work tables are created
 
 -----------------------------------------------------------------------------*/
 
--- Type combining the elements needed to define a path in the graph
-
-DROP TYPE IF EXISTS step CASCADE;
-CREATE TYPE step as (linestring geometry, maxspeed float, category int);
+-- The type step, which combines the elements needed to define a path in the
+-- graph, is that of berlinmod_datagenerator.sql, whose createTripC generates the
+-- trips: declaring it again here would drop createTripC with it
 
 -- Generate the data for a given number vehicles and days starting at a day.
 -- The last two arguments correspond to the parameters P_PATH_MODE and
