@@ -921,10 +921,16 @@ $$ LANGUAGE plpgsql STRICT;
  */
 
 -- Generate the trips for a given number vehicles and days starting at a day.
--- The argument disturbData correspond to the parameter P_DISTURB_DATA
+-- The argument disturbData correspond to the parameter P_DISTURB_DATA.
+-- The trips of the vehicles fromVehicle to toVehicle are generated, toVehicle 0
+-- standing for noVehicles, so that a large scale factor is generated in several
+-- calls of one session; the call starting at the first vehicle creates the
+-- table Trips.
 
+DROP FUNCTION IF EXISTS berlinmod_createTrips(int, int, date, boolean, text, text);
 CREATE OR REPLACE FUNCTION berlinmod_createTrips(noVehicles int, noDays int,
-  startDay date, disturbData boolean, messages text, tripGeneration text)
+  startDay date, disturbData boolean, messages text, tripGeneration text,
+  fromVehicle int DEFAULT 1, toVehicle int DEFAULT 0)
 RETURNS void AS $$
 DECLARE
   -- Loops over the days for which we generate the data
@@ -955,12 +961,15 @@ BEGIN
   ELSE
     RAISE INFO 'Creation of the Trips table started at %', clock_timestamp();
   END IF;
-  DROP TABLE IF EXISTS Trips CASCADE;
-  CREATE TABLE Trips(TripId SERIAL PRIMARY KEY, VehicleId int, StartDate date,
-    SeqNo int, Trip tgeompoint, Trajectory geometry,
-    UNIQUE (VehicleId, StartDate, SeqNo));
+  IF fromVehicle = 1 THEN
+    DROP TABLE IF EXISTS Trips CASCADE;
+    CREATE TABLE Trips(TripId SERIAL PRIMARY KEY, VehicleId int, StartDate date,
+      SeqNo int, Trip tgeompoint, Trajectory geometry,
+      UNIQUE (VehicleId, StartDate, SeqNo));
+  END IF;
   -- Loop for each vehicle
-  FOR vehId IN 1..noVehicles LOOP
+  FOR vehId IN fromVehicle..CASE WHEN toVehicle = 0 THEN noVehicles
+      ELSE toVehicle END LOOP
     IF messages = 'medium' OR messages = 'verbose' THEN
       RAISE INFO '-- Vehicle %', vehId;
     ELSEIF vehId % 100 = 1 THEN
@@ -1107,13 +1116,24 @@ SELECT berlinmod_createTrips(2, 2, '2020-05-10', 'Fastest Path', false, 'C');
 -- Main Function
 -------------------------------------------------------------------------------
 
+-- The generation runs whole, or in the phases setup, paths, trips and finish,
+-- each a statement of its own in one session, so that no statement runs for
+-- long at a large scale factor. The setup records the parameters in the table
+-- GenerationParameters, which the later phases read, and berlinmod_phases gives
+-- the statements of the later phases. The random numbers are drawn in the same
+-- order either way, so that the phases generate the same data as one call.
+
+DROP FUNCTION IF EXISTS berlinmod_generate(float, int, int, date, text, text,
+  boolean, text, text, text);
 CREATE OR REPLACE FUNCTION berlinmod_generate(
   scaleFactor float DEFAULT NULL,
   noVehicles int DEFAULT NULL, noDays int DEFAULT NULL,
   startDay date DEFAULT NULL, pathMode text DEFAULT NULL,
   nodeChoice text DEFAULT NULL, disturbData boolean DEFAULT NULL,
   messages text DEFAULT NULL, tripGeneration text DEFAULT NULL, 
-  indexType text DEFAULT NULL)
+  indexType text DEFAULT NULL, phase text DEFAULT NULL,
+  fromCall int DEFAULT NULL, toCall int DEFAULT NULL,
+  fromVehicle int DEFAULT NULL, toVehicle int DEFAULT NULL)
 RETURNS text LANGUAGE plpgsql AS $$
 DECLARE
   ----------------------------------------------------------------------
@@ -1274,9 +1294,29 @@ BEGIN
   RAISE INFO 'Execution started at %', startTime;
   RAISE INFO '------------------------------------------------------------------';
 
+  IF phase IS NULL THEN
+    phase = 'all';
+  END IF;
+  IF phase NOT IN ('all', 'setup', 'paths', 'trips', 'finish') THEN
+    RAISE EXCEPTION 'Unknown phase %: the phases are all, setup, paths, trips, and finish',
+      phase;
+  END IF;
+  -- A phase after the setup takes the parameters the setup recorded
+  IF phase IN ('paths', 'trips', 'finish') THEN
+    SELECT p.ScaleFactor, p.NoVehicles, p.NoDays, p.StartDay, p.PathMode,
+      p.DisturbData, p.Messages, p.TripGeneration, p.IndexType, p.StartTime
+    INTO scaleFactor, noVehicles, noDays, startDay, pathMode, disturbData,
+      messages, tripGeneration, indexType, startTime
+    FROM GenerationParameters p;
+    RAISE INFO 'Phase %, with the parameters of the setup started at %',
+      phase, startTime;
+  END IF;
+
   -------------------------------------------------------------------------
   --  Creating the base data
   -------------------------------------------------------------------------
+
+  IF phase IN ('all', 'setup') THEN
 
   -- Set the seed so that the random function will return a repeatable
   -- sequence of random numbers that is derived from the P_RANDOM_SEED.
@@ -1563,15 +1603,29 @@ BEGIN
   -- Build indexes to speed up processing
   CREATE INDEX Destinations_vehicleId_idx ON Destinations USING btree(VehicleId);
 
+  -- Record the parameters for the phases that follow in the same session
+  DROP TABLE IF EXISTS GenerationParameters;
+  CREATE TABLE GenerationParameters AS
+  SELECT scaleFactor AS ScaleFactor, noVehicles AS NoVehicles, noDays AS NoDays,
+    startDay AS StartDay, pathMode AS PathMode, disturbData AS DisturbData,
+    messages AS Messages, tripGeneration AS TripGeneration,
+    indexType AS IndexType, startTime AS StartTime,
+    P_PGROUTING_BATCH_SIZE AS PgRoutingBatchSize;
+
+  END IF;
+
   -------------------------------------------------------------------------
   -- Call pgRouting to generate the paths
   -------------------------------------------------------------------------
+
+  IF phase IN ('all', 'paths') THEN
 
   IF messages = 'minimal' THEN
     RAISE INFO 'Creating table Paths';
   ELSE
     RAISE INFO 'Creation of the Paths table started at %', clock_timestamp();
   END IF;
+  IF coalesce(fromCall, 1) = 1 THEN
   DROP TABLE IF EXISTS Paths CASCADE;
   CREATE TABLE Paths(
     -- This attribute is needed for partitioning the table for big scale factors
@@ -1581,6 +1635,7 @@ BEGIN
     -- The following attributes are filled in the subsequent update
     Geom geometry NOT NULL, Speed float NOT NULL, Category int NOT NULL,
     PRIMARY KEY (VehicleId, StartNode, EndNode, SeqNo));
+  END IF;
 
   -- Select query sent to pgRouting
   IF pathMode = 'Fastest Path' THEN
@@ -1608,7 +1663,7 @@ BEGIN
   END IF;
 
   startPgr = clock_timestamp();
-  FOR c IN 1..noCalls LOOP
+  FOR c IN coalesce(fromCall, 1)..coalesce(toCall, noCalls) LOOP
     query2_pgr = format('SELECT DISTINCT SourceNode AS source, TargetNode AS target '
       'FROM Destinations ORDER BY SourceNode, TargetNode LIMIT %s OFFSET %s',
       P_PGROUTING_BATCH_SIZE, (c - 1) * P_PGROUTING_BATCH_SIZE);
@@ -1639,22 +1694,30 @@ BEGIN
       IF noCalls = 1 THEN
         RAISE INFO '  Call ended at %', clock_timestamp();
       ELSE
-        RAISE INFO '  Call number % ended at %', i, clock_timestamp();
+        RAISE INFO '  Call number % ended at %', c, clock_timestamp();
       END IF;
     END IF;
   END LOOP;
   EndTimegr = clock_timestamp();
 
-  -- Build index to speed up processing
-  CREATE INDEX Paths_vehicle_start_vid_end_vid_idx ON Paths
-    USING btree(VehicleId, StartNode, EndNode);
+  -- Build index to speed up processing, once the last call is done
+  IF coalesce(toCall, noCalls) >= noCalls THEN
+    CREATE INDEX Paths_vehicle_start_vid_end_vid_idx ON Paths
+      USING btree(VehicleId, StartNode, EndNode);
+  END IF;
+
+  END IF;
 
   -------------------------------------------------------------------------
   -- Generate the trips
   -------------------------------------------------------------------------
 
-  PERFORM berlinmod_createTrips(noVehicles, noDays, startDay, disturbData,
-    messages, tripGeneration);
+  IF phase IN ('all', 'trips') THEN
+    PERFORM berlinmod_createTrips(noVehicles, noDays, startDay, disturbData,
+      messages, tripGeneration, coalesce(fromVehicle, 1), coalesce(toVehicle, 0));
+  END IF;
+
+  IF phase IN ('all', 'finish') THEN
 
   RAISE NOTICE 'Creating indexes on table Trips';
   CREATE INDEX IF NOT EXISTS Trips_VehicleId_idx ON Trips USING btree(VehicleId);
@@ -1688,14 +1751,48 @@ BEGIN
   RAISE INFO 'Execution started at %', startTime;
   RAISE INFO 'Execution finished at %', endTime;
   RAISE INFO 'Execution time %', endTime - startTime;
-  RAISE INFO 'Call to pgRouting with % paths lasted %',
-    noPaths, EndTimegr - startPgr;
+  IF phase = 'all' THEN
+    RAISE INFO 'Call to pgRouting with % paths lasted %',
+      noPaths, EndTimegr - startPgr;
+  END IF;
   RAISE INFO 'Number of trips generated %', noTrips;
   RAISE INFO '------------------------------------------------------------------';
 
   -------------------------------------------------------------------
 
+  END IF;
+
   return 'THE END';
+END; $$;
+
+-- The statements of the phases that follow the setup of berlinmod_generate, one
+-- call of pgRouting and vehiclesPerBatch vehicles at a time, to be run in the
+-- session of the setup, for example with the command \gexec of psql:
+--   SELECT berlinmod_generate(scaleFactor := 1.0, phase := 'setup');
+--   SELECT berlinmod_phases(vehiclesPerBatch := 100) \gexec
+
+CREATE OR REPLACE FUNCTION berlinmod_phases(vehiclesPerBatch int DEFAULT 100)
+RETURNS SETOF text LANGUAGE plpgsql AS $$
+DECLARE
+  noVehicles int; batchSize int; noPaths int; noCalls int; c int; v int;
+BEGIN
+  SELECT p.NoVehicles, p.PgRoutingBatchSize INTO noVehicles, batchSize
+  FROM GenerationParameters p;
+  SELECT COUNT(*) INTO noPaths
+  FROM (SELECT DISTINCT SourceNode, TargetNode FROM Destinations) AS t;
+  noCalls = ceiling(noPaths / batchSize::float);
+  FOR c IN 1..noCalls LOOP
+    RETURN NEXT format('SELECT berlinmod_generate(phase := %L, fromCall := %s, '
+      'toCall := %s)', 'paths', c, c);
+  END LOOP;
+  v = 1;
+  WHILE v <= noVehicles LOOP
+    RETURN NEXT format('SELECT berlinmod_generate(phase := %L, fromVehicle := %s, '
+      'toVehicle := %s)', 'trips', v, least(v + vehiclesPerBatch - 1, noVehicles));
+    v = v + vehiclesPerBatch;
+  END LOOP;
+  RETURN NEXT format('SELECT berlinmod_generate(phase := %L)', 'finish');
+  RETURN;
 END; $$;
 
 /*

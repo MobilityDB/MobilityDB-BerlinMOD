@@ -89,6 +89,26 @@ Load the data generator and call it with a scale factor:
 SELECT berlinmod_generate(scaleFactor := 0.005);
 ```
 
+At a large scale factor the generation runs in phases, each a statement of its
+own in one session, so that no statement runs for long and a statement timeout
+does not cut it: the setup, one call of pgRouting at a time, the trips of
+`vehiclesPerBatch` vehicles at a time, and the indexes. The phases generate the
+same data as one call:
+
+```sql
+SELECT berlinmod_generate(scaleFactor := 1.0, phase := 'setup');
+SELECT berlinmod_phases(vehiclesPerBatch := 100) \gexec
+```
+
+The deliveries are generated in phases in the same way, `daysPerBatch` days at
+a time, and `pgrBatchSize` sets the number of paths of a call of pgRouting:
+
+```sql
+SELECT deliveries_datagenerator(scaleFactor := 1.0, phase := 'setup',
+  pgrBatchSize := 25000);
+SELECT deliveries_phases(daysPerBatch := 1) \gexec
+```
+
 **Generate Deliveries synthetic data:**
 
 ```sql
